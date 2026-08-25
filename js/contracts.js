@@ -1742,6 +1742,7 @@ function deleteFromDone(event, id){
   const label = (c.property||'') + (c.contractor ? '(' + c.contractor + ')' : '');
   if(!confirm('この完了済み契約を削除しますか?\n' + label + '\n\n※削除すると元に戻せません。')) return;
   delete all[id];
+  deleteFromCloud(id);
   saveAll(all);
   renderDoneList();
   renderAll();
@@ -1754,7 +1755,7 @@ function deleteSelectedDone(){
   if(ids.length === 0){ toast('削除する契約を選択してください'); return; }
   if(!confirm('選択した ' + ids.length + '件 の完了済み契約を削除しますか?\n※削除すると元に戻せません。')) return;
   const all = loadAll();
-  ids.forEach(id => { delete all[id]; });
+  ids.forEach(id => { delete all[id]; deleteFromCloud(id); });
   saveAll(all);
   renderDoneList();
   renderAll();
@@ -3062,6 +3063,7 @@ function deleteContract(){
   if(!_editingId) return;
   if(!confirm('この契約を削除しますか?')) return;
   const all = loadAll();
+  deleteFromCloud(_editingId);
   delete all[_editingId];
   saveAll(all);
   toast('削除しました');
@@ -3070,22 +3072,31 @@ function deleteContract(){
 }
 // 一覧カードの右上「×」から契約を削除する
 function deleteCardContract(event, id){
-  if(event){ try{ event.stopPropagation(); }catch(e){} }
-  if(!id) return;
-  const all = loadAll();
-  const c = all[id];
-  const label = c ? ((c.property||'') + (c.contractor ? '(' + c.contractor + ')' : '')) : '';
-  if(!confirm('この契約を削除しますか?\n' + label)) return;
-  // 紐づいた駐車場予約も自動で解除(この契約の予約だけ。他人の予約は残す)
+    if(event){ try{ event.stopPropagation(); }catch(e){} }
+    if(!id) return;
+    const all = loadAll();
+    const c = all[id];
+    const label = c ? ((c.property||'') + (c.contractor ? '（' + c.contractor + '）' : '')) : '';
+    if(!confirm('この契約を削除しますか?\n' + label)) return;
+    // 紐づいた駐車場予約も自動で解除(この契約の予約だけ。他人の予約は残す)
+    try{
+      if(c && typeof window.PV_unlinkReservation === 'function'){
+        window.PV_unlinkReservation({ contractor: c.contractor, carContractor: c.carContractor, srcKey: c.id, property: c.property });
+      }
+    }catch(e){}
+    delete all[id];
+    deleteFromCloud(id);
+    saveAll(all);
+    toast('削除しました');
+    renderAll();
+  }
+  // クラウドから契約を1件削除
+function deleteFromCloud(id){
   try{
-    if(c && typeof window.PV_unlinkReservation === 'function'){
-      window.PV_unlinkReservation({ contractor: c.contractor, carContractor: c.carContractor, srcKey: c.id, property: c.property, parking: c.parking });
-    }
+    const url = (localStorage.getItem('pivot_cloud_url')||'').trim();
+    if(!url || !id) return;
+    fetch(url, { method:'POST', body: JSON.stringify({ action:'deleteContract', id: id }) });
   }catch(e){}
-  delete all[id];
-  saveAll(all);
-  toast('削除しました');
-  renderAll();
 }
 function toast(m){
   const el = document.getElementById('kb-toast');
