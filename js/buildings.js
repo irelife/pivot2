@@ -4903,4 +4903,4 @@ function csvImport(){
     showToast('✅ 登録完了: ' + name + ' (' + spots.length + '区画)');
   }
 }
-
+document.addEventListener('pivot:toast', e => showToast(e.detail));
