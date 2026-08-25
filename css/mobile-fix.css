@@ -1,0 +1,46 @@
+@media (max-width: 760px){
+
+  /* --- 整列パネル ------------------------------------------------
+     もともと右端そろえ(right:0)のため、ボタンより左へ開いて
+     画面外にはみ出していました。左端そろえに変えて幅を画面内に収めます。
+     ※既存の同種の指定は #kb-view 配下向けで、このパネルには当たっていません。 */
+  .kb-toolbar .sort-dropdown{
+    right: auto !important;
+    left: 0 !important;
+    min-width: 190px !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: 70vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* --- 完了モーダル ---------------------------------------------- */
+  #kb-view .done-modal{ width: 96vw; max-height: 88vh; }
+  #kb-view .done-head{ padding: 14px; }
+  #kb-view .done-head h2{ font-size: 16px; }
+  #kb-view .done-body{ padding: 12px; }
+
+  /* 1行に詰め込まず2段に折り返します。
+     これで物件名が1文字ずつ縦に並ぶのを防ぎます。 */
+  #kb-view .done-item{
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 12px;
+  }
+  #kb-view .done-item .di-check{ order: 0; margin-right: 0 !important; }
+  #kb-view .done-item .di-main{
+    order: 1;
+    flex: 1 1 calc(100% - 34px);
+    min-width: 0;
+  }
+  #kb-view .done-item .di-title,
+  #kb-view .done-item .di-sub{
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+  /* 日付とボタンは2段目へ。削除まで横スクロールなしで届きます。 */
+  #kb-view .done-item .di-date{ order: 2; flex: 1 1 auto; }
+  #kb-view .done-item .di-back{ order: 3; flex: 0 0 auto; }
+  #kb-view .done-item .di-del{ order: 4; flex: 0 0 auto; margin-left: 0 !important; }
+}

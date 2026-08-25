@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<title>PIVOT</title>
+<!-- つなぎ先を先に用意しておく（名前解決と接続の待ち時間を減らす） -->
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+
+<!-- Owner Mail(家賃明細送信)用 PDFライブラリ
+     defer を付けて後回しにする。合計1MB以上あり、これを待つ間ずっと画面が真っ白だった。
+     使うのは家賃明細の書き出しのときだけなので、先に読み込む必要がない。 -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<!-- ===== ホーム画面アプリ(iPhone/iPad)設定 ===== -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PIVOT">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#111111">
+<!-- アプリアイコン(SVGを直接埋め込み。黒地に白の P) -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23111111'/%3E%3Ctext x='50%25' y='52%25' dominant-baseline='central' text-anchor='middle' font-family='Helvetica,Arial,sans-serif' font-size='96' font-weight='900' fill='%23ffffff' letter-spacing='2'%3EP%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111111'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='central' text-anchor='middle' font-family='Helvetica,Arial,sans-serif' font-size='38' font-weight='900' fill='%23ffffff'%3EP%3C/text%3E%3C/svg%3E">
+<!-- Webアプリ マニフェスト(Androidや一部ブラウザ用。data URLで埋め込み) -->
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22PIVOT%22%2C%22short_name%22%3A%22PIVOT%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23ffffff%22%2C%22theme_color%22%3A%22%23111111%22%2C%22start_url%22%3A%22.%22%7D">
+
+<link rel="stylesheet" href="css/base.css">
+<!-- ============================================================
+     スマホ表示の修正  pv-mobile-2026-08-16a
+     ・整列パネルが画面外へ出る
+     ・完了モーダルの文字が縦になる／削除ボタンが横スクロールしないと出ない
+     既存の指定は書き換えず、この1枚を後ろに足して上書きしています。
+     ============================================================ -->
+<link rel="stylesheet" href="css/mobile-fix.css">
+
+<!-- ============================================================
+     Apple風・都会的な洗練  pv-refine-2026-08-22a
+
+     もともと Contract(契約管理)の画面だけが Apple 系の配色
+     (#007aff / #f2f2f7 / SF Pro) で作られていました。
+     その語彙を Property と Owner Mail にも広げて、3画面の
+     見た目をそろえています。
+
+     ・太い黒枠(1〜2px の #000)を、髪の毛のような細い線に
+     ・角のない箱を、12〜18px の丸みに
+     ・黒地に反転するホバーを、うっすら沈むだけの動きに
+     ・900/800 の極太文字を 600/700 に
+     ・大文字化と文字間隔の広げすぎをやめる
+
+     既存の指定は書き換えず、この1枚を後ろに足して上書きしています。
+     戻したいときは、この <style> ごと削除してください。
+     ============================================================ -->
+<link rel="stylesheet" href="css/refine.css">
+
+</head>
+<body>
+
+<!-- ===== 統合タブバー ===== -->
+<div class="app-tabs">
+  <span class="app-pivot-logo" onclick="goToTop()" title="PIVOTトップへ">PIVOT</span>
+  <span id="sync-status" style="display:none;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;background:#f0f0f3;color:#555;margin-left:6px;white-space:nowrap;" title="クラウド同期の状態"></span>
+  <button class="app-tab active" id="tab-pivot" onclick="switchApp('pivot')">Property</button>
+  <button class="app-tab" id="tab-kanban" onclick="switchApp('kanban')">Contract</button>
+  <button class="app-tab" id="tab-rent" onclick="switchApp('rent')">Owner Mail</button>
+  <!-- 契約管理のツールバー(タブバー内・契約管理タブ表示時のみ) -->
+  <div class="kb-toolbar" id="kb-toolbar">
+    <input type="text" id="kb-search" class="search-input" placeholder="物件名・契約者で検索" oninput="KB.renderAll()">
+    <div class="sort-menu" id="sort-menu">
+      <button class="btn-sort" id="btn-sort" onclick="KB.cycleSortNone()">整列</button>
+      <div class="sort-dropdown">
+        <button class="sort-opt" data-mode="kana"   onclick="KB.setSortMode('kana')">五十音順</button>
+        <button class="sort-opt" data-mode="defect" onclick="KB.setSortMode('defect')">不備順</button>
+        <button class="sort-opt" data-mode="cdate"  onclick="KB.setSortMode('cdate')">契約日順(昇順)</button>
+        <button class="sort-opt" data-mode="manual" onclick="KB.setSortMode('manual')">手動(解除)</button>
+        <div class="sort-filter">
+          <label class="sort-filter-label">不備で絞り込み</label>
+          <input type="text" id="defect-filter" class="sort-filter-input" placeholder="例: 火災保険 / 契約者" oninput="KB.onDefectFilter(this.value)">
+          <div class="sort-filter-hint">入力した項目が未入力のカードだけ表示</div>
+        </div>
+      </div>
+    </div>
+    <button class="btn-sort" id="btn-view" onclick="KB.toggleViewMode()">一覧表示</button>
+    <button class="btn-primary" onclick="KB.openSheet()">＋ 新規</button>
+  </div>
+  <div class="settings-wrap" id="logout-wrap" style="display:none;margin-left:auto;">
+    <button class="btn btn-outline btn-sm settings-gear" onclick="pivotLogout()" title="ログアウト" aria-label="ログアウト">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;vertical-align:middle;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      <span class="settings-gear-label">ログアウト</span>
+    </button>
+  </div>
+  <div class="settings-wrap" style="margin-left:0;">
+    <button class="btn btn-outline btn-sm settings-gear" onclick="toggleSettingsMenu(event)" title="設定メニュー" aria-label="設定">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;vertical-align:middle;"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>
+      <span class="settings-gear-label">設定</span>
+    </button>
+    <div class="settings-menu" id="settings-menu">
+      <button onclick="closeSettingsMenu();openCompanyModal()">会社情報</button>
+      <button onclick="closeSettingsMenu();openCloudModal()" id="cloud-btn">クラウド同期</button>
+      <button onclick="closeSettingsMenu();runAutoSwitch(true)">自動切替</button>
+      <button onclick="closeSettingsMenu();downloadBackup()">バックアップ</button>
+      <button onclick="closeSettingsMenu();document.getElementById('restoreFile').click()">復元</button>
+      <button onclick="closeSettingsMenu();restoreEmergencyBackup()" style="color:#c0392b">🆘 緊急復元(直前に戻す)</button>
+      <button onclick="closeSettingsMenu();openImgDiagModal()">画像チェック</button>
+      <div class="settings-menu-sep"></div>
+      <button onclick="closeSettingsMenu();openCsvImportModal()" class="settings-menu-primary">CSV一括インポート</button>
+      <div class="settings-menu-sep"></div>
+      <button onclick="closeSettingsMenu();pivotLogout()">🔓 ログアウト</button>
+    </div>
+  </div>
+  <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restoreBackup(event)">
+</div>
+
+
+<div id="pivot-view">
+
+<!-- 通知バナー -->
+<div id="notice-bar" class="notice-bar" style="display:none;">
+  <span id="notice-msg"></span>
+  <button onclick="closeNotice()" class="notice-close" title="閉じる">×</button>
+</div>
+
+<div class="container">
+
+  <!-- ツールバー -->
+  <div class="toolbar">
+    <input type="search" class="search" placeholder="🔍 物件名・住所で検索" id="search" oninput="renderList()">
+    <button class="btn" onclick="openModal()">+ 物件を追加</button>
+  </div>
+
+  <!-- 物件リスト -->
+  <div class="bld-list" id="list"></div>
+
+</div>
+
+</div><!-- /#pivot-view -->
+
+<div id="kb-view">
+
+<div class="stats-bar" id="stats-bar"></div>
+<div class="broker-stat-bar">
+  <button class="broker-stat-btn" onclick="KB.openBrokerStats()"><span class="bs-ico">📊</span>客付業者ランキング</button>
+</div>
+<div class="hint">💡 契約をアイコンで一覧表示しています。アイコンにカーソルを合わせると編集画面が開きます。進捗バーで現在のステージがわかります。</div>
+
+<div class="board-wrap">
+  <div class="board" id="board"></div>
+</div>
+
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-grabber"></div>
+  <div class="sheet-header">
+    <h2 id="sheet-title">新規契約</h2>
+    <button class="sheet-close" onclick="KB.closeSheet()">×</button>
+  </div>
+  <div class="sheet-body">
+    <div class="sheet-section">
+      <h3 id="basic-info-heading">基本情報</h3>
+      <!-- 実際の入力欄(非表示・データ保持用) -->
+      <div class="hidden-fields" style="display:none;">
+        <input type="text" id="f-property">
+        <input type="text" id="f-tou">
+        <input type="text" id="f-room">
+        <input type="text" id="f-parking" oninput="KB.renderSheetItemSummary()">
+        <input type="text" id="f-parkingPrice">
+        <input type="text" id="f-contractor">
+        <input type="text" id="f-carContractor">
+        <input type="text" id="f-corpRep">
+        <input type="text" id="f-corpDept">
+        <input type="text" id="f-agent">
+        <input type="text" id="f-broker">
+        <input type="text" id="f-staff">
+        <div class="seg seg-compact" id="type-seg">
+          <button type="button" class="active" data-type="個人" onclick="KB.switchType('個人')">個人</button>
+          <button type="button" data-type="法人" onclick="KB.switchType('法人')">法人</button>
+        </div>
+      </div>
+      <!-- 日付入力(カレンダー直接オープン用に画面外へ配置) -->
+      <div style="position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;">
+        <input type="date" id="f-applyDate" onchange="KB.renderInfoIcons();autoSave()">
+        <input type="date" id="f-contractDate" onchange="KB.onContractDateChange();renderInfoIcons();autoSave()" oninput="KB.onContractDateChange()">
+      </div>
+      <!-- アイコン式フィールド(クリックで入力) -->
+      <div class="info-icons" id="info-icons"></div>
+      <div style="margin-top:10px; display:grid; grid-template-columns:1fr 2fr 1fr 1fr 1fr 1fr 1fr; gap:7px;">
+        <button class="btn-link-spot" id="btn-link-spot" onclick="KB.linkCurrentToSpot()" title="物件管理の該当区画の予約欄に予約中として登録します" style="grid-column:7; width:100%; padding-left:0; padding-right:0; text-align:center;">🅿 紐づけ</button>
+      </div>
+      <div class="info-hint">💡 アイコンをクリックすると入力できます(契約者種別はクリックで切替)</div>
+    </div>
+
+    <div class="sheet-section">
+      <h3>🎒 獲得アイテム</h3>
+      <div id="sheet-item-summary" class="sheet-item-summary"></div>
+    </div>
+
+    <div class="sheet-section">
+      <h3>📝 備考（メモ）</h3>
+      <textarea id="f-memo" class="sheet-memo" rows="4"
+        placeholder="自由にメモを入力できます（例: 入居予定日、連絡事項、特記事項 など）"
+        oninput="autoSave()"></textarea>
+    </div>
+  </div>
+  <div class="sheet-footer">
+    <span class="autosave-note">✓ 自動保存されます</span>
+    <button class="btn-primary" onclick="KB.closeSheet()">閉じる</button>
+  </div>
+</div>
+
+<div id="kb-toast"></div>
+
+<!-- 入力ポップアップ(sheetの外=最前面に配置) -->
+<div class="info-popup-overlay" id="info-popup" onmousedown="window.__infoPopDownOnBg=(event.target===this)" onclick="if(event.target===this && window.__infoPopDownOnBg)closeInfoEdit(); window.__infoPopDownOnBg=false;">
+  <div class="info-popup-card" onclick="event.stopPropagation()">
+    <div class="info-popup-title" id="info-popup-title"></div>
+    <div id="info-popup-body"></div>
+    <div class="info-popup-actions"><button type="button" class="info-done-btn" onclick="KB.closeInfoEdit()">完了</button></div>
+  </div>
+</div>
+
+<!-- ホバー/タップで開く 中央ポップアップ(大きな詳細プレビュー) -->
+<div class="preview-backdrop" id="preview-backdrop"></div>
+<div class="preview-popup" id="preview-popup" role="dialog" aria-hidden="true"></div>
+
+<!-- 完了済み一覧モーダル -->
+<div class="done-backdrop" id="done-backdrop"></div>
+<div class="done-modal" id="done-modal" role="dialog" aria-hidden="true">
+  <div class="done-head">
+    <h2>✅ 完了済み契約</h2>
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <input type="text" id="done-year" inputmode="numeric" maxlength="4" placeholder="年 例)2026"
+        oninput="KB.renderDoneList()" title="完了した年で絞り込み(1月〜12月)。空欄で全期間"
+        style="width:110px; border:1px solid #d9d4c7; background:#fff; color:#333; font-size:13px; font-weight:700; padding:7px 12px; border-radius:999px; font-family:inherit; text-align:center;">
+      <button id="done-csv" onclick="KB.exportSelectedDoneCsv()" title="選択した契約をCSV出力"
+        style="border:none; background:#e6efe7; color:#3f6b4c; font-size:13px; font-weight:800; padding:8px 14px; border-radius:999px; cursor:pointer; font-family:inherit; white-space:nowrap;">⬇ CSV出力</button>
+      <button id="done-select-all" onclick="KB.toggleSelectAllDone()" title="すべて選択/解除"
+        style="border:none; background:#eef0f3; color:#333; font-size:13px; font-weight:800; padding:8px 14px; border-radius:999px; cursor:pointer; font-family:inherit; white-space:nowrap;">☑ 全選択</button>
+      <button id="done-del-selected" onclick="KB.deleteSelectedDone()" title="選択した契約を削除"
+        style="border:none; background:#fdecec; color:#d32f2f; font-size:13px; font-weight:800; padding:8px 16px; border-radius:999px; cursor:pointer; font-family:inherit; white-space:nowrap;">🗑 選択削除</button>
+      <button class="pv-close" onclick="KB.closeDoneModal()">×</button>
+    </div>
+  </div>
+  <div class="done-body" id="done-body"></div>
+</div>
+
+<div class="done-backdrop" id="bstat-backdrop"></div>
+<div class="done-modal" id="bstat-modal" role="dialog" aria-hidden="true">
+  <div class="done-head">
+    <h2>📊 客付業者 統計</h2>
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <input type="text" id="bstat-year" inputmode="numeric" maxlength="4" placeholder="年 例)2026"
+        oninput="KB.renderBrokerStats()" title="契約日の年で絞り込み。空欄で全期間"
+        style="width:100px; border:1px solid #d9d4c7; background:#fff; color:#333; font-size:13px; font-weight:700; padding:7px 12px; border-radius:999px; font-family:inherit; text-align:center;">
+      <button id="bstat-csv" onclick="KB.exportBrokerStatsCsv()" title="統計をCSV出力"
+        style="border:none; background:#e6efe7; color:#3f6b4c; font-size:13px; font-weight:800; padding:8px 14px; border-radius:999px; cursor:pointer; font-family:inherit; white-space:nowrap;">⬇ CSV出力</button>
+      <button id="bstat-pdf" onclick="KB.exportBrokerStatsPdf()" title="社長向けPDF資料を出力（①ランキング＋②掘り起こし）"
+        style="border:none; background:#1f3a5f; color:#fff; font-size:13px; font-weight:800; padding:8px 14px; border-radius:999px; cursor:pointer; font-family:inherit; white-space:nowrap;">📄 PDF資料</button>
+      <button class="pv-close" onclick="KB.closeBrokerStats()">×</button>
+    </div>
+  </div>
+  <div class="done-body" id="bstat-body"></div>
+</div>
+</div><!-- /#kb-view -->
+
+
+<div id="rent-view">
+<div class="wrap">
+  <h1>家賃明細 オーナー送信</h1>
+  <span class="tag">単体テスト版</span>
+  <span class="note">送信元: infoirelife@gmail.com　|　明細PDF → オーナー別に自動仕分け → 定型文作成</span>
+</div></header>
+
+<div class="wrap">
+  <div class="steps">
+    <div class="step"><h2><span class="n">1</span>オーナー登録</h2><p>物件名・オーナー名・メールを登録。手入力でも追加できます。</p></div>
+    <div class="step"><h2><span class="n">2</span>明細PDFを取込</h2><p>一枚つづりのPDFをアップ。建物ごとに自動分割し、オーナーへ紐づけます。</p></div>
+    <div class="step"><h2><span class="n">3</span>定型文を確認</h2><p>同じオーナーの複数物件は1通にまとめ、募集中・解約予定を本文に自動記載。</p></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-v="send" onclick="RENT.showView('send')">明細取込・送信</button>
+    <button class="tab" data-v="owners" onclick="RENT.showView('owners')">オーナー一覧</button>
+    <button class="tab" data-v="tmpl" onclick="RENT.showView('tmpl')">定型文</button>
+    <button class="tab" data-v="history" onclick="RENT.showView('history')">送信履歴</button>
+  </div>
+
+  <!-- ===== 送信ビュー ===== -->
+  <div class="view active" id="view-send">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <label class="drop" id="drop" style="flex:1;min-width:280px;">
+        <div class="ico">📄</div>
+        <div class="big">① 月額明細をドロップ / クリック</div>
+        <div class="sub">毎月の収支報告書PDF（複数ページ可）</div>
+        <input type="file" id="pdfInput" accept="application/pdf">
+      </label>
+      <label class="drop" id="dropYear" style="flex:1;min-width:280px;border-color:#ffb340;">
+        <div class="ico">📊</div>
+        <div class="big">② 年間収支表をドロップ / クリック（年1回・任意）</div>
+        <div class="sub">年間収支一覧表PDF（複数ページ可）</div>
+        <input type="file" id="pdfInputYear" accept="application/pdf">
+      </label>
+      <label class="drop" id="dropPay" style="flex:1;min-width:280px;border-color:#7fb3f5;">
+        <div class="ico">💳</div>
+        <div class="big">③ 振込明細をドロップ / クリック（IRE宛のみ添付）</div>
+        <div class="sub">振込明細PDF（asano@i-r-e.jp にだけ添付されます）</div>
+        <input type="file" id="pdfInputPay" accept="application/pdf">
+      </label>
+    </div>
+    <div class="pdfstat" id="pdfStat"></div>
+    <div class="pdfstat" id="pdfStatYear" style="color:#9a7b3a;"></div>
+    <div class="pdfstat" id="pdfStatPay" style="color:#3a6d9a;"></div>
+
+    <div class="bar">
+      <h2>送信プレビュー</h2>
+      <span class="spacer"></span>
+      <button class="btn btn-sm" onclick="RENT.expandAll(true)">すべて開く</button>
+      <button class="btn btn-sm" onclick="RENT.expandAll(false)">すべて閉じる</button>
+    </div>
+    <input type="text" id="searchBox" placeholder="🔍 オーナー名・物件名で検索（例: ルミエール / Turnkey）" oninput="RENT.renderPreview()"
+      style="font-family:inherit;font-size:.9rem;padding:11px 16px;border:1.5px solid var(--rt-accent);border-radius:10px;width:100%;margin-bottom:12px;background:#fff;">
+    <div class="note-box" id="matchNote" style="display:none;"></div>
+    <div id="rent-action-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--rt-soft);border:1px solid var(--rt-line);border-radius:10px;padding:10px 14px;margin-bottom:12px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:.82rem;font-weight:800;color:var(--rt-accent-d);cursor:pointer;">
+        <input type="checkbox" id="rent-check-all" onclick="RENT.toggleCheckAll(this.checked)" style="width:18px;height:18px;cursor:pointer;accent-color:var(--rt-accent);">
+        全選択
+      </label>
+      <span style="font-size:.78rem;color:var(--rt-muted);">（メール登録済みのみ）</span>
+      <span class="spacer" style="flex:1;"></span>
+      <button class="btn btn-sm btn-acc" id="rent-btn-draft" onclick="RENT.createDraftsForChecked()">📝 下書きを作成</button>
+      <button class="btn btn-sm" id="rent-btn-send" onclick="RENT.sendMailsForChecked()" style="background:#007aff;color:#fff;border-color:#007aff;">📤 一斉送信</button>
+      <span id="rent-action-status" style="font-size:.8rem;font-weight:700;color:var(--rt-accent-d);width:100%;"></span>
+    </div>
+    <div id="rent-exclude-note" style="display:none;font-size:.8rem;color:var(--rt-muted);background:#f3f0ee;border-radius:8px;padding:8px 12px;margin-bottom:10px;"></div>
+    <div class="preview" id="preview"><div class="empty">明細PDFを取り込むと、オーナーごとの送信内容がここに表示されます。</div></div>
+    <div id="rent-excluded-section" style="display:none;margin-top:18px;border:2px dashed #c8a96b;border-radius:10px;padding:12px 14px;background:#fdfaf3;">
+      <div style="font-weight:800;color:#8a6d2f;font-size:.92rem;margin-bottom:4px;">🔒 メール送信しないオーナー（別管理）</div>
+      <div style="font-size:.78rem;color:var(--rt-muted);margin-bottom:10px;">「除外」に指定したオーナーです。メールは送らず、明細PDFを共用Drive（社員全員が閲覧・蓄積可）に保存します。</div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+        <span style="font-size:.74rem;font-weight:700;color:#8a6d2f;">共用Drive連携URL:</span>
+        <input id="sophiaGasUrl" placeholder="GASウェブアプリのURL（/exec）" style="flex:1;min-width:220px;font-size:.74rem;padding:5px 8px;border:1px solid #d9c9a8;border-radius:6px;">
+        <button class="btn btn-sm" onclick="RENT.saveSophiaGasUrl()" style="background:#2c6e49;color:#fff;border-color:#2c6e49;">保存</button>
+        <span id="sophiaGasStat" style="font-size:.72rem;"></span>
+      </div>
+      <div id="excludedPreview"></div>
+    </div>
+  </div>
+
+  <!-- ===== オーナー一覧ビュー ===== -->
+  <div class="view" id="view-owners">
+    <div class="bar">
+      <h2>オーナー一覧</h2>
+      <span class="spacer"></span>
+      <button class="btn btn-sm" onclick="RENT.addOwnerRow()">＋ 手入力で追加</button>
+      <button class="btn btn-sm btn-warn" onclick="RENT.resetOwners()">初期データに戻す</button>
+      <span id="ownerSaveStat" style="font-size:.76rem;font-weight:700;color:var(--rt-accent);opacity:0;transition:opacity .3s;margin-left:6px;">✅ 自動保存しました</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="owners" id="ownerTable"></table>
+    </div>
+    <p style="font-size:.76rem;color:var(--rt-muted);margin-top:8px;">※ 宛名はメール冒頭の「〇〇 御中／様」に使われます。物件名で明細と照合します。</p>
+  </div>
+
+  <!-- ===== 定型文ビュー ===== -->
+  <div class="view" id="view-tmpl">
+    <div class="tmpl-area">
+      <div style="display:flex;align-items:center;margin-bottom:6px;">
+        <label style="margin:0;">件名テンプレート</label>
+        <span style="flex:1;"></span>
+        <button class="btn btn-sm btn-warn" onclick="RENT.resetTmpl()">定型文を初期に戻す</button>
+      </div>
+      <textarea id="tmplSubject" style="min-height:48px;" oninput="RENT.saveTmpl();RENT.renderPreview()"></textarea>
+      <label style="margin-top:14px;">本文テンプレート</label>
+      <textarea id="tmplBody" oninput="RENT.saveTmpl();RENT.renderPreview()"></textarea>
+      <div class="hint">差し込みタグ： {{宛名}} / {{オーナー名}} / {{対象月}} / {{物件一覧}} / {{送金合計}} / {{空き予定}} / {{送金日}}　※新規契約は{{空き予定}}内に自動で追記されます</div>
+    </div>
+  </div>
+  <div class="view" id="view-history">
+    <div class="bar">
+      <h2>送信履歴</h2>
+      <span class="spacer"></span>
+      <button class="btn btn-sm btn-acc" onclick="RENT.checkBounces()">⚠ 配信失敗を確認</button>
+      <button class="btn btn-sm btn-warn" onclick="RENT.clearHistory()">履歴を全消去</button>
+    </div>
+    <div style="font-size:.8rem;color:var(--rt-muted);margin-bottom:6px;">いつ・どの月分を・どのオーナーに送信したかの記録です（この端末に保存）。</div>
+    <div id="rent-history-status" style="font-size:.82rem;font-weight:700;color:var(--rt-accent-d);min-height:1.2em;margin-bottom:10px;"></div>
+    <div id="rent-history-body"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+</div><!-- /#rent-view -->
+
+
+<!-- モーダル(物件編集) -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span style="display:inline-flex;align-items:center;gap:14px;">
+        <span class="modal-home-logo" onclick="goToTop()" title="トップページへ戻る"
+          style="font-weight:800;font-size:20px;letter-spacing:1px;cursor:pointer;user-select:none;padding:4px 8px;border-radius:8px;transition:background 0.12s,transform 0.12s;">PIVOT</span>
+        <span class="modal-title" id="modal-title" style="display:none;"></span>
+        <button id="undo-btn" onclick="undoLastChange()" title="一つ前に戻る" disabled
+          style="width:46px;height:42px;border:1px solid #ddd;border-radius:9px;background:#fff;display:inline-flex;align-items:center;justify-content:center;padding:0;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="20" y1="12" x2="5" y2="12"/><polyline points="11 18 5 12 11 6"/></svg>
+        </button>
+        <button id="redo-btn" onclick="redoLastChange()" title="一つ先に進む" disabled
+          style="width:46px;height:42px;border:1px solid #ddd;border-radius:9px;background:#fff;display:inline-flex;align-items:center;justify-content:center;padding:0;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/></svg>
+        </button>
+        <button class="modal-tab-btn" onclick="closeModal();switchApp('pivot')">Property</button>
+        <button class="modal-tab-btn" onclick="closeModal();switchApp('kanban')">Contract</button>
+        <button class="modal-tab-btn" onclick="closeModal();switchApp('rent')">Owner Mail</button>
+      </span>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <!-- 物件基本情報 -->
+      <div class="form-row">
+        <div class="form-field" style="flex:2;">
+          <label>物件名 *</label>
+          <input type="text" id="f-name" placeholder="例: アシンプトートA 駐車場">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;max-width:140px;">
+          <label>郵便番号</label>
+          <input type="text" id="f-zip" placeholder="例: 721-0963" onchange="lookupZipForField('f-zip','f-addr')" oninput="onZipInput('f-zip','f-addr')">
+        </div>
+        <div class="form-field" style="flex:3;">
+          <label>住所(物件メイン)</label>
+          <input type="text" id="f-addr" placeholder="例: 広島県福山市〇〇1-2-3" oninput="onMainTouChange();markAddrManual('f-addr')">
+        </div>
+        <div class="form-field" style="max-width:120px;">
+          <label>棟ラベル(任意)</label>
+          <input type="text" id="f-main-tou" placeholder="例: A" oninput="onMainTouChange()" title="この住所に棟名を付ける場合に入力(例: A、北棟)">
+        </div>
+        <div class="form-field" style="max-width:120px;">
+          <label>区画数</label>
+          <input type="number" id="f-count" min="0" max="200" value="0" onchange="regenSpots()">
+        </div>
+      </div>
+      <div style="font-size:10.5px;color:#666;margin:-8px 0 12px 0;line-height:1.6;">
+        💡 メイン住所に棟ラベル(例: A、北棟)を付けると、その棟の区画にこの住所が紐づきます。<br>
+        　 別棟がある場合は下の「棟マスター」に追加してください。
+      </div>
+
+      <!-- 棟別住所(マンション併設の駐車場で棟ごとに住所が違う場合) -->
+      <div id="tou-addr-section" style="margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+          <label style="font-size:12px;font-weight:700;margin:0;">■ 棟マスター(任意・別棟がある場合)</label>
+          <button type="button" class="btn btn-outline btn-sm" onclick="addTouAddr()" style="font-size:11px;padding:3px 10px;">+ 棟を追加</button>
+          <span style="font-size:10.5px;color:#666;">※ メインと合わせて、区画一覧の「棟」欄プルダウンに表示されます</span>
+        </div>
+        <div id="tou-addr-list"></div>
+      </div>
+
+      <!-- 配置図 + 区画 左右並びレイアウト -->
+      <div class="spot-layout-row">
+        <!-- 左側: 配置図 -->
+        <div class="spot-layout-left-img">
+          <div class="img-block img-block-layout">
+            <div class="img-block-title">📐 配置図(JPEGのみ・最大2件)</div>
+            <div class="img-block-content" id="layout-area" ondragover="onImgDragOver(event)" ondragleave="onImgDragLeave(event)" ondrop="onLayoutDrop(event)">
+              <!-- ここに動的に画像 or アップロードボタンが表示される -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 右側: 区画テーブル -->
+        <div class="spots-section spot-layout-right-spots">
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
+            <h3 style="margin:0;">区画一覧</h3>
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;">
+              <input type="number" id="add-spot-count" min="1" max="200" value="1" style="width:60px;border:1px solid #000;padding:6px 8px;font-size:12px;text-align:right;" title="追加する区画数">
+              <button type="button" class="btn btn-sm" onclick="addSpots()">+ 区画追加</button>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" onclick="toggleBulkSet()" id="bulk-toggle-btn" style="font-size:11px;padding:4px 10px;">
+              <span id="bulk-toggle-icon">▼</span> 一括設定
+            </button>
+          </div>
+
+          <!-- 一括設定(初期は閉じている) -->
+          <div class="bulk-set" id="bulk-set-container" style="display:none;">
+            <div class="bulk-set-header">
+              <span class="bulk-set-title">一括設定 <span style="font-weight:400;color:#666;font-size:11px;">(範囲を指定して項目を適用)</span></span>
+              <div style="display:flex;gap:6px;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="addBulkRow()" style="font-size:11px;padding:4px 10px;">+ 入力行を追加</button>
+                <button type="button" class="btn btn-sm" onclick="applyAllBulkRows()" style="font-size:11px;padding:4px 12px;" title="全ての行を一気に適用">▶▶ 全行を一括適用</button>
+              </div>
+            </div>
+            <div id="bulk-rows-container"></div>
+          </div>
+
+          <!-- 上部のカスタム横スライダー(stickyで常時上端表示・テーブルと同期) -->
+          <div class="spots-table-sticky-top">
+            <div class="spots-table-slider" id="spots-table-slider">
+              <div class="spots-table-slider-thumb" id="spots-table-slider-thumb"></div>
+            </div>
+          </div>
+          <div class="spots-table-wrap" id="spots-table-wrap" style="overflow-x:scroll;overflow-y:hidden;max-width:100%;width:100%;-webkit-overflow-scrolling:touch;">
+            <table class="spots-table" id="spots-table">
+              <thead>
+                <tr>
+                  <th style="width:80px;">区画番号</th>
+                  <th style="width:120px;">種別</th>
+                  <th style="width:95px;">棟</th>
+                  <th style="width:70px;">号室</th>
+                  <th style="width:180px;">使用者</th>
+                  <th style="width:95px;">月額(円)</th>
+                  <th style="width:140px;">状況</th>
+                  <th style="min-width:220px;">備考</th>
+                  <th style="width:290px;text-align:center;">書類</th>
+                </tr>
+              </thead>
+              <tbody id="spots-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 現地写真(下に配置) -->
+      <div class="img-section">
+        <div class="img-block">
+          <div class="img-block-title">📷 現地写真(最大5枚)</div>
+          <div class="img-block-content" id="photos-area" ondragover="onImgDragOver(event)" ondragleave="onImgDragLeave(event)" ondrop="onPhotosDrop(event)">
+            <!-- ここに動的に画像 or アップロードボタンが表示される -->
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="del-btn" onclick="deleteBld()" style="margin-right:auto;display:none;">削除</button>
+      <button class="btn btn-outline btn-sm" onclick="cancelModal()">キャンセル</button>
+      <button class="btn btn-sm" id="save-bld-btn" onclick="saveBld()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 保管場所使用承諾書 発行モーダル -->
+<div class="modal-overlay" id="shoudaku-modal">
+  <div class="modal" style="max-width:800px;">
+    <div class="modal-header">
+      <span class="modal-title">📋 保管場所使用承諾書 発行</span>
+      <button class="modal-close" onclick="closeShoudakuModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:14px;padding:10px;background:#f0f9ff;border:1px solid #0ea5e9;font-size:12px;line-height:1.6;">
+        📋 物件・区画・会社情報は自動でセットされます。<br>
+        使用者の電話と契約期間を入力して「印刷」を開いてください。
+      </div>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 保管場所(自動)</h4>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>駐車場の名称</label>
+          <input type="text" id="sd-bld-name" readonly style="background:#f5f5f5;">
+        </div>
+        <div class="form-field" style="flex:1;max-width:120px;display:none;">
+          <label>駐車位置番号</label>
+          <input type="text" id="sd-spot-no" readonly style="background:#f5f5f5;">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;max-width:140px;">
+          <label>郵便番号(物件)</label>
+          <input type="text" id="sd-bld-zip" readonly style="background:#f5f5f5;">
+        </div>
+        <div class="form-field" style="flex:3;">
+          <label>保管場所の位置(物件住所)</label>
+          <input type="text" id="sd-bld-addr" readonly style="background:#f5f5f5;">
+        </div>
+      </div>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 使用者(住所は物件住所と同じ)</h4>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;max-width:140px;">
+          <label>郵便番号</label>
+          <input type="text" id="sd-user-zip" readonly style="background:#f5f5f5;">
+        </div>
+        <div class="form-field" style="flex:3;">
+          <label>住所</label>
+          <input type="text" id="sd-user-addr" readonly style="background:#f5f5f5;">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:2;">
+          <label>氏名</label>
+          <input type="text" id="sd-user-name" readonly style="background:#f5f5f5;">
+        </div>
+        <div class="form-field" style="flex:1;">
+          <label>電話番号 *</label>
+          <input type="text" id="sd-user-tel" placeholder="例: 090-0000-0000">
+        </div>
+      </div>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 使用期間</h4>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>開始日 *</label>
+          <input type="date" id="sd-period-from">
+        </div>
+        <div class="form-field" style="flex:1;">
+          <label>終了日 *</label>
+          <input type="date" id="sd-period-to">
+        </div>
+      </div>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 承諾者(会社情報・自動)</h4>
+      <div id="sd-company-preview" style="background:#f5f5f5;padding:10px;font-size:12px;line-height:1.7;border:1px solid #ddd;">
+        <!-- 自動表示 -->
+      </div>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 別記様式第2号(所在図・配置図)</h4>
+      <div style="background:#fef9c3;padding:10px;font-size:12px;line-height:1.7;border:1px solid #ca8a04;margin-bottom:10px;">
+        <strong>📍 所在図:</strong> 「Googleマップへ」ボタンで地図を開き、スクショを撮って下のエリアにドラッグ&ドロップしてください。<br>
+        <strong>📐 配置図:</strong> 物件に登録されている配置図画像が自動で配置されます。
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
+        <!-- 左: 所在図 -->
+        <div style="flex:1;min-width:300px;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:6px;">📍 所在図(印刷物の左側に配置)</div>
+          <div id="sd-shozaizu-drop"
+               style="border:2px dashed #0ea5e9;background:#f0f9ff;height:180px;display:flex;align-items:center;justify-content:center;flex-direction:column;cursor:pointer;font-size:12px;color:#0369a1;text-align:center;padding:10px;position:relative;"
+               ondragover="onShozaizuDragOver(event)"
+               ondragleave="onShozaizuDragLeave(event)"
+               ondrop="onShozaizuDrop(event)"
+               onclick="document.getElementById('sd-shozaizu-file').click()">
+            <span id="sd-shozaizu-placeholder">
+              🖼️<br>
+              ここに画像をドラッグ&ドロップ<br>
+              <span style="font-size:10px;color:#666;">またはクリックでファイル選択 / Ctrl+V で貼付</span>
+            </span>
+            <img id="sd-shozaizu-preview" src="" style="max-width:100%;max-height:160px;object-fit:contain;display:none;">
+            <button type="button" id="sd-shozaizu-clear" onclick="event.stopPropagation();clearShozaizu()" style="display:none;position:absolute;top:4px;right:4px;background:rgba(220,38,38,0.9);color:#fff;border:none;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:13px;font-weight:700;">×</button>
+            <input type="file" id="sd-shozaizu-file" accept="image/*" style="display:none" onchange="onShozaizuFileSelected(event)">
+          </div>
+          <div style="margin-top:6px;text-align:right;">
+            <a href="#" onclick="openMapFromShoudaku();return false;" style="font-size:11px;color:#0ea5e9;text-decoration:underline;">📍 Googleマップで開く</a>
+          </div>
+        </div>
+
+        <!-- 右: 配置図プレビュー -->
+        <div style="flex:1;min-width:300px;">
+          <div style="font-size:12px;font-weight:700;margin-bottom:6px;">📐 配置図(印刷物の右側に配置)</div>
+          <div style="border:1px solid #ddd;background:#fafafa;height:180px;display:flex;align-items:center;justify-content:center;padding:6px;">
+            <img id="sd-haichizu-preview" src="" style="max-width:100%;max-height:170px;object-fit:contain;display:none;">
+            <div id="sd-haichizu-empty" style="color:#999;font-size:11px;">(配置図が登録されていません)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeShoudakuModal()">キャンセル</button>
+      <button class="btn btn-sm" onclick="printShoudaku()">🖨 印刷</button>
+    </div>
+  </div>
+</div>
+
+<!-- 駐車場賃貸借契約書 発行モーダル -->
+<div class="modal-overlay" id="keiyaku-modal">
+  <div class="modal" style="max-width:880px;">
+    <div class="modal-header">
+      <span class="modal-title">📝 駐車場賃貸借契約書 発行</span>
+      <button class="modal-close" onclick="closeKeiyakuModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:#f3e8ff;border:1px solid #c084fc;padding:10px 14px;border-radius:4px;font-size:12px;margin-bottom:14px;">
+        📝 物件・区画・会社情報は自動でセットされます。<br>
+        賃借人情報と賃貸借期間を入力して「印刷」を開いてください。
+      </div>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 駐車場(自動)</h4>
+      <div class="form-row">
+        <div class="form-field" style="flex:2;">
+          <label>駐車場の名称</label>
+          <input type="text" id="ky-bld-name" readonly style="background:#f5f5f5;">
+        </div>
+        <div class="form-field" style="flex:1;max-width:160px;">
+          <label>区画No</label>
+          <input type="text" id="ky-spot-no" readonly style="background:#f5f5f5;">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>駐車場の所在地</label>
+          <input type="text" id="ky-bld-addr" readonly style="background:#f5f5f5;">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;max-width:200px;">
+          <label>月額賃料(税込)</label>
+          <input type="text" id="ky-price" readonly style="background:#f5f5f5;text-align:right;">
+        </div>
+        <div class="form-field" style="flex:1;max-width:140px;">
+          <label>消費税率</label>
+          <input type="text" id="ky-tax-rate" value="10" style="text-align:right;">
+        </div>
+      </div>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 賃借人(乙)</h4>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>氏名 * <span style="color:#666;font-weight:400;font-size:11px;">(契約書本文の識別用。署名欄は直筆になります)</span></label>
+          <input type="text" id="ky-user-name" placeholder="例: 山田 太郎">
+          <input type="hidden" id="ky-user-addr" value="">
+        </div>
+      </div>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 賃貸借期間 *</h4>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;max-width:200px;">
+          <label>開始日 *</label>
+          <input type="date" id="ky-period-from" onchange="onKeiyakuPeriodFromChange()">
+        </div>
+        <div class="form-field" style="flex:1;max-width:200px;">
+          <label>終了日 *</label>
+          <input type="date" id="ky-period-to">
+          <div style="font-size:10px;color:#666;margin-top:2px;">※ 開始日入力で2年後を自動セット</div>
+        </div>
+        <div class="form-field" style="flex:1;max-width:200px;">
+          <label>契約日</label>
+          <input type="date" id="ky-contract-date">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeKeiyakuModal()">キャンセル</button>
+      <button class="btn btn-sm" onclick="printKeiyaku()">🖨 印刷</button>
+    </div>
+  </div>
+</div>
+
+<!-- 請求書 発行モーダル -->
+<div class="modal-overlay" id="seikyu-modal">
+  <div class="modal" style="max-width:780px;">
+    <div class="modal-header">
+      <span class="modal-title">💴 請求書 発行</span>
+      <button class="modal-close" onclick="closeSeikyuModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:#fef9c3;border:1px solid #ca8a04;padding:10px 14px;border-radius:4px;font-size:12px;margin-bottom:14px;">
+        💴 物件・区画・会社情報は自動でセットされます。<br>
+        請求先と請求項目を確認・編集して「印刷」を開いてください。
+      </div>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 請求先</h4>
+      <div class="form-row">
+        <div class="form-field" style="flex:2;">
+          <label>宛名(個人名 or 会社名) *</label>
+          <input type="text" id="sk-to-name" placeholder="例: 山田 太郎">
+        </div>
+        <div class="form-field" style="flex:1;max-width:120px;">
+          <label>敬称</label>
+          <select id="sk-to-title">
+            <option value="様">様</option>
+            <option value="御中">御中</option>
+            <option value="">なし</option>
+          </select>
+        </div>
+      </div>
+      <input type="hidden" id="sk-to-addr" value="">
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 請求書情報</h4>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;max-width:200px;">
+          <label>請求日 *</label>
+          <input type="date" id="sk-issue-date">
+        </div>
+        <div class="form-field" style="flex:1;max-width:200px;">
+          <label>お支払期限</label>
+          <input type="date" id="sk-due-date">
+        </div>
+        <div class="form-field" style="flex:1;">
+          <label>請求書番号</label>
+          <input type="text" id="sk-invoice-no" placeholder="自動生成">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>件名(任意)</label>
+          <input type="text" id="sk-subject" placeholder="例: 5月分 駐車場使用料">
+        </div>
+      </div>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 請求項目</h4>
+      <div style="font-size:11px;color:#666;margin-bottom:6px;">※ 駐車場使用料が初期セットされます。テンプレートボタンで日割り賃料・手数料を追加できます。</div>
+
+      <!-- 契約開始日(日割り計算用) -->
+      <div class="form-row" style="margin-bottom:8px;align-items:flex-end;">
+        <div class="form-field" style="flex:1;max-width:200px;">
+          <label>契約開始日(日割り計算用)</label>
+          <input type="date" id="sk-contract-start" onchange="onSeikyuStartDateChange()">
+        </div>
+        <div class="form-field" style="flex:2;">
+          <label style="font-size:10.5px;color:#666;">テンプレートで請求項目を追加</label>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="addTplNissari()" style="font-size:11px;padding:4px 10px;">+ 日割り賃料</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="addTplChukai()" style="font-size:11px;padding:4px 10px;">+ 仲介手数料</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="addTplMeigi()" style="font-size:11px;padding:4px 10px;">+ 名義変更手数料</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="addTplShoudaku()" style="font-size:11px;padding:4px 10px;">+ 承諾書発行手数料</button>
+            <button type="button" class="btn btn-sm" onclick="addTplShokai()" style="font-size:11px;padding:4px 10px;">★ 初回請求セット</button>
+          </div>
+        </div>
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;">
+        <thead>
+          <tr style="background:#000;color:#fff;">
+            <th style="padding:6px;text-align:left;">品目</th>
+            <th style="padding:6px;width:80px;text-align:right;">数量</th>
+            <th style="padding:6px;width:100px;text-align:right;">単価(税抜)</th>
+            <th style="padding:6px;width:80px;text-align:right;">税率</th>
+            <th style="padding:6px;width:40px;text-align:center;">削除</th>
+          </tr>
+        </thead>
+        <tbody id="sk-items-tbody"></tbody>
+      </table>
+      <button type="button" class="btn btn-outline btn-sm" onclick="addSeikyuItem()" style="font-size:11px;padding:4px 12px;">+ 項目を追加(空行)</button>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 備考</h4>
+      <input type="hidden" id="sk-pay-method" value="bank">
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>備考(任意)</label>
+          <textarea id="sk-note" rows="2" placeholder="例: ご不明な点はお問い合わせください。"></textarea>
+        </div>
+      </div>
+
+      <div style="background:#f5f5f5;border:1px solid #ccc;padding:10px 14px;border-radius:4px;font-size:12px;margin-top:10px;">
+        <strong>📊 金額プレビュー</strong><br>
+        <div id="sk-preview-totals" style="margin-top:4px;font-size:13px;line-height:1.7;">-</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeSeikyuModal()">キャンセル</button>
+      <button class="btn btn-sm" onclick="printSeikyu()">🖨 印刷</button>
+    </div>
+  </div>
+</div>
+
+<!-- 📥 CSV一括インポート モーダル -->
+<div class="modal-overlay" id="csv-import-modal">
+  <div class="modal" style="max-width:980px;">
+    <div class="modal-header">
+      <span class="modal-title">CSV一括インポート</span>
+      <button class="modal-close" onclick="closeCsvImportModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:#fef9c3;border:1px solid #ca8a04;padding:10px 14px;border-radius:4px;font-size:12px;margin-bottom:14px;line-height:1.7;">
+        📥 物件まるごと(物件情報＋全区画詳細)を一括登録できます。<br>
+        スクショから生成されたCSVをチャットからコピー → ここに貼り付け → プレビュー → 登録 の流れです。
+      </div>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 物件情報</h4>
+      <div class="form-row">
+        <div class="form-field" style="flex:2;">
+          <label>物件名 *</label>
+          <input type="text" id="csv-bld-name" placeholder="例: アイディール">
+        </div>
+        <div class="form-field" style="flex:1;max-width:160px;">
+          <label>郵便番号</label>
+          <input type="text" id="csv-bld-zip" placeholder="例: 721-0963" onchange="lookupZipForField('csv-bld-zip','csv-bld-addr')" oninput="onZipInput('csv-bld-zip','csv-bld-addr')">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>住所</label>
+          <input type="text" id="csv-bld-addr" placeholder="例: 広島県福山市今津町6丁目18-17" oninput="markAddrManual('csv-bld-addr')">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>物件備考(任意)</label>
+          <input type="text" id="csv-bld-note" placeholder="例: マンション併設">
+        </div>
+      </div>
+
+      <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 区画リスト(CSV形式)</h4>
+      <div style="background:#dbeafe;border:1px solid #3b82f6;padding:10px 14px;border-radius:4px;font-size:11.5px;margin-bottom:8px;line-height:1.7;">
+        <strong>形式</strong>: <code>区画番号,金額,仕様,棟,号数,使用者,状況,備考</code><br>
+        <strong>仕様</strong>: 並 / 縦 / 軽 / 機 (空欄なら「並」)<br>
+        <strong>状況</strong>: 借 / 空 / 解 / 予 / 退 / 募停 / 申 (空欄なら「空」)<br>
+        <strong>金額</strong>は税込円(例: 3300)。各項目は空欄でも構いません。
+      </div>
+      <textarea id="csv-spots-input" rows="14" style="width:100%;font-family:Consolas,monospace;font-size:12.5px;padding:10px;border:2px solid #000;line-height:1.7;" placeholder="1,3300,軽,,107,井村 百花,借,&#10;2,2750,軽,,103,小坂 城司,借,&#10;..."></textarea>
+
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-outline btn-sm" onclick="csvPreview()">📊 プレビュー</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="csvClear()">🗑 入力クリア</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="csvLoadSample()">📋 サンプル(アイディール)読込</button>
+      </div>
+
+      <div id="csv-preview-result" style="margin-top:14px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeCsvImportModal()">キャンセル</button>
+      <button class="btn btn-sm" onclick="csvImport()" style="background:#000;color:#fff;">💾 登録実行</button>
+    </div>
+  </div>
+</div>
+
+<!-- 会社情報設定モーダル -->
+<div class="modal-overlay" id="company-modal">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-header">
+      <span class="modal-title">⚙ 会社情報の設定</span>
+      <button class="modal-close" onclick="closeCompanyModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:14px;padding:10px;background:#fef9c3;border:1px solid #ca8a04;font-size:12px;line-height:1.6;">
+        📋 ここで設定した会社情報は、書類発行(契約書・保管場所使用承諾書・請求書)に自動印字されます。<br>
+        住所変更等があれば、ここを更新するだけでOKです。
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>会社名・屋号 *</label>
+          <input type="text" id="cmp-name" placeholder="例: IREライフ株式会社">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;max-width:160px;">
+          <label>郵便番号</label>
+          <input type="text" id="cmp-zip" placeholder="例: 721-0963">
+        </div>
+        <div class="form-field" style="flex:3;">
+          <label>住所 *</label>
+          <input type="text" id="cmp-addr" placeholder="例: 広島県福山市南手城町2丁目15-6">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>代表者役職</label>
+          <input type="text" id="cmp-rep-title" placeholder="例: 代表取締役">
+        </div>
+        <div class="form-field" style="flex:2;">
+          <label>代表者名</label>
+          <input type="text" id="cmp-rep-name" placeholder="例: 淺野 充弘">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>電話番号</label>
+          <input type="text" id="cmp-tel" placeholder="例: 084-000-0000">
+        </div>
+        <div class="form-field" style="flex:1;">
+          <label>FAX番号</label>
+          <input type="text" id="cmp-fax" placeholder="任意">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>メールアドレス</label>
+          <input type="email" id="cmp-mail" placeholder="任意">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>インボイス登録番号(請求書用)</label>
+          <input type="text" id="cmp-invoice" placeholder="例: T1234567890123(任意)">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeCompanyModal()">キャンセル</button>
+      <button class="btn btn-sm" onclick="saveCompany()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- クラウド設定モーダル -->
+<div class="modal-overlay" id="cloud-modal">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-header">
+      <span class="modal-title">☁️ クラウド同期設定</span>
+      <button class="modal-close" onclick="closeCloudModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>GAS URL(Google Apps Script のデプロイURL)</label>
+          <input type="text" id="cloud-url" placeholder="https://script.google.com/macros/s/.../exec" style="font-size:11px;">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        <button class="btn btn-outline btn-sm" onclick="testCloudPing()">🔌 接続テスト</button>
+        <button class="btn btn-sm" onclick="cloudSaveAll()" id="cloud-upload-btn">⬆️ 全データをクラウドへ送信</button>
+        <button class="btn btn-outline btn-sm" onclick="cloudLoadAll()" id="cloud-download-btn">⬇️ クラウドから読込</button>
+        <button class="btn btn-outline btn-sm" onclick="openLoginHistory()">📜 ログイン履歴を見る</button>
+      </div>
+      <div id="cloud-log" style="margin-top:14px;font-size:11px;padding:10px;background:#f5f5f5;border:1px solid #ddd;max-height:200px;overflow-y:auto;white-space:pre-wrap;line-height:1.5;display:none;"></div>
+      <div style="margin-top:16px;padding:10px;background:#fef9c3;border:1px solid #ca8a04;font-size:12px;line-height:1.7;">
+        <strong>📋 使い方:</strong><br>
+        ❶ GAS URL を貼り付けて「接続テスト」<br>
+        ❷ 成功したら「全データをクラウドへ送信」<br>
+        ❸ 別端末や、ブラウザデータ消失時は「クラウドから読込」で復元
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeCloudModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- 画像拡大モーダル -->
+<div class="img-zoom-overlay" id="img-zoom" onclick="closeImgZoom(event)">
+  <button class="img-zoom-close" onclick="closeImgZoom(event)">×</button>
+  <img id="img-zoom-target" src="" alt="">
+</div>
+
+<!-- 画像チェック(診断)モーダル -->
+<div class="modal-overlay" id="img-diag-modal">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-header">
+      <span class="modal-title">🩺 画像チェック(クラウド未保存の洗い出し)</span>
+      <button class="modal-close" onclick="closeImgDiagModal()">×</button>
+    </div>
+    <div class="modal-body" id="img-diag-body">
+      <div style="color:#666;">チェック中...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeImgDiagModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- トースト -->
+<div class="toast" id="toast"></div>
+
+<!-- ログイン履歴モーダル -->
+<div class="modal-overlay" id="login-history-modal">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-header">
+      <span class="modal-title">📜 ログイン履歴</span>
+      <button class="modal-close" onclick="closeLoginHistory()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+        <button class="btn btn-outline btn-sm" onclick="openLoginHistory()">🔄 更新</button>
+        <span style="font-size:12px;color:#888;">新しい順に表示しています</span>
+      </div>
+      <div id="login-history-body" style="font-size:13px;max-height:420px;overflow-y:auto;">
+        <div style="color:#666;">読み込み中...</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-sm" onclick="closeLoginHistory()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Firebase 認証(メール+パスワード) ===== -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/core.js"></script>
+<script src="js/buildings.js"></script>
+<script src="js/ownermail.js"></script>
+<script src="js/contracts.js"></script>
+</body>
+</html>

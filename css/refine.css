@@ -1,0 +1,407 @@
+
+/* ===== 共通の色と余白 ===== */
+:root{
+  --pv-bg:#f5f5f7;
+  --pv-surface:#ffffff;
+  --pv-surface-2:#fafafc;
+  --pv-line:#e5e5ea;
+  --pv-line-soft:#f0f0f4;
+  --pv-ink:#1d1d1f;
+  --pv-ink-2:#6e6e73;
+  --pv-ink-3:#8e8e93;
+  --pv-accent:#007aff;
+  --pv-accent-d:#0060d0;
+  --pv-accent-soft:#e8f2ff;
+  --pv-danger:#ff3b30;
+  --pv-danger-soft:#ffeceb;
+  --pv-r:12px;
+  --pv-r-lg:18px;
+  --pv-r-sm:9px;
+  --pv-sh:0 1px 2px rgba(0,0,0,.04), 0 4px 14px rgba(0,0,0,.06);
+  --pv-sh-lift:0 6px 20px rgba(0,0,0,.10);
+  --pv-font:-apple-system,BlinkMacSystemFont,'SF Pro Text','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,sans-serif;
+}
+
+body{
+  font-family:var(--pv-font);
+  background:var(--pv-bg);
+  color:var(--pv-ink);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ===== 上部のタブ ===== */
+.app-tabs{padding:16px 24px 4px;gap:8px;}
+.app-pivot-logo{
+  font-size:26px;font-weight:700;letter-spacing:-.02em;color:var(--pv-ink);
+}
+.app-pivot-logo:hover{opacity:.55;}
+.app-tab{
+  background:transparent;color:var(--pv-ink-2);
+  font-size:14px;font-weight:600;padding:9px 18px;border-radius:999px;
+  transition:background .16s,color .16s;
+}
+.app-tab:hover{
+  background:rgba(0,0,0,.05);color:var(--pv-ink);
+  transform:none;box-shadow:none;
+}
+/* いま開いているタブがひと目で分かるようにします */
+.app-tab.active,
+.app-tab.active:hover{
+  background:var(--pv-ink);color:#fff;transform:none;
+  box-shadow:0 2px 8px rgba(0,0,0,.16);
+}
+
+/* ===== タブバーの中の操作ボタン ===== */
+.kb-toolbar .btn-sort,
+.kb-toolbar .btn-sort.active{
+  background:rgba(0,0,0,.05);color:var(--pv-ink);font-weight:600;
+  border-radius:999px;padding:9px 16px;
+}
+.kb-toolbar .btn-sort:hover,
+.kb-toolbar .btn-sort.active:hover{
+  background:rgba(0,0,0,.10);color:var(--pv-ink);
+  transform:none;box-shadow:none;
+}
+.kb-toolbar .btn-primary{
+  background:var(--pv-accent);color:#fff;font-weight:600;border-radius:999px;
+}
+.kb-toolbar .btn-primary:hover{
+  background:var(--pv-accent-d);color:#fff;transform:none;
+  box-shadow:0 4px 14px rgba(0,122,255,.30);
+}
+.kb-toolbar .search-input{background:rgba(0,0,0,.05);}
+.kb-toolbar .search-input:focus{box-shadow:0 0 0 3px rgba(0,122,255,.25);}
+.kb-toolbar .sort-dropdown{
+  border:1px solid var(--pv-line);border-radius:var(--pv-r-lg);
+  box-shadow:0 12px 34px rgba(0,0,0,.14);padding:7px;
+}
+.kb-toolbar .sort-opt{font-weight:500;color:var(--pv-ink);border-radius:var(--pv-r-sm);}
+.kb-toolbar .sort-opt:hover{background:rgba(0,0,0,.05);transform:none;box-shadow:none;}
+.kb-toolbar .sort-opt.active{background:var(--pv-accent-soft);color:var(--pv-accent);}
+.kb-toolbar .sort-filter-input{border:1px solid var(--pv-line);border-radius:var(--pv-r-sm);}
+.kb-toolbar .sort-filter-input:focus{border-color:var(--pv-accent);box-shadow:0 0 0 3px rgba(0,122,255,.18);}
+
+/* ===== 設定(歯車)メニュー ===== */
+.settings-gear{border-radius:999px;color:var(--pv-ink-2);}
+.settings-gear:hover,
+.settings-wrap:hover .settings-gear{
+  background:rgba(0,0,0,.06)!important;color:var(--pv-ink)!important;
+  transform:none;box-shadow:none!important;
+}
+.settings-menu{
+  border:1px solid var(--pv-line);border-radius:var(--pv-r-lg);
+  box-shadow:0 12px 34px rgba(0,0,0,.14);padding:7px;margin-top:6px;
+}
+.settings-menu button{
+  font-weight:500;color:var(--pv-ink);border-radius:var(--pv-r-sm);padding:10px 13px;
+}
+.settings-menu button:hover{background:rgba(0,0,0,.05);color:var(--pv-ink);padding-left:13px;}
+.settings-menu .settings-menu-primary{color:var(--pv-accent);font-weight:600;}
+.settings-menu .settings-menu-primary:hover{background:var(--pv-accent-soft);color:var(--pv-accent);padding-left:13px;}
+.settings-menu .settings-menu-sep{background:var(--pv-line);}
+
+/* ===== Property のヘッダーとツールバー ===== */
+header{
+  border-bottom:1px solid var(--pv-line);
+  background:rgba(255,255,255,.80);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+}
+.logo{font-size:19px;font-weight:700;letter-spacing:-.01em;}
+.ver{color:var(--pv-ink-3);letter-spacing:0;}
+
+.container{padding:20px 24px 48px;}
+
+.toolbar{
+  border-bottom:none;padding:4px 0 16px;gap:10px;
+}
+.toolbar input.search{
+  border:1px solid transparent;background:rgba(0,0,0,.05);
+  border-radius:999px;padding:10px 16px;color:var(--pv-ink);
+}
+.toolbar input.search::placeholder{color:var(--pv-ink-3);}
+.toolbar input.search:focus{
+  outline:none;background:#fff;border-color:var(--pv-accent);
+  box-shadow:0 0 0 3px rgba(0,122,255,.20);
+}
+
+/* ===== ボタン ===== */
+.btn{
+  background:var(--pv-accent);color:#fff;border:1px solid transparent;
+  border-radius:999px;padding:10px 18px;font-size:13px;font-weight:600;
+  letter-spacing:0;transition:background .16s,box-shadow .16s,opacity .16s;
+}
+.btn:hover{background:var(--pv-accent-d);opacity:1;box-shadow:0 4px 14px rgba(0,122,255,.28);}
+.btn:active{transform:scale(.98);}
+.btn-outline{background:rgba(0,0,0,.05);color:var(--pv-ink);border-color:transparent;}
+.btn-outline:hover{background:rgba(0,0,0,.10);color:var(--pv-ink);box-shadow:none;}
+.btn-sm{padding:7px 14px;font-size:12px;}
+.btn-danger{background:var(--pv-danger-soft);color:var(--pv-danger);border-color:transparent;}
+.btn-danger:hover{background:var(--pv-danger);color:#fff;box-shadow:none;}
+.btn-doc{
+  border:1px solid transparent;background:rgba(0,0,0,.06);color:var(--pv-ink);
+  border-radius:999px;padding:5px 13px;font-weight:600;letter-spacing:0;
+}
+.btn-doc:hover{background:var(--pv-accent);color:#fff;}
+.btn-mini{
+  background:rgba(0,0,0,.06);color:var(--pv-ink);border:1px solid transparent;
+  border-radius:999px;padding:6px 13px;font-weight:600;letter-spacing:0;
+}
+.btn-mini:hover{background:var(--pv-accent);color:#fff;opacity:1;}
+
+/* ===== 物件カード ===== */
+.bld-list{
+  background:var(--pv-surface);border-radius:var(--pv-r-lg);
+  box-shadow:var(--pv-sh);overflow:hidden;
+}
+.bld-card{
+  padding:15px 20px;border-bottom:1px solid var(--pv-line-soft);
+  transition:background .14s;
+}
+.bld-card:last-child{border-bottom:none;}
+.bld-card:hover{background:var(--pv-surface-2);}
+.bld-name{font-size:15px;font-weight:600;letter-spacing:-.01em;}
+.bld-meta{color:var(--pv-ink-2);font-size:12px;}
+.bld-card-del{
+  border:1px solid transparent;background:rgba(0,0,0,.05);color:var(--pv-ink-3);
+  width:32px;height:32px;
+}
+.bld-card-del:hover{background:var(--pv-danger);color:#fff;border-color:transparent;}
+
+/* ===== 都道府県フォルダ ===== */
+.pref-grid{gap:16px;}
+.pref-folder{
+  border:none;border-radius:var(--pv-r-lg);background:var(--pv-surface);
+  box-shadow:var(--pv-sh);
+}
+.pref-header{
+  background:transparent;color:var(--pv-ink);
+  font-size:15px;font-weight:600;letter-spacing:-.01em;
+  padding:15px 20px;border-bottom:1px solid var(--pv-line-soft);
+}
+.pref-header:hover{background:var(--pv-surface-2);}
+.pref-header .pref-arrow{color:var(--pv-ink-3);}
+.pref-header .pref-count{color:var(--pv-ink-3);font-weight:500;}
+.pref-body{background:transparent;}
+.pref-body .bld-card{border-bottom:1px solid var(--pv-line-soft);}
+.pref-body .bld-card:hover{background:var(--pv-surface-2);}
+.pref-body .empty-folder{color:var(--pv-ink-3);}
+
+/* ===== モーダル ===== */
+/* 背景を暗くぼかして、開いている1件だけに集中できるようにします */
+.modal-overlay{
+  background:rgba(20,20,24,.34);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+  backdrop-filter:blur(18px) saturate(140%);
+}
+.modal{
+  background:var(--pv-surface);
+  -webkit-backdrop-filter:none;backdrop-filter:none;
+  border:none;border-radius:20px;
+  box-shadow:0 28px 70px rgba(0,0,0,.28);
+}
+.modal-header{padding:18px 22px 14px;}
+.modal-title{font-size:17px;font-weight:700;letter-spacing:-.01em;}
+.modal-tab-btn{
+  background:rgba(0,0,0,.05);color:var(--pv-ink);font-weight:600;padding:8px 16px;
+}
+.modal-tab-btn:hover{
+  background:rgba(0,0,0,.10);color:var(--pv-ink);transform:none;box-shadow:none;
+}
+.modal-footer{
+  padding:14px 22px 18px;border-top:1px solid var(--pv-line-soft);
+}
+.modal-close{
+  color:var(--pv-ink-3);font-size:22px;border-radius:999px;
+  width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+  transition:background .14s,color .14s;
+}
+.modal-close:hover{background:rgba(0,0,0,.06);color:var(--pv-ink);}
+.modal-home-logo:hover{background:rgba(0,0,0,.05);transform:none;}
+
+/* ===== 入力欄 ===== */
+.form-field label{
+  font-size:11.5px;font-weight:600;letter-spacing:0;
+  color:var(--pv-ink-2);text-transform:none;
+}
+.form-field input,.form-field select,.form-field textarea{
+  border:1px solid var(--pv-line);border-radius:var(--pv-r-sm);
+  padding:9px 11px;background:var(--pv-surface);color:var(--pv-ink);
+  transition:border-color .14s,box-shadow .14s;
+}
+.form-field input:focus,.form-field select:focus,.form-field textarea:focus{
+  outline:none;border-color:var(--pv-accent);
+  box-shadow:0 0 0 3px rgba(0,122,255,.20);
+}
+
+/* ===== 区画テーブル ===== */
+.spots-section{border-top:1px solid var(--pv-line);}
+.spots-section h3,
+.bulk-set-title{
+  font-size:12.5px;font-weight:700;letter-spacing:0;
+  text-transform:none;color:var(--pv-ink-2);
+}
+.spot-layout-row,.img-section{border-top:1px solid var(--pv-line);}
+.spots-table-wrap{
+  border:1px solid var(--pv-line);border-radius:var(--pv-r);
+  scrollbar-color:var(--pv-ink-3) var(--pv-line-soft);
+}
+.spots-table-wrap::-webkit-scrollbar{height:12px;}
+.spots-table-wrap::-webkit-scrollbar-track{background:var(--pv-line-soft);border-top:1px solid var(--pv-line);}
+.spots-table-wrap::-webkit-scrollbar-thumb{
+  background:#c3c3c9;border-radius:6px;border:3px solid var(--pv-line-soft);
+}
+.spots-table-wrap::-webkit-scrollbar-thumb:hover{background:var(--pv-ink-3);}
+.spots-table-slider{background:var(--pv-line);border:none;border-radius:999px;height:10px;}
+.spots-table-slider-thumb{background:#b8b8bf;border-radius:999px;height:10px;top:0;}
+.spots-table-slider-thumb:hover{background:var(--pv-ink-3);}
+.spots-table-slider-thumb.dragging{background:var(--pv-accent);}
+.spot-no-cell{background:var(--pv-surface-2);color:var(--pv-ink);font-weight:600;}
+.spot-no-cell:hover{background:#f0f0f4;}
+.spot-drag-icon{background:#c3c3c9;border-radius:5px;}
+.spot-no-cell:hover .spot-drag-icon{background:var(--pv-accent);}
+.spot-remove-btn{border-color:transparent;background:rgba(0,0,0,.06);color:var(--pv-ink-3);}
+.spot-remove-btn:hover{background:var(--pv-danger);color:#fff;}
+.cancel-res-btn{border-color:transparent;background:rgba(0,122,255,.12);color:var(--pv-accent);}
+.cancel-res-btn:hover{background:var(--pv-accent);color:#fff;}
+tr.spot-row.drag-over-top td{border-top-color:var(--pv-accent)!important;}
+tr.spot-row.drag-over-bottom td{border-bottom-color:var(--pv-accent)!important;}
+
+/* 区画テーブル本体：黒枠・黒地の見出しをやめます */
+.spots-table th,.spots-table td{border:1px solid var(--pv-line);padding:6px 7px;}
+.spots-table th{
+  background:#f6f6f9;color:#5b6b80;font-weight:600;
+  font-size:11px;letter-spacing:0;
+}
+.spots-table input,.spots-table select{
+  border:1px solid var(--pv-line);border-radius:6px;padding:5px 7px;color:var(--pv-ink);
+}
+.spots-table input:focus,.spots-table select:focus{
+  outline:none;border-color:var(--pv-accent);
+  box-shadow:0 0 0 2px rgba(0,122,255,.22);
+}
+
+/* ===== 状況の色分け（意味は変えず、淡くします） ===== */
+tr.st-空{background:#e8f2ff;}
+tr.st-解{background:#ffeceb;}
+tr.st-予{background:#e6f7ec;}
+tr.st-退{background:#f2f2f5;color:var(--pv-ink-3);}
+tr.st-募停{background:#dcdce1;color:var(--pv-ink-2);}
+tr.st-申{background:#fff5e0;}
+tr.sub-row.st-解{background:#ffdedb;}
+tr.sub-row.st-予{background:#d3f0de;}
+tr.sub-row.st-退{background:#e8e8ec;color:var(--pv-ink-2);}
+
+/* ===== 一括設定 ===== */
+.bulk-set{
+  border:1px solid var(--pv-line);border-radius:var(--pv-r);
+  background:var(--pv-surface-2);padding:14px 16px;
+}
+.bulk-row{
+  border:1px solid var(--pv-line-soft);border-radius:var(--pv-r-sm);
+  background:var(--pv-surface);padding:9px 10px;
+}
+.bulk-row .bulk-field-inline > label{
+  font-size:10.5px;font-weight:600;letter-spacing:0;color:var(--pv-ink-3);
+}
+.bulk-row input,.bulk-row select{
+  border:1px solid var(--pv-line);border-radius:7px;padding:6px 9px;color:var(--pv-ink);
+}
+.bulk-row input:focus,.bulk-row select:focus{
+  outline:none;border-color:var(--pv-accent);box-shadow:0 0 0 3px rgba(0,122,255,.18);
+}
+.bulk-row-remove{border-color:transparent;background:rgba(0,0,0,.06);color:var(--pv-ink-3);}
+.bulk-row-remove:hover{background:var(--pv-danger);color:#fff;}
+
+/* ===== 空状態・通知 ===== */
+.empty{color:var(--pv-ink-2);}
+.empty-text{color:var(--pv-ink-2);}
+.toast{
+  background:rgba(28,28,30,.92);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  border-radius:999px;padding:12px 22px;font-weight:600;letter-spacing:0;
+  box-shadow:0 10px 30px rgba(0,0,0,.28);
+}
+.notice-bar{
+  background:var(--pv-accent-soft);color:#0a4a99;
+  border-bottom:1px solid rgba(0,122,255,.20);
+  font-weight:500;letter-spacing:0;
+}
+.notice-close{
+  border:none;background:rgba(0,122,255,.14);color:#0a4a99;
+}
+.notice-close:hover{background:var(--pv-accent);color:#fff;}
+
+/* ===== Contract（かんばん）の黒ボタンも青にそろえます ===== */
+#kb-view .btn-primary{background:var(--pv-accent);}
+#kb-view .btn-primary:hover{background:var(--pv-accent-d);}
+#kb-view .btn-sort,
+#kb-view .btn-sort.active{
+  background:rgba(0,0,0,.05);color:var(--pv-ink);border-color:transparent;font-weight:600;
+}
+#kb-view .btn-sort:hover{
+  background:rgba(0,0,0,.10);transform:none;box-shadow:none;
+}
+#kb-view .sort-opt:hover{background:rgba(0,0,0,.05);transform:none;box-shadow:none;}
+#kb-view .sort-opt.active{background:var(--pv-accent-soft);color:var(--pv-accent);}
+#kb-view #btn-view.on{background:var(--pv-accent);color:#fff;}
+#kb-view .sort-dropdown{border-color:var(--pv-line);border-radius:var(--pv-r-lg);}
+
+/* ===== Owner Mail（家賃明細送信） =====
+   もともと生成りと深緑の配色でした。トークンだけ差し替えて、
+   ほかの2画面と同じ Apple 系の見た目にそろえます。 */
+#rent-view{
+  --rt-ink:#1d1d1f;
+  --rt-paper:#f5f5f7;
+  --rt-card:#ffffff;
+  --rt-line:#e5e5ea;
+  --rt-accent:#007aff;
+  --rt-accent-d:#0060d0;
+  --rt-soft:#e8f2ff;
+  --rt-muted:#6e6e73;
+  --rt-warn:#ff3b30;
+  --rt-warn-soft:#ffeceb;
+  --rt-gold:#c8892c;
+  font-family:var(--pv-font);
+}
+#rent-view header{
+  background:rgba(255,255,255,.80);color:var(--rt-ink);
+  border-bottom:1px solid var(--rt-line);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+}
+#rent-view .step{border-radius:var(--pv-r-lg);box-shadow:var(--pv-sh);border-color:var(--rt-line);}
+#rent-view table.owners th{background:#f6f6f9;color:var(--rt-muted);font-weight:600;}
+/* ドロップ枠とサブタブに、生成り色が直接書かれていたので置き換えます */
+#rent-view .drop{
+  border:2px dashed #d3d3da;border-radius:var(--pv-r-lg);
+  background:linear-gradient(180deg,#fff,#f7f9fc);
+}
+#rent-view .drop:hover,#rent-view .drop.over{
+  border-color:var(--rt-accent);background:var(--rt-soft);
+  box-shadow:0 6px 20px rgba(0,122,255,.12);
+}
+#rent-view .drop .big{font-weight:700;color:var(--rt-accent);}
+#rent-view .tab{
+  background:transparent;color:var(--rt-muted);font-weight:600;
+  border:none;border-radius:999px;padding:8px 16px;
+}
+#rent-view .tab:hover{background:rgba(0,0,0,.05);color:var(--rt-ink);}
+#rent-view .tab.active{background:var(--rt-accent);color:#fff;}
+#rent-view .pill-cnt{background:var(--rt-soft);color:var(--rt-accent);}
+#rent-view .btn{border-radius:999px;border-color:var(--rt-line);font-weight:600;}
+#rent-view .btn-acc{background:var(--rt-accent);border-color:var(--rt-accent);}
+#rent-view .btn-send{background:var(--rt-accent);border-color:var(--rt-accent);}
+#rent-view .btn-send:hover{background:var(--rt-accent-d);border-color:var(--rt-accent-d);}
+
+/* ===== 細かな仕上げ ===== */
+/* 極太の文字づかいを、読みやすい太さに寄せます */
+.logo,.modal-title,.bld-name,.pref-header,.app-tab,.app-pivot-logo{font-weight:600;}
+/* 主要な見出しだけ 700 に戻します */
+.logo,.modal-title,.app-pivot-logo{font-weight:700;}
+
+@media(max-width:760px){
+  .app-tabs{padding:12px 14px 4px;}
+  .container{padding:14px 14px 40px;}
+  .app-tab{padding:8px 14px;font-size:13.5px;}
+}
