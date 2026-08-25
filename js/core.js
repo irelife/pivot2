@@ -163,7 +163,7 @@ async function doAutoPush(){
         // 契約の安全装置: 手元の契約がクラウドより大幅に少なければ上書きしない
         const cloudContracts = (chk.payload && chk.payload.contracts) ? chk.payload.contracts : {};
         const cloudContractCount = Object.keys(cloudContracts).length;
-        if(cloudContractCount >= 9999 && localContractCount < cloudContractCount * 0.5){
+        if(cloudContractCount >= 3 && localContractCount < cloudContractCount * 0.5){
           setSyncStatus('error', '⚠️ 安全のため同期を中止(契約データ保護)');
           alert('同期を安全のため中止しました。\n\nこの端末の契約数('+localContractCount+'件)が、クラウド('+cloudContractCount+'件)より大幅に少ないため、クラウドの正しい契約データ(完了カードなど)を誤って消さないよう保護しました。\n\nまずページを再読み込みして、クラウドから最新データを取り込んでください。');
           _autoPushInFlight = false;
