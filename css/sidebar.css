@@ -1,0 +1,50 @@
+body{padding-left:238px;}
+#pv-side{
+  position:fixed;left:0;top:0;bottom:0;width:238px;z-index:70;
+  background:#1d1d1f;color:#fff;padding:22px 0 18px;overflow-y:auto;
+  font-family:inherit;-webkit-font-smoothing:antialiased;
+}
+#pv-side .lg{
+  padding:0 22px 20px;font-size:22px;font-weight:700;letter-spacing:-.02em;
+  color:#fff;cursor:pointer;user-select:none;
+}
+#pv-side .lg span{
+  display:block;margin-top:4px;font-size:11.5px;font-weight:400;
+  letter-spacing:0;color:#8b8b90;
+}
+#pv-side .lg:hover{opacity:.7;}
+#pv-side .grp{
+  padding:14px 22px 7px;font-size:11px;font-weight:600;
+  letter-spacing:.05em;color:#7c7c82;
+}
+#pv-side a{
+  display:flex;align-items:center;gap:12px;padding:12px 22px;
+  color:#d2d2d6;text-decoration:none;font-size:14.5px;font-weight:400;
+  cursor:pointer;transition:background .14s,color .14s;
+}
+#pv-side a:hover{background:rgba(255,255,255,.07);color:#fff;}
+#pv-side a svg{width:19px;height:19px;flex:none;}
+/* いまいる画面。body に付く印だけで決めています */
+body:not(.tab-kanban):not(.tab-rent) #pv-side a[data-k="pivot"],
+body.tab-kanban #pv-side a[data-k="kanban"],
+body.tab-rent   #pv-side a[data-k="rent"]{
+  background:rgba(255,255,255,.13);color:#fff;font-weight:600;
+  box-shadow:inset 3px 0 0 var(--pv-accent,#007aff);
+}
+/* 上のタブは、左に移したので出しません */
+.app-tabs > #tab-pivot,
+.app-tabs > #tab-kanban,
+.app-tabs > #tab-rent,
+.app-tabs > .app-pivot-logo{display:none!important;}
+.app-tabs{max-width:none;}
+
+/* 狭い画面では左の柱をたたみ、元の上タブに戻します */
+@media (max-width:860px){
+  body{padding-left:0;}
+  #pv-side{display:none;}
+  .app-tabs > #tab-pivot,
+  .app-tabs > #tab-kanban,
+  .app-tabs > #tab-rent{display:inline-block!important;}
+  .app-tabs > .app-pivot-logo{display:inline!important;}
+}
+@media print{ #pv-side{display:none;} body{padding-left:0;} }

@@ -489,7 +489,7 @@ function showLoginScreen(){
   ov.style.cssText = 'position:fixed;inset:0;z-index:200000;display:flex;align-items:center;justify-content:center;background:#f5f5f7;';
   ov.innerHTML =
     '<div style="text-align:center;padding:40px 32px;max-width:340px;width:90%;">' +
-      '<div style="font-size:46px;font-weight:900;letter-spacing:2px;color:#111;margin-bottom:6px;">PIVOT</div>' +
+      '<div style="font-size:46px;font-weight:900;letter-spacing:2px;color:#111;margin-bottom:6px;">PIVOT2</div>' +
       '<div style="font-size:13px;color:#888;margin-bottom:28px;">物件・契約 管理</div>' +
       '<form id="pivot-login-form" autocomplete="on" style="margin:0;">' +
         '<input id="pivot-login-id" name="username" type="email" autocomplete="username" placeholder="メールアドレス" style="width:100%;padding:13px 14px;border:1.5px solid #d8d8dc;border-radius:12px;font-size:15px;margin-bottom:10px;font-family:inherit;box-sizing:border-box;">' +
