@@ -3120,7 +3120,7 @@ function seed(){
   saveAll(all);
 }
 
-seed();
+// seed();
 renderAll();
 
 // プレビュー: バックドロップのクリックで閉じる
