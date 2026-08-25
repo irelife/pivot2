@@ -803,7 +803,7 @@ function saveCompany(){
     invoice_no: document.getElementById('cmp-invoice').value.trim()
   };
   if(saveCompanyInfo(info)){
-    showToast('✅ 会社情報を保存しました');
+    document.dispatchEvent(new CustomEvent('pivot:toast', { detail: '✅ 会社情報を保存しました' }));
     closeCompanyModal();
   }
 }
@@ -965,7 +965,7 @@ async function cloudSaveAll(){
     if(r.ok){
       cloudLog('送信成功: 物件 '+r.buildingCount+'件 / 区画 '+r.spotCount+'件', 'success');
       cloudLog('  → スプレッドシートを確認してください', 'success');
-      showToast('☁️ クラウドへ送信完了');
+      document.dispatchEvent(new CustomEvent('pivot:toast', { detail: '☁ クラウドへ送信完了' }));
     } else {
       cloudLog('送信失敗: ' + (r.message || '不明'), 'error');
     }
@@ -1000,7 +1000,7 @@ async function cloudLoadAll(){
       const buildings = payload.buildings || {};
       saveAll(buildings);
       cloudLog('読込成功: 物件 '+(r.buildingCount||0)+'件', 'success');
-      showToast('☁️ クラウドから読込完了');
+      document.dispatchEvent(new CustomEvent('pivot:toast', { detail: '☁ クラウドから読込完了' }));
       renderAll();
     } else {
       cloudLog('読込失敗: ' + (r.message || '不明'), 'error');
