@@ -1,5 +1,5 @@
 @media (max-width: 760px){
-
+ 
   /* --- 整列パネル ------------------------------------------------
      もともと右端そろえ(right:0)のため、ボタンより左へ開いて
      画面外にはみ出していました。左端そろえに変えて幅を画面内に収めます。
@@ -12,13 +12,13 @@
     max-height: 70vh !important;
     overflow-y: auto !important;
   }
-
+ 
   /* --- 完了モーダル ---------------------------------------------- */
   #kb-view .done-modal{ width: 96vw; max-height: 88vh; }
   #kb-view .done-head{ padding: 14px; }
   #kb-view .done-head h2{ font-size: 16px; }
   #kb-view .done-body{ padding: 12px; }
-
+ 
   /* 1行に詰め込まず2段に折り返します。
      これで物件名が1文字ずつ縦に並ぶのを防ぎます。 */
   #kb-view .done-item{
@@ -43,4 +43,37 @@
   #kb-view .done-item .di-date{ order: 2; flex: 1 1 auto; }
   #kb-view .done-item .di-back{ order: 3; flex: 0 0 auto; }
   #kb-view .done-item .di-del{ order: 4; flex: 0 0 auto; margin-left: 0 !important; }
+ 
+  /* --- 件数バー  pv-mobile-2026-08-26a ----------------------------
+     5つのピル(登録〜完了)が画面幅に収まらず、横スクロールに逃げて
+     右端の「完了」が見切れていました。折り返して2段にし、
+     スクロールしなくても全部見えるようにします。 */
+  #kb-view .stats-bar{
+    flex-wrap: wrap !important;
+    overflow-x: visible !important;
+    padding: 12px 16px !important;
+    gap: 8px !important;
+  }
+  #kb-view .stat-pill{
+    flex: 1 1 auto;
+    justify-content: center;
+    padding: 8px 10px !important;
+  }
+ 
+  /* --- スクロールの遊びを止める  pv-mobile-2026-08-26a --------------
+     シート(新規契約)やモーダルの中を端まで動かすと、その勢いが
+     背面のページに伝わって一緒に動いていました。
+     overscroll-behavior で、中身のスクロールを外へ伝えないようにします。 */
+  #kb-view .sheet-body,
+  .modal-body,
+  #kb-view .done-body,
+  #kb-view .sheet{
+    overscroll-behavior: contain;
+  }
+  /* シート・モーダルを開いている間は、背面を動かさない */
+  body:has(.sheet.active),
+  body:has(.modal-overlay.active),
+  body:has(.sheet-backdrop.active){
+    overflow: hidden;
+  }
 }
