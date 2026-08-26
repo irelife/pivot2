@@ -1085,7 +1085,7 @@ async function downloadOwnerPdf(i){
    - 社員全員が同じDriveを参照・蓄積できる。
    ========================================================= */
 const SOPHIA_GAS_KEY='sophia_gas_url_v1';
-const SOPHIA_GAS_DEFAULT='https://script.google.com/macros/s/AKfycbziyfOAZHMr1m9ocFJrl0uLPGg5pwSZoHbb_gJETlEbGlHcHdmu6ZglOVl7TwJqMYuq/exec'
+const SOPHIA_GAS_DEFAULT='https://script.google.com/macros/s/AKfycbxJQZwtUy1gMVBxszZjkgSQVg-yy6xbDrAct1fRzvglDoEC1_1qMN27jL394XvOVnXdZQ/exec';
 function getSophiaGasUrl(){ try{ return localStorage.getItem(SOPHIA_GAS_KEY)||SOPHIA_GAS_DEFAULT; }catch(e){ return SOPHIA_GAS_DEFAULT; } }
 // 別管理（除外）から外して、通常の送信一覧へ戻す
 function unexcludeOwner(name){
