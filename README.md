@@ -34,3 +34,5 @@ firebase-config → core → buildings → ownermail → contracts → sidebar
 renderAll / loadAll / STORAGE_KEY / showToast / saveAll /
 onLayoutDrop / onPhotosDrop / runAutoSwitch / prefetchAllImages
 → イベント方式に置き換える
+
+検証環境。本番は irelife.github.io/pivot
