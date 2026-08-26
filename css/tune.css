@@ -1,0 +1,681 @@
+/* ==================================================================
+ * TUNE / 仕上げ層  pv-tune-2026-08-25a
+ * 本番 index.html 末尾の 8 ブロックを、順序どおり1枚にまとめたもの。
+ * HTML・id・class・JS には触れていない。CSSだけ。
+ * 必ず他のCSSより後に読み込むこと（上書きで効かせる層のため）。
+ * ================================================================== */
+
+/* ===== pv-tune-1 : 段階1／土台（線の色・角の丸み） ===== */
+:root{
+  /* 線の色。本体では #ddd / #eee / #f0f0f0 / #ececef が混在していました。
+     変数を使っている箇所は、ここで1色にそろいます */
+  --pv-line:#e3e3e6;
+  --pv-line-soft:#eeeef0;
+  /* 角丸の段階を3つに固定します */
+  --pv-r-sm:10px; --pv-r:12px; --pv-r-lg:18px;
+  /* オーナーメール画面は別の変数（--rt-*）で動いているので、
+     同じ値を入れて画面ごとの色ちがいを無くします */
+  --rt-paper:#f5f5f7; --rt-card:#ffffff; --rt-line:#e3e3e6;
+  --rt-ink:#1d1d1f;   --rt-muted:#6e6e73;
+  --rt-accent:#007aff; --rt-accent-d:#0060d0; --rt-soft:#e8f2ff;
+}
+/* 文字の出かたを3画面でそろえます（大きさは変えていません） */
+body,#pivot-view,#kb-view,#rent-view{
+  font-family:var(--pv-font);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;
+}
+/* 数字は等幅にして、桁をそろえます */
+.ct-cdate,.ct-stage-count,.lv-badge,.bstat-chip,.num{
+  font-variant-numeric:tabular-nums;
+}
+/* 選んだ文字の色 */
+::selection{background:var(--pv-accent-soft);color:var(--pv-ink);}
+/* キーボードで移動したときの枠。いままで見えていませんでした */
+a:focus-visible,button:focus-visible,input:focus-visible,
+select:focus-visible,textarea:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(0,122,255,.30);
+  border-radius:var(--pv-r-sm);
+}
+
+/* ===== pv-tune-2 : 段階2 ===== */
+.btn,.btn-primary,.btn-outline,.btn-warn{
+  font-family:var(--pv-font);
+  border-radius:999px;
+  font-weight:600;
+  letter-spacing:0;
+  padding:9px 18px;
+  font-size:13.5px;
+  cursor:pointer;
+  transition:background .16s,border-color .16s,color .16s,box-shadow .16s;
+}
+.btn-sm{padding:7px 14px;font-size:12.5px;}
+
+.btn,.btn-primary{
+  background:var(--pv-accent);
+  color:#fff;
+  border:1px solid transparent;
+}
+.btn:hover,.btn-primary:hover{background:var(--pv-accent-d);}
+
+.btn-outline{
+  background:#fff;
+  color:var(--pv-ink);
+  border:1px solid var(--pv-line);
+}
+.btn-outline:hover{background:var(--pv-surface-2);border-color:#d2d2d8;}
+
+.btn:disabled,.btn-primary:disabled,.btn-outline:disabled{
+  opacity:.42;cursor:default;
+}
+
+/* 検索欄。3画面で背景も角丸もばらばらでした */
+.search,.search-input{
+  border:1px solid transparent;
+  background:rgba(0,0,0,.05);
+  border-radius:999px;
+  padding:9px 16px;
+  font-size:14px;
+  font-family:inherit;
+  color:var(--pv-ink);
+}
+.search::placeholder,.search-input::placeholder{color:var(--pv-ink-3);}
+.search:focus,.search-input:focus{
+  background:#fff;border-color:var(--pv-accent);
+}
+
+/* 入力欄。枠の太さと角丸をそろえます */
+.form-field input,.form-field select,.form-field textarea{
+  border:1px solid var(--pv-line);
+  background:#fff;
+  border-radius:var(--pv-r-sm);
+  padding:9px 12px;
+  font-size:14px;
+  font-family:inherit;
+  color:var(--pv-ink);
+}
+.form-field input:focus,.form-field select:focus,.form-field textarea:focus{
+  border-color:var(--pv-accent);
+}
+.form-field label{
+  font-size:12px;font-weight:600;color:var(--pv-ink-2);letter-spacing:0;
+}
+
+/* ===== pv-tune-3 : 段階3（色） ===== */
+:root{
+  --k-red:#e5484d;  --k-red-bg:#fff5f4;
+  --k-blue:#007aff; --k-blue-bg:#f4f9ff;
+  --k-gray:#8b8b90; --k-gray-bg:#f1f1f3;
+}
+
+/* ---- カードの土台。太い枠をやめ、左の帯で状態を示します ---- */
+.ct-card{
+  border:1px solid var(--pv-line)!important;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.05);
+}
+.ct-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.07),0 14px 36px rgba(0,0,0,.09);}
+
+/* 赤：いま手を打つもの */
+.ct-card.status-defect{
+  background:var(--k-red-bg);
+  box-shadow:inset 4px 0 0 var(--k-red),0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(229,72,77,.10);
+}
+/* 青：進んでいるもの */
+.ct-card.status-progress{
+  background:#fff;
+  box-shadow:inset 4px 0 0 var(--k-blue),0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.05);
+}
+.ct-card.status-almost{
+  background:var(--k-blue-bg);
+  box-shadow:inset 4px 0 0 var(--k-blue),0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.05);
+}
+/* 灰：もう見なくてよいもの */
+.ct-card.status-complete,
+.ct-card.done,
+.ct-card.status-cancel{
+  background:var(--k-gray-bg)!important;
+  border-color:var(--pv-line)!important;
+  box-shadow:inset 4px 0 0 rgba(0,0,0,.22)!important;
+  filter:none;opacity:1;
+}
+/* 完了カードが揺れ続けるのをやめます（目が休まらないため） */
+.ct-card.done{animation:none!important;}
+
+/* ---- 左上の四角い絵。JS が背景色を書き込むので上書きします ---- */
+.ct-badge{
+  background:var(--pv-line-soft)!important;
+  border-radius:13px;width:46px;height:46px;
+}
+.ct-badge img{filter:grayscale(1) opacity(.55);}
+.ct-card.status-defect .ct-badge{background:#fadedd!important;}
+.ct-card.status-defect .ct-badge img{filter:none;}
+.ct-card.status-progress .ct-badge,
+.ct-card.status-almost .ct-badge{background:var(--pv-accent-soft)!important;}
+.ct-card.status-progress .ct-badge img,
+.ct-card.status-almost .ct-badge img{filter:none;}
+
+/* ---- 進捗バー。JS が塗り色を書き込むので上書きします ---- */
+.prog-seg{height:5px;border-radius:999px;background:#e6e6ea;}
+.prog-seg.on{background:var(--k-gray)!important;}
+.ct-card.status-defect .prog-seg.on{background:var(--k-red)!important;}
+.ct-card.status-progress .prog-seg.on,
+.ct-card.status-almost .prog-seg.on{background:var(--k-blue)!important;}
+
+/* ---- 状況のプルダウン。7色に塗り分けられていたのをやめます ---- */
+.ct-status-select{
+  color:var(--pv-ink)!important;
+  background-color:#fff!important;
+  border:1px solid var(--pv-line)!important;
+  border-radius:999px;
+  font-weight:600;
+  font-size:13px;
+}
+.ct-status-date{color:var(--pv-ink-2)!important;font-weight:500;}
+.ct-status-date-label{font-weight:600;}
+
+/* ---- 個人／法人。急ぎとは関係ないので、色を持たせません ---- */
+.ct-type-label,.ct-type-badge{
+  border:1px solid var(--pv-line)!important;
+  background:#fff!important;
+  color:var(--pv-ink-2)!important;
+  font-weight:600;letter-spacing:0;
+  box-shadow:none;
+  font-size:12.5px;padding:3px 12px;
+}
+
+/* ---- AD。ふつうの100%は静かに。例外だけ色を出します ---- */
+.ct-ad-label{
+  border:1px solid var(--pv-line)!important;
+  background:#fff!important;color:var(--pv-ink-2)!important;
+  font-weight:600;letter-spacing:0;font-size:12.5px;padding:3px 12px;
+  box-shadow:none;
+}
+.ct-ad-label.ad-zero{
+  border-color:#f0b8b6!important;background:var(--k-red-bg)!important;color:#b02a26!important;
+}
+.ct-ad-label.ad-200,.ct-ad-label.ad-300{
+  border-color:#d9d9df!important;background:#f7f7f9!important;color:var(--pv-ink)!important;
+}
+
+/* ---- 「駐車場 未紐づけ」は手を打つものなので赤のまま。枠だけ細く ---- */
+.ct-notlinked{
+  border:1px solid #f0b8b6!important;background:var(--k-red-bg)!important;
+  color:#b02a26!important;font-weight:600;letter-spacing:0;font-size:12.5px;
+  border-radius:999px;padding:3px 12px;
+}
+
+/* ---- マンスリーは分類なので、色を持たせません ---- */
+.ct-monthly-badge{
+  background:#fff!important;color:var(--pv-ink-2)!important;
+  border:1px solid var(--pv-line);
+  font-size:12.5px;font-weight:600;letter-spacing:0;padding:3px 12px;
+}
+
+/* ---- 状態の文字 ---- */
+.ct-stage-name{font-size:13px;font-weight:600;letter-spacing:0;}
+.ct-stage-name.done-label{font-size:16px;font-weight:600;letter-spacing:0;}
+.ct-card.status-complete .ct-stage-name,
+.ct-card.done .ct-stage-name,
+.ct-card.status-cancel .ct-stage-name{color:var(--k-gray)!important;}
+
+/* ============================================================
+   段階3・追記：効いていなかった箇所を、同じ強さで上書きします
+   ★#kb-view .ct-card.status-progress のように id 付きで書かれた
+     規則があり、こちらの規則が負けていました。同じ形にそろえます。
+   ============================================================ */
+#kb-view .ct-card.status-progress{background:#fff;}
+#kb-view .ct-card.status-almost{background:var(--k-blue-bg);}
+#kb-view .ct-card.status-defect{background:var(--k-red-bg);}
+#kb-view .ct-card.status-complete,
+#kb-view .ct-card.done,
+#kb-view .ct-card.status-cancel{background:var(--k-gray-bg);}
+
+/* 状態の文字。JS が style="color:…" を書き込むので上書きします */
+#kb-view .ct-stage-name{color:var(--pv-ink-2)!important;}
+#kb-view .ct-card.status-defect .ct-stage-name{color:#b02a26!important;}
+#kb-view .ct-card.status-progress .ct-stage-name,
+#kb-view .ct-card.status-almost .ct-stage-name{color:var(--k-blue)!important;}
+
+/* 上の件数。4色で塗り分けていたのを、同じ3色にそろえます */
+#kb-view .stat-pill{
+  border:1px solid var(--pv-line);background:#fff;border-radius:14px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
+}
+#kb-view .stat-pill .num{font-weight:600;letter-spacing:-.03em;color:var(--pv-ink);}
+#kb-view .stat-pill .lbl{color:var(--pv-ink-3);font-weight:500;}
+#kb-view .stat-pill.warn .num{color:var(--k-red);}
+#kb-view .stat-pill.warn{border-color:#f0b8b6;background:var(--k-red-bg);}
+#kb-view .stat-pill.accent .num,
+#kb-view .stat-pill.almost .num{color:var(--k-blue);}
+#kb-view .stat-pill.success .num{color:var(--k-gray);}
+
+/* ===== pv-tune-4 : 段階4 ===== */
+:root{
+  /* 青をやめ、落ち着いた緑ひとつに。どの色とも喧嘩しない濃さです */
+  --pv-accent:#1f7a4d;
+  --pv-accent-d:#186139;
+  --pv-accent-soft:#eaf4ee;
+  --rt-accent:#1f7a4d; --rt-accent-d:#186139; --rt-soft:#eaf4ee;
+  /* 合図の色。3つとも彩度を落として、隣り合っても濁らないようにします */
+  --k-red:#c2352a;  --k-red-bg:#fdf3f2;
+  --k-blue:#1d1d1f; --k-blue-bg:#f7f7f8;   /* 進行中＝黒 */
+  --k-gray:#8b8b90; --k-gray-bg:#f0f0f2;
+}
+
+/* ---- 左メニュー：白地・見出しで区切る・選択中は黒 ---- */
+#pv-side{
+  background:#fff;color:var(--pv-ink);
+  border-right:1px solid var(--pv-line);
+  padding:20px 12px 18px;
+}
+#pv-side .lg{color:var(--pv-ink);padding:0 12px 16px;font-size:21px;}
+#pv-side .lg span{color:var(--pv-ink-3);}
+#pv-side .grp{
+  padding:16px 12px 6px;color:var(--pv-ink-3);
+  font-size:11px;font-weight:600;letter-spacing:.06em;
+}
+#pv-side a{
+  border-radius:11px;margin-bottom:2px;padding:10px 12px;
+  color:var(--pv-ink-2);font-size:14px;font-weight:500;
+}
+#pv-side a:hover{background:rgba(0,0,0,.045);color:var(--pv-ink);}
+body:not(.tab-kanban):not(.tab-rent) #pv-side a[data-k="pivot"],
+body.tab-kanban #pv-side a[data-k="kanban"],
+body.tab-rent   #pv-side a[data-k="rent"]{
+  background:var(--pv-ink);color:#fff;font-weight:600;box-shadow:none;
+}
+/* 画面内のランキングのボタンは、左メニューに移したので出しません */
+.broker-stat-btn{display:none!important;}
+
+/* ---- 押すボタンは、見本と同じく緑ひとつ ----
+   ★はじめ黒にしましたが、.kb-toolbar .btn-primary が緑のままで
+     「＋新規」だけ色が違って見えました。全部を緑にそろえます。
+     選んでいるメニューの黒とは役割が違うので、ぶつかりません。 */
+.btn,.btn-primary,
+.kb-toolbar .btn-primary,#kb-view .btn-primary{
+  background:var(--pv-accent);color:#fff;border-color:transparent;
+}
+.btn:hover,.btn-primary:hover,
+.kb-toolbar .btn-primary:hover,#kb-view .btn-primary:hover{
+  background:var(--pv-accent-d);color:#fff;transform:none;box-shadow:none;
+}
+.btn-outline{background:#fff;color:var(--pv-ink);border-color:var(--pv-line);}
+
+/* ---- カード：モノクロ基調。合図だけ色を持たせます ---- */
+#kb-view .ct-card.status-progress{
+  background:#fff;
+  box-shadow:inset 4px 0 0 var(--pv-ink),0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.05);
+}
+#kb-view .ct-card.status-almost{
+  background:var(--k-blue-bg);
+  box-shadow:inset 4px 0 0 var(--pv-ink),0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.05);
+}
+#kb-view .ct-card.status-defect{
+  background:var(--k-red-bg);
+  box-shadow:inset 4px 0 0 var(--k-red),0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(194,53,42,.09);
+}
+#kb-view .ct-card.status-progress .ct-badge,
+#kb-view .ct-card.status-almost .ct-badge{background:#ececee!important;}
+#kb-view .ct-card.status-defect .ct-badge{background:#f6dedb!important;}
+#kb-view .ct-card.status-progress .prog-seg.on,
+#kb-view .ct-card.status-almost .prog-seg.on{background:var(--pv-ink)!important;}
+#kb-view .ct-card.status-defect .prog-seg.on{background:var(--k-red)!important;}
+#kb-view .ct-card.status-progress .ct-stage-name,
+#kb-view .ct-card.status-almost .ct-stage-name{color:var(--pv-ink)!important;}
+#kb-view .ct-card.status-defect .ct-stage-name{color:var(--k-red)!important;}
+
+/* 上の件数も同じ3色に */
+#kb-view .stat-pill.accent .num,
+#kb-view .stat-pill.almost .num{color:var(--pv-ink);}
+#kb-view .stat-pill.warn .num{color:var(--k-red);}
+#kb-view .stat-pill.warn{border-color:#e8c4c0;background:var(--k-red-bg);}
+
+/* 未紐づけ・ADなしの赤も、同じ濃さにそろえます */
+.ct-notlinked,.ct-ad-label.ad-zero{
+  border-color:#e8c4c0!important;background:var(--k-red-bg)!important;color:var(--k-red)!important;
+}
+
+/* ---- 物件一覧の帯も黒に ---- */
+.lv-badge{background:var(--pv-line-soft);color:var(--pv-ink-2);}
+
+/* ===== pv-tune-5 : 段階5 ===== */
+/* ---- 地。うすい光を数か所に置いて奥行きを出します ---- */
+body{
+  background:
+    radial-gradient(46% 34% at 14% 6%,  rgba(255,255,255,.95), rgba(255,255,255,0) 70%),
+    radial-gradient(40% 32% at 88% 12%, rgba(255,255,255,.80), rgba(255,255,255,0) 72%),
+    radial-gradient(56% 44% at 62% 96%, rgba(255,255,255,.70), rgba(255,255,255,0) 70%),
+    radial-gradient(38% 30% at 30% 62%, rgba(31,122,77,.045), rgba(31,122,77,0) 72%),
+    #e4e4e8;
+  background-attachment:fixed;
+}
+
+/* ---- 左メニューを、端から浮かせます ---- */
+body{padding-left:256px;}
+#pv-side{
+  left:16px;top:16px;bottom:16px;width:224px;
+  border:1px solid rgba(255,255,255,.85);
+  border-right:1px solid rgba(255,255,255,.85);
+  border-radius:22px;
+  background:rgba(255,255,255,.90);
+  -webkit-backdrop-filter:saturate(180%) blur(14px);
+  backdrop-filter:saturate(180%) blur(14px);
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 18px 46px rgba(0,0,0,.10);
+}
+
+/* ---- 上の帯と各画面は、地をそのまま見せます ----
+   ★#kb-view と #rent-view に灰色の下地が敷かれていて、body の
+     ぼかしを覆い隠していました。透かして地を見せます。 */
+.app-tabs{background:transparent;}
+#pivot-view,#kb-view,#rent-view{background:transparent!important;}
+
+/* ---- 浮かせるもの：カード・件数・パネル ---- */
+#kb-view .ct-card{
+  border-radius:20px;
+  transition:transform .18s cubic-bezier(.22,.61,.36,1),box-shadow .18s;
+}
+#kb-view .ct-card:hover{transform:translateY(-3px);}
+
+#kb-view .ct-card.status-progress{
+  box-shadow:inset 4px 0 0 var(--pv-ink),
+             0 1px 2px rgba(0,0,0,.05),0 16px 38px rgba(0,0,0,.10);
+}
+#kb-view .ct-card.status-progress:hover{
+  box-shadow:inset 4px 0 0 var(--pv-ink),
+             0 2px 6px rgba(0,0,0,.07),0 26px 56px rgba(0,0,0,.15);
+}
+#kb-view .ct-card.status-almost{
+  box-shadow:inset 4px 0 0 var(--pv-ink),
+             0 1px 2px rgba(0,0,0,.05),0 16px 38px rgba(0,0,0,.10);
+}
+#kb-view .ct-card.status-defect{
+  box-shadow:inset 4px 0 0 var(--k-red),
+             0 1px 2px rgba(0,0,0,.05),0 16px 38px rgba(194,53,42,.14);
+}
+#kb-view .ct-card.status-defect:hover{
+  box-shadow:inset 4px 0 0 var(--k-red),
+             0 2px 6px rgba(0,0,0,.07),0 26px 56px rgba(194,53,42,.20);
+}
+#kb-view .ct-card.status-complete,
+#kb-view .ct-card.done,
+#kb-view .ct-card.status-cancel{
+  box-shadow:inset 4px 0 0 rgba(0,0,0,.22),
+             0 1px 2px rgba(0,0,0,.04),0 10px 26px rgba(0,0,0,.07)!important;
+}
+
+/* 上の件数 */
+#kb-view .stat-pill{
+  border:1px solid rgba(255,255,255,.9);
+  background:rgba(255,255,255,.92);
+  border-radius:16px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px rgba(0,0,0,.07);
+}
+#kb-view .stat-pill.warn{border-color:#eec9c5;}
+
+/* 物件の一覧・オーナーメールの箱 */
+.lv-wrap,.card,.panel,.rt-card,.owner-card,.bld-list{
+  border-radius:18px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 12px 30px rgba(0,0,0,.08);
+}
+
+/* 編集画面（モーダル）も、しっかり浮かせます */
+.modal{
+  border-radius:22px;
+  box-shadow:0 2px 8px rgba(0,0,0,.06),0 34px 80px rgba(0,0,0,.26);
+}
+.modal-overlay{
+  background:rgba(20,20,24,.34);
+  -webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(6px);
+}
+
+/* 押すボタンにも、わずかな高さを持たせます */
+.btn,.btn-primary{
+  box-shadow:0 1px 2px rgba(0,0,0,.10),0 4px 12px rgba(31,122,77,.22);
+}
+.btn:hover,.btn-primary:hover{
+  box-shadow:0 2px 4px rgba(0,0,0,.12),0 8px 20px rgba(31,122,77,.30);
+}
+.btn-outline{
+  background:rgba(255,255,255,.94);
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 3px 10px rgba(0,0,0,.05);
+}
+
+/* ---- 狭い画面。左の柱をたたむので、余白も戻します ---- */
+@media (max-width:860px){
+  body{padding-left:0;}
+  #pv-side{display:none;}
+}
+@media print{ body{background:#fff;padding-left:0;} }
+
+/* ===== pv-tune-6 : 段階6（背景） ===== */
+body{
+  /* 渦を画面の真ん中寄りに移し、濃さを落としました。
+     ★渦の芯（とがって見える点）は、その位置に白い光を重ねて消しています。
+       中央に寄せたぶん芯が目に入りやすいので、白を前より強くしています。 */
+  background:
+    /* 主となる渦。中央やや上に置きます */
+    radial-gradient(34% 28% at 52% 44%, rgba(255,255,255,1), rgba(255,255,255,0) 74%),
+    conic-gradient(from -14deg at 52% 44%,
+      rgba(255,255,255,0), rgba(198,201,216,.34) 13%, rgba(255,255,255,0) 28%,
+      rgba(255,255,255,0) 41%, rgba(198,201,216,.34) 55%, rgba(255,255,255,0) 69%,
+      rgba(255,255,255,0) 81%, rgba(198,201,216,.34) 92%, rgba(255,255,255,0) 100%),
+    radial-gradient(78% 62% at 52% 44%, rgba(255,255,255,.56), rgba(255,255,255,0) 76%),
+    /* 添えの渦。左下と右上に、ごく薄く */
+    radial-gradient(40% 32% at 16% 90%, rgba(255,255,255,.92), rgba(255,255,255,0) 74%),
+    conic-gradient(from 190deg at 16% 90%,
+      rgba(255,255,255,0), rgba(192,196,214,.20) 14%, rgba(255,255,255,0) 30%,
+      rgba(255,255,255,0) 44%, rgba(192,196,214,.20) 58%, rgba(255,255,255,0) 72%,
+      rgba(255,255,255,0) 100%),
+    radial-gradient(38% 30% at 88% 10%, rgba(255,255,255,.92), rgba(255,255,255,0) 74%),
+    conic-gradient(from 60deg at 88% 10%,
+      rgba(255,255,255,0), rgba(192,196,214,.18) 14%, rgba(255,255,255,0) 30%,
+      rgba(255,255,255,0) 44%, rgba(192,196,214,.18) 58%, rgba(255,255,255,0) 72%,
+      rgba(255,255,255,0) 100%),
+    /* 土台。明るさはここで決まります */
+    linear-gradient(146deg, #ffffff 0%, #f8f8fb 28%, #edeef4 58%, #fcfcfd 100%),
+    #f4f5f9;
+  background-attachment:fixed;
+}
+
+/* 地が濃くなったぶん、浮いているものの影も強めます */
+#pv-side{
+  background:rgba(255,255,255,.96);
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 22px 54px rgba(0,0,0,.13);
+}
+#kb-view .ct-card.status-progress,
+#kb-view .ct-card.status-almost{
+  box-shadow:inset 4px 0 0 var(--pv-ink),
+             0 1px 2px rgba(0,0,0,.06),0 20px 46px rgba(0,0,0,.15);
+}
+#kb-view .ct-card.status-progress:hover,
+#kb-view .ct-card.status-almost:hover{
+  box-shadow:inset 4px 0 0 var(--pv-ink),
+             0 2px 6px rgba(0,0,0,.08),0 30px 64px rgba(0,0,0,.21);
+}
+#kb-view .ct-card.status-defect{
+  box-shadow:inset 4px 0 0 var(--k-red),
+             0 1px 2px rgba(0,0,0,.06),0 20px 46px rgba(194,53,42,.20);
+}
+#kb-view .stat-pill{
+  background:rgba(255,255,255,.95);
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 12px 28px rgba(0,0,0,.11);
+}
+.lv-wrap,.card,.panel,.rt-card,.owner-card,.bld-list{
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 16px 38px rgba(0,0,0,.12);
+}
+.btn-outline{box-shadow:0 1px 2px rgba(0,0,0,.06),0 5px 14px rgba(0,0,0,.08);}
+@media print{ body{background:#fff;} }
+
+/* ===== pv-tune-7 : 段階7 ===== */
+/* ══ 件数を、黒いカードに ══════════════════════════════════════ */
+#kb-view .stats-bar{
+  display:flex;gap:0;margin:6px 24px 18px;padding:22px 8px;
+  background:#17171a;border-radius:22px;overflow:visible;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.14),
+    0 10px 24px rgba(0,0,0,.16),
+    0 30px 64px rgba(0,0,0,.24);
+}
+#kb-view .stat-pill{
+  flex:1;background:transparent!important;border:0!important;border-radius:0;
+  box-shadow:none!important;padding:2px 18px;position:relative;
+  display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+  transform:none!important;
+}
+#kb-view .stat-pill + .stat-pill::before{
+  content:"";position:absolute;left:0;top:6px;bottom:6px;width:1px;
+  background:rgba(255,255,255,.14);
+}
+#kb-view .stat-pill:hover{background:transparent!important;}
+#kb-view .stat-pill .num{
+  font-size:38px!important;font-weight:600!important;letter-spacing:-.04em!important;
+  line-height:1.05;color:#fff!important;font-variant-numeric:tabular-nums;
+}
+#kb-view .stat-pill .lbl{
+  font-size:12px!important;font-weight:500!important;
+  color:rgba(255,255,255,.52)!important;letter-spacing:.01em;
+}
+#kb-view .stat-pill.warn .num{color:#ff6f61!important;}
+#kb-view .stat-pill.accent .num,
+#kb-view .stat-pill.almost .num{color:#fff!important;}
+#kb-view .stat-pill.success .num{color:rgba(255,255,255,.50)!important;}
+#kb-view .stat-pill.clickable{cursor:pointer;}
+#kb-view .stat-pill.clickable:hover .num{opacity:.72;}
+
+/* ══ 浮遊感 ══════════════════════════════════════════════════
+   影は1枚だと板に見えます。3枚重ねます。
+     1枚目 … 接地。輪郭をはっきりさせる
+     2枚目 … 中間。厚みを出す
+     3枚目 … 遠く。地に落ちる大きな影
+   ============================================================ */
+#kb-view .ct-card{
+  border-radius:22px;
+  transition:transform .26s cubic-bezier(.22,.61,.36,1),
+             box-shadow .26s cubic-bezier(.22,.61,.36,1);
+}
+#kb-view .ct-card.status-progress,
+#kb-view .ct-card.status-almost{
+  box-shadow:
+    inset 4px 0 0 var(--pv-ink),
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 1px 2px rgba(0,0,0,.06),
+    0 8px 18px rgba(0,0,0,.07),
+    0 24px 48px rgba(0,0,0,.11);
+}
+#kb-view .ct-card.status-defect{
+  box-shadow:
+    inset 4px 0 0 var(--k-red),
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 1px 2px rgba(194,53,42,.10),
+    0 8px 18px rgba(194,53,42,.10),
+    0 24px 48px rgba(194,53,42,.16);
+}
+#kb-view .ct-card.status-complete,
+#kb-view .ct-card.done,
+#kb-view .ct-card.status-cancel{
+  box-shadow:
+    inset 4px 0 0 rgba(0,0,0,.22),
+    0 1px 2px rgba(0,0,0,.05),
+    0 6px 14px rgba(0,0,0,.06)!important;
+}
+
+/* 触れると持ち上がる。少しだけ大きくすると、近づいた感じが出ます */
+#kb-view .ct-card:hover{
+  transform:translateY(-7px) scale(1.012);
+  z-index:5;
+}
+#kb-view .ct-card.status-progress:hover,
+#kb-view .ct-card.status-almost:hover{
+  box-shadow:
+    inset 4px 0 0 var(--pv-ink),
+    inset 0 1px 0 rgba(255,255,255,.95),
+    0 2px 4px rgba(0,0,0,.07),
+    0 16px 30px rgba(0,0,0,.10),
+    0 44px 80px rgba(0,0,0,.18);
+}
+#kb-view .ct-card.status-defect:hover{
+  box-shadow:
+    inset 4px 0 0 var(--k-red),
+    inset 0 1px 0 rgba(255,255,255,.95),
+    0 2px 4px rgba(194,53,42,.12),
+    0 16px 30px rgba(194,53,42,.14),
+    0 44px 80px rgba(194,53,42,.22);
+}
+/* 押すと沈む。押した手ごたえが出ます */
+#kb-view .ct-card:active{
+  transform:translateY(-2px) scale(.998);
+  transition-duration:.08s;
+}
+/* 完了・キャンセルは持ち上げません（もう触らないもののため） */
+#kb-view .ct-card.status-complete:hover,
+#kb-view .ct-card.done:hover,
+#kb-view .ct-card.status-cancel:hover{
+  transform:translateY(-2px);
+}
+
+/* カード同士の間を広げます。詰まっていると浮いて見えません */
+#kb-view .board{gap:22px;}
+
+/* 左メニューも同じ考え方で */
+#pv-side{
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 1px 2px rgba(0,0,0,.06),
+    0 10px 24px rgba(0,0,0,.07),
+    0 30px 60px rgba(0,0,0,.13);
+}
+#pv-side a{transition:background .16s,color .16s,transform .16s;}
+#pv-side a:hover{transform:translateX(2px);}
+
+/* ボタンも、押した手ごたえを出します */
+.btn,.btn-primary,.btn-outline,.btn-sort{
+  transition:transform .14s cubic-bezier(.22,.61,.36,1),
+             box-shadow .14s,background .16s;
+}
+.btn:active,.btn-primary:active,.btn-outline:active,.btn-sort:active{
+  transform:translateY(1px) scale(.985);
+}
+
+/* 動きを控える設定の端末では、動かしません */
+@media (prefers-reduced-motion:reduce){
+  #kb-view .ct-card,#pv-side a,.btn,.btn-primary,.btn-outline,.btn-sort{
+    transition:none;
+  }
+  #kb-view .ct-card:hover{transform:none;}
+}
+
+/* ===== pv-texture : 質感 ===== */
+body{
+  background:
+    url("data:image/png;base64,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"),
+    /* 主となる渦。中央やや上に置きます */
+    radial-gradient(34% 28% at 52% 44%, rgba(255,255,255,1), rgba(255,255,255,0) 74%),
+    conic-gradient(from -14deg at 52% 44%,
+      rgba(255,255,255,0), rgba(198,201,216,.34) 13%, rgba(255,255,255,0) 28%,
+      rgba(255,255,255,0) 41%, rgba(198,201,216,.34) 55%, rgba(255,255,255,0) 69%,
+      rgba(255,255,255,0) 81%, rgba(198,201,216,.34) 92%, rgba(255,255,255,0) 100%),
+    radial-gradient(78% 62% at 52% 44%, rgba(255,255,255,.56), rgba(255,255,255,0) 76%),
+    /* 添えの渦。左下と右上に、ごく薄く */
+    radial-gradient(40% 32% at 16% 90%, rgba(255,255,255,.92), rgba(255,255,255,0) 74%),
+    conic-gradient(from 190deg at 16% 90%,
+      rgba(255,255,255,0), rgba(192,196,214,.20) 14%, rgba(255,255,255,0) 30%,
+      rgba(255,255,255,0) 44%, rgba(192,196,214,.20) 58%, rgba(255,255,255,0) 72%,
+      rgba(255,255,255,0) 100%),
+    radial-gradient(38% 30% at 88% 10%, rgba(255,255,255,.92), rgba(255,255,255,0) 74%),
+    conic-gradient(from 60deg at 88% 10%,
+      rgba(255,255,255,0), rgba(192,196,214,.18) 14%, rgba(255,255,255,0) 30%,
+      rgba(255,255,255,0) 44%, rgba(192,196,214,.18) 58%, rgba(255,255,255,0) 72%,
+      rgba(255,255,255,0) 100%),
+    /* 土台。明るさはここで決まります */
+    linear-gradient(146deg, #ffffff 0%, #f8f8fb 28%, #edeef4 58%, #fcfcfd 100%),
+    #f4f5f9;
+  background-size:110px auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto;
+  background-repeat:repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat;
+  background-attachment:fixed;
+}
+@media print{ body{background:#fff;} }
