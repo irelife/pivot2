@@ -16,6 +16,7 @@ function requestRender(target){
     try{ if(window.KT && window.KT.reload) window.KT.reload(); }catch(e){}
   }
 }
+try{ window.requestRender = requestRender; }catch(e){}
 // ===== 自動クラウド同期(一人運用向け) =====
 // 仕組み: データ保存のたびに少し待ってまとめて送信(デバウンス)。起動時は自動読込。
 let _autoPushTimer = null;
