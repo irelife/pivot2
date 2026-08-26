@@ -1599,3 +1599,15 @@ body{
   background-repeat:no-repeat !important;
 }
 @media print{ body{background:#fff !important;} }
+/* ===== pv-settings-right : 設定メニューを右ぞろえに戻す ===== */
+@media (max-width:860px){
+  .settings-menu{
+    left:auto!important;right:0!important;
+    width:auto!important;
+    min-width:210px;
+    max-width:calc(100vw - 20px)!important;
+    max-height:min(70vh,440px);
+    overflow-y:auto;
+  }
+  .settings-wrap{position:relative;}
+}
