@@ -679,3 +679,60 @@ body{
   background-attachment:fixed;
 }
 @media print{ body{background:#fff;} }
+
+
+/* ============================================================
+   pv-mobile-fix : スマホでの不具合だけを直す
+   見た目（色・質感）は一切変えていません。位置と表示の修正のみです。
+   ============================================================ */
+
+/* ① 年ごとのグラフで、いちばん高い棒の上の数字が読めない
+      .ovb-v は top:-2px で棒の真上に重なる作り。棒が満杯の高さになると
+      黒い棒の上に黒い字が乗り、その年だけ数字が消えていた。
+      棒の上に余白をつくり、数字をそこに逃がす。 */
+#bstat-body .ovb-col{box-sizing:border-box;padding-top:19px;height:107px;}
+#bstat-body .ovb-v{top:0;}
+
+@media (max-width:860px){
+
+  /* ② 設定メニューが画面の左外に出て見切れる
+        .settings-menu は right:0（ボタンの右端ぞろえ）。スマホでは
+        ヘッダーが折り返して設定ボタンが左端に来るため、幅210pxが
+        まるごと画面の外（左端 −118px）へ出ていた。
+        左端ぞろえに変え、幅にも画面内の上限をかける。 */
+  .settings-menu{
+    left:0;right:auto;
+    min-width:0;
+    width:240px;
+    max-width:calc(100vw - 24px);
+    max-height:min(70vh,440px);
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  /* ③ 客付業者ランキングへの入口が、スマホから消えていた
+        左メニューへ移した際に画面内の元ボタンを
+        .broker-stat-btn{display:none!important} で消したが、
+        860px以下では左メニュー自体が隠れる作りのため、
+        入口がひとつも無くなっていた。狭い画面でだけ元ボタンを戻す。 */
+  .broker-stat-btn{display:inline-flex!important;}
+  #kb-view .broker-stat-bar{padding:4px 16px 10px;}
+
+  /* ランキングの中身を、狭い画面に収める（配色は変更なし） */
+  #bstat-modal.done-modal{width:96vw;max-width:96vw;max-height:88vh;}
+  #bstat-body{padding-left:12px;padding-right:12px;}
+  #bstat-body .bstat-summary{gap:6px;}
+  #bstat-body .bstat-chip{padding:7px 12px;font-size:12px;}
+}
+
+@media (max-width:520px){
+  /* 見出しと操作ボタンを上下に分ける。横に並べると
+     「客付業者 統計」が2行に割れて読みにくいため */
+  #bstat-modal .done-head{
+    flex-direction:column;align-items:stretch;gap:10px;padding:14px 14px 12px;
+  }
+  #bstat-modal .done-head h2{font-size:17px;white-space:nowrap;}
+  #bstat-modal .done-head > div{justify-content:flex-start;}
+  /* 閉じるボタンだけ右上に固定。4つ並べると × が次の行へ落ちるため */
+  #bstat-modal .done-head .pv-close{position:absolute;top:12px;right:12px;}
+}
