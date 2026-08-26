@@ -1310,3 +1310,191 @@ body{
   background:#fff3d6;color:#8a6412;border:1px solid #f0dcae;
   border-radius:8px;font-size:12px;font-weight:800;white-space:nowrap;
 }
+
+
+/* ============================================================
+   pv-rate-bigger : ランキングの「申込 / キャンセル率 / 審査落ち率」
+     大事な数字なのに 12.5px（数字は14px）で小さすぎました。
+     文字と数字を上げ、区切りも見やすくします。
+   ============================================================ */
+#bstat-body .bstat-rate{
+  font-size:16px;font-weight:500;line-height:1.5;
+  padding-top:6px;padding-bottom:10px;
+}
+#bstat-body .bstat-rate b{
+  font-size:22px;font-weight:700;letter-spacing:-.01em;
+}
+/* 「／」の区切りを薄くして、数字を際立たせる */
+#bstat-body .bstat-rate .rt-cx,
+#bstat-body .bstat-rate .rt-rj{font-weight:700;}
+
+/* 1位（濃緑のカード）の中でも読めるように */
+#bstat-body .bstat-card.rk1 .bstat-rate{color:rgba(255,255,255,.72);}
+#bstat-body .bstat-card.rk1 .bstat-rate b{color:#fff;}
+
+/* 会社名と順位も、数字に負けない大きさに */
+#bstat-body .bstat-name{font-size:19px;}
+#bstat-body .bstat-medal{font-size:18px;}
+
+@media (max-width:640px){
+  #bstat-body .bstat-rate{font-size:14px;}
+  #bstat-body .bstat-rate b{font-size:19px;}
+  #bstat-body .bstat-name{font-size:17px;}
+}
+
+
+/* ============================================================
+   pv-insight : PDFの中にしか無かった2つの表を、画面に出す
+     ① よく客付けしてくれる業者 TOP20
+     ② 掘り起こし候補（広告・再アプローチ対象）
+   ＋ 月別グラフを年ごとに改行したときの見た目
+   ============================================================ */
+#bstat-body .bstat-insight{
+  display:grid;grid-template-columns:1fr;gap:14px;margin:0 2px 16px;
+}
+@media (min-width:1250px){
+  #bstat-body .bstat-insight{grid-template-columns:1.15fr 1fr;}
+}
+#bstat-body .bi-card{
+  background:#fff;border:1px solid #e6ece8;border-radius:18px;
+  padding:16px 18px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px rgba(0,0,0,.06);
+}
+#bstat-body .bi-h{
+  font-size:16px;font-weight:700;color:var(--pv-ink);margin-bottom:12px;
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+}
+#bstat-body .bi-sub{font-size:12.5px;font-weight:500;color:var(--pv-ink-3);}
+#bstat-body .bi-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+#bstat-body .bi-table{width:100%;border-collapse:collapse;font-size:14px;}
+#bstat-body .bi-table th{
+  background:#f2f6f3;color:#5a6b62;font-size:12px;font-weight:700;
+  padding:9px 10px;text-align:left;white-space:nowrap;
+  border-bottom:1px solid #e2eae4;
+}
+#bstat-body .bi-table td{
+  padding:10px;border-bottom:1px solid #f0f4f1;vertical-align:middle;
+}
+#bstat-body .bi-table tr:last-child td{border-bottom:0;}
+#bstat-body .bi-c{text-align:center;white-space:nowrap;}
+#bstat-body .bi-nm{font-weight:700;color:var(--pv-ink);}
+#bstat-body .bi-b3{font-size:12.5px;color:var(--pv-ink-2);}
+#bstat-body .bi-table td b{font-size:17px;font-weight:700;}
+/* 上位3社 */
+#bstat-body .bi-top3 td{background:#f2f9f5;}
+#bstat-body .bi-rank{font-weight:800;color:var(--pv-accent);}
+/* 掘り起こしの緊急度：6〜11ヶ月=黄 / 12〜23ヶ月=橙 / 24ヶ月〜=赤 */
+#bstat-body .bi-warn td{background:#fffbf0;}
+#bstat-body .bi-hot  td{background:#fff5ea;}
+#bstat-body .bi-crit td{background:#fdefee;}
+#bstat-body .bi-warn .bi-gap{color:#8a6412;font-weight:800;}
+#bstat-body .bi-hot  .bi-gap{color:#b3560f;font-weight:800;}
+#bstat-body .bi-crit .bi-gap{color:#b0362c;font-weight:800;}
+#bstat-body .bi-none{
+  font-size:14px;color:var(--pv-ink-2);padding:14px 4px;
+}
+
+/* ---- 月別グラフを年ごとに改行したときの1行分 ---- */
+#bstat-body .ovy-row{
+  border-top:1px solid #eef3f0;padding-top:10px;margin-top:12px;
+}
+#bstat-body .ovy-row:first-of-type{border-top:0;padding-top:0;margin-top:0;}
+#bstat-body .ovy-h{
+  font-size:13.5px;font-weight:700;color:var(--pv-ink-2);margin-bottom:6px;
+}
+#bstat-body .ovy-h b{font-size:17px;color:var(--pv-ink);font-weight:700;}
+/* 12か月ぶんが必ず1行に収まるよう、棒を伸び縮みさせる */
+#bstat-body .ovy-row .ov-month .ovb{flex:1 1 0;min-width:0;max-width:none;}
+
+/* 記録が無い月・これから来る月の見え方（年ごとに12か月そろえたため） */
+#bstat-body .ovb-zero .ovb-col i{background:#dfe7e2!important;}
+#bstat-body .ovb-zero .ovb-x{color:var(--pv-ink-3);opacity:.7;}
+#bstat-body .ovb-future .ovb-x{color:var(--pv-ink-3);opacity:.35;}
+#bstat-body .ovb-future .ovb-col{border-bottom:1px dashed #e2eae4;}
+
+
+/* ============================================================
+   pv-rent : オーナーメール画面を、他の2画面とそろえる
+     ① この画面だけ青のままだった
+        refine.css が #rent-view に直接 --rt-accent:#007aff を
+        当てているため、:root の緑では勝てませんでした。
+        同じ #rent-view に、後から緑を入れて上書きします。
+     ② 文字が小さい（説明12.8px / 見出し11.8px / ボタン13.4px）
+   ============================================================ */
+
+/* ---- ① 色を緑にそろえる ---- */
+#rent-view{
+  --rt-accent:#1f7a4d;
+  --rt-accent-d:#186139;
+  --rt-soft:#eaf4ee;
+}
+
+/* ---- ② 文字を読める大きさに ---- */
+#rent-view .step h2{font-size:16px;}
+#rent-view .step h2 .n{width:25px;height:25px;font-size:13px;}
+#rent-view .step p{font-size:14px;line-height:1.65;}
+#rent-view .bar h2{font-size:19px;}
+#rent-view .btn{font-size:14px;padding:10px 18px;border-radius:10px;}
+#rent-view .tab{font-size:14.5px;padding:10px 18px;}
+#rent-view table.owners{font-size:14px;}
+#rent-view table.owners th{font-size:12.5px;letter-spacing:.02em;}
+#rent-view table.owners th,
+#rent-view table.owners td{padding:11px 12px;}
+#rent-view table.owners input{font-size:14px;padding:6px 8px;}
+
+/* 画面上部の説明行（送信元・流れ）も小さすぎました */
+#rent-view .wrap .note,
+#rent-view .wrap .tag{font-size:13px;}
+#rent-view h1{letter-spacing:-.02em;}
+
+/* ドロップ枠の中の説明 */
+#rent-view .drop .big{font-size:17px;}
+#rent-view .drop .sub,
+#rent-view .drop small{font-size:13px;}
+
+/* 「N物件」のバッジは ownermail.js が style="font-size:.66rem" を
+   直接書いているため、!important でないと上書きできません */
+#rent-view table.owners td div[style*="font-size"]{font-size:12.5px!important;}
+#rent-view table.owners td textarea{font-size:14px!important;line-height:1.6!important;}
+#rent-view .tmpl-area label{font-size:13.5px;}
+#rent-view .tmpl-area textarea{font-size:14.5px;line-height:1.75;}
+#rent-view .tmpl-area .hint{font-size:13px;}
+#rent-view .view p{font-size:14px;line-height:1.7;}
+#rent-view .bar span{font-size:13px;}
+
+/* 「一斉送信」だけ index.html に style="background:#007aff" が
+   直接書かれていて、1つだけ青のままでした。
+   取り消せない一括送信なので、緑の「下書きを作成」とは分けて、
+   いちばん重い操作の色（黒）にします。 */
+#rent-view #rent-btn-send{
+  background:#17171a!important;border-color:#17171a!important;color:#fff!important;
+  font-weight:700;
+}
+#rent-view #rent-btn-send:hover{background:#000!important;border-color:#000!important;}
+
+
+/* ============================================================
+   pv-modal : モーダル9種の仕上げ
+     見出し・余白・ボタン位置は refine.css で既にそろっていました
+     （9つとも 題17px / 頭18-22-14 / 体20px / 足14-22-18・右寄せ）。
+     残っていた不統一は「閉じる ×」だけです。
+     他の画面では42pxの黒にしたのに、ここだけ32pxの灰色でした。
+   ============================================================ */
+.modal .modal-close{
+  width:42px;height:42px;font-size:26px;font-weight:700;
+  background:#111;color:#fff;line-height:1;
+  box-shadow:0 2px 8px rgba(0,0,0,.22);
+  flex:0 0 auto;
+}
+.modal .modal-close:hover{background:#000;color:#fff;transform:scale(1.06);}
+
+/* 見出しも、シート（契約の編集）の17pxとそろえて少し上げます */
+.modal .modal-title{font-size:18px;}
+
+/* 狭い画面での余白。9つとも同じ値になるようにします */
+@media (max-width:760px){
+  .modal .modal-header{padding:14px 16px 12px;}
+  .modal .modal-body{padding:16px;}
+  .modal .modal-footer{padding:12px 16px 16px;}
+  .modal .modal-close{width:38px;height:38px;font-size:23px;}
+}
