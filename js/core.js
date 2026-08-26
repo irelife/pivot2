@@ -274,6 +274,8 @@ async function autoPullOnStart(){
         if(typeof window.applyCloudOwners === 'function'){ window.applyCloudOwners(payload.owners); }
         if(cloudMtime) { try{ localStorage.setItem(MTIME_KEY, String(cloudMtime)); }catch(e){} }
         requestRender();
+        // クラウド取り込み後に自動切替をチェック（起動時の1秒後では間に合わないため）
+        try{ if(typeof runAutoSwitch === 'function') runAutoSwitch(false); }catch(e){}
         setSyncStatus('saved', '✅ 最新です');
       } else {
         // ローカルが新しい → 取り込まず、こちらをクラウドへ送って揃える
@@ -653,6 +655,8 @@ async function loginPull(opt){
   try{ localStorage.setItem(MTIME_KEY, String(cloudMtime)); }catch(e){}
   _hasUnsavedChanges = false;
   requestRender();
+  // クラウド取り込み後に自動切替をチェック（起動時の1秒後では間に合わないため）
+  try{ if(typeof runAutoSwitch === 'function') runAutoSwitch(false); }catch(e){}
   setSyncStatus('saved', '✅ ログイン済み(最新)');
   setTimeout(() => { const e=document.getElementById('sync-status'); if(e && e.dataset.state==='saved') setSyncStatus('idle',''); }, 2500);
 }
