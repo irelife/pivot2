@@ -64,7 +64,7 @@
        呼ぶだけで、どの画面にいるかは body に付く印で判断しています。
      ============================================================ -->
 <link rel="stylesheet" href="css/sidebar.css">
-<link rel="stylesheet" href="css/tune.css?v=3">
+<link rel="stylesheet" href="css/tune.css?v=5">
 
 </head>
 <body>
@@ -1068,7 +1068,26 @@
 <script src="js/core.js?v=5"></script>
 <script src="js/buildings.js"></script>
 <script src="js/ownermail.js"></script>
-<script src="js/contracts.js?v=1"></script>
+<script src="js/contracts.js?v=2"></script>
 <script src="js/sidebar.js?v=1"></script>
+     <script>
+(function pvDateClick(){
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var d = t.closest('.dd-date');
+    if (!d) return;
+    var item = d.closest('.dd-item');
+    var inp  = item && item.querySelector('.dd-date-edit');
+    if (!inp) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      if (inp.showPicker) { inp.showPicker(); return; }
+    } catch (x) {}
+    try { inp.focus(); inp.click(); } catch (x) {}
+  }, true);
+})();
+</script>
 </body>
 </html>
