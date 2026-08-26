@@ -1580,3 +1580,22 @@ body{
   .app-tabs > .kb-toolbar{order:7;}
   .app-tabs > .settings-wrap{order:8;}
 }
+/* ===== pv-bg-plain : 背景を画像どおりのグラデーションに ===== */
+body{
+  background:
+    linear-gradient(90deg,
+      #9b9ba7 0%,
+      #a4a4b1 17%,
+      #afacba 28%,
+      #b2afbd 38%,
+      #c2bfcb 49%,
+      #cecbd3 59%,
+      #d7d5dd 69%,
+      #e1e1e6 80%,
+      #eaeaee 90%,
+      #f0f0f2 100%) !important;
+  background-attachment:fixed !important;
+  background-size:cover !important;
+  background-repeat:no-repeat !important;
+}
+@media print{ body{background:#fff !important;} }
