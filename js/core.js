@@ -1,7 +1,7 @@
 /* ==================================================================
  * CORE 1 / クラウド同期エンジン (mtime ベースの push / pull)
  * ================================================================== */
-
+ 
 // 画面の再描画を依頼する唯一の窓口。
 // core から buildings/KB/KT を直接呼ばないための集約点。
 function requestRender(target){
@@ -31,7 +31,7 @@ function _clearStalePushLock(){
     _autoPushPending = false;
   }
 }
-
+ 
 function setSyncStatus(state, text){
   const el = document.getElementById('sync-status');
   if(!el) return;
@@ -39,13 +39,13 @@ function setSyncStatus(state, text){
   el.dataset.state = state;
   el.style.display = text ? 'inline-flex' : 'none';
 }
-
+ 
 // ===== 時刻ベースの自動同期(一人運用・複数端末でも復活しない) =====
 // 仕組み: 保存のたびにローカル更新時刻を記録し、自動でクラウドへ送信(時刻も一緒に送る)。
 // 起動時はクラウドを読み、クラウドの時刻が自分より新しいときだけ取り込む(古い物で上書きしない)。
 const MTIME_KEY = 'pivot_local_mtime';
 let _hasUnsavedChanges = false;
-
+ 
 function touchLocalMtime(){
   const t = Date.now();
   try{ localStorage.setItem(MTIME_KEY, String(t)); }catch(e){}
@@ -56,7 +56,7 @@ function getLocalMtime(){
   return isNaN(v) ? 0 : v;
 }
 try{ window.__touchLocalMtime = touchLocalMtime; }catch(e){}
-
+ 
 // 保存のたびに呼ばれる。更新時刻を進めて、少し待ってから自動送信。
 function scheduleAutoPush(){
   const url = (typeof getCloudUrl === 'function') ? getCloudUrl() : '';
@@ -68,7 +68,7 @@ function scheduleAutoPush(){
   _autoPushTimer = setTimeout(doAutoPush, 1200);
 }
 try{ window.__scheduleAutoPush = scheduleAutoPush; }catch(e){}
-
+ 
 // 重要な変更(契約の削除・追加など)で即時にクラウドへ送るための関数。
 // デバウンス(1.2秒待ち)を挟まず、すぐに送信する。
 function pushNow(){
@@ -79,7 +79,7 @@ function pushNow(){
   doAutoPush();
 }
 try{ window.__pushNow = pushNow; }catch(e){}
-
+ 
 // ===== 勤怠データの安全なマージ(複数端末で打刻が消えないように) =====
 // 勤怠は { "2026-06-11":{in,out,...}, ... } の日付キー構造。
 // クラウドとローカルを日付単位で統合する。同じ日付が両方にある場合は、
@@ -141,8 +141,8 @@ function applyCloudKintai(cloudKintai){
   return merged;
 }
 try{ window.__mergeKintai = mergeKintai; window.__applyCloudKintai = applyCloudKintai; }catch(e){}
-
-
+ 
+ 
 async function doAutoPush(){
   const url = (typeof getCloudUrl === 'function') ? getCloudUrl() : '';
   if(!url) return;
@@ -202,7 +202,7 @@ async function doAutoPush(){
     if(_autoPushPending){ _autoPushPending = false; setTimeout(doAutoPush, 200); }
   }
 }
-
+ 
 // 起動時: クラウドを読み、クラウドの時刻が自分より新しいときだけ取り込む。
 async function autoPullOnStart(){
   const url = (typeof getCloudUrl === 'function') ? getCloudUrl() : '';
@@ -273,9 +273,7 @@ async function autoPullOnStart(){
         }
         if(typeof window.applyCloudOwners === 'function'){ window.applyCloudOwners(payload.owners); }
         if(cloudMtime) { try{ localStorage.setItem(MTIME_KEY, String(cloudMtime)); }catch(e){} }
-        if(typeof renderAll === 'function') renderAll();
-        if(typeof window.KB !== 'undefined' && typeof window.KB.renderAll === 'function'){ try{ window.KB.renderAll(); }catch(e){} }
-        if(typeof window.KT !== 'undefined' && typeof window.KT.reload === 'function'){ try{ window.KT.reload(); }catch(e){} }
+        requestRender();
         setSyncStatus('saved', '✅ 最新です');
       } else {
         // ローカルが新しい → 取り込まず、こちらをクラウドへ送って揃える
@@ -335,7 +333,7 @@ window.addEventListener('visibilitychange', () => {
     if(_hasUnsavedChanges){ doAutoPush(); }
   }
 });
-
+ 
 // ============================================================
 // ★★★ ログイン認証について ★★★
 //
@@ -350,10 +348,10 @@ window.addEventListener('visibilitychange', () => {
 // ============================================================
 const LOGIN_ACCOUNTS = [];
 // ============================================================
-
+ 
 // 現在ログイン中のユーザーID
 let _pivotCurrentUser = '';
-
+ 
 // ログアウトボタンの表示・非表示を更新(ログイン中はボタンを出す)
 function updateLoginUserLabel(){
   const logoutWrap = document.getElementById('logout-wrap');
@@ -363,7 +361,7 @@ function updateLoginUserLabel(){
     if(logoutWrap){ logoutWrap.style.display = 'none'; }
   }
 }
-
+ 
 // ログアウト: ログイン中表示を消して、ログイン画面に戻す
 function pivotLogout(){
   if(!confirm('ログアウトしますか？\nもう一度メールアドレス・パスワードの入力が必要になります。')) return;
@@ -375,18 +373,18 @@ function pivotLogout(){
   if(typeof showLoginScreen === 'function'){ showLoginScreen(); }
 }
 try{ window.pivotLogout = pivotLogout; }catch(e){}
-
+ 
 // ===== 自動ログアウト(1時間操作なし / 日付が変わったら 再ログイン) =====
 const LS_LASTSEEN = 'pivot_lastseen_v1';
 const IDLE_LIMIT_MS = 60 * 60 * 1000;  // 1時間
-
+ 
 // 最終操作時刻と日付を記録
 function markActivity(){
   try{
     localStorage.setItem(LS_LASTSEEN, JSON.stringify({ t: Date.now(), d: new Date().toDateString() }));
   }catch(e){}
 }
-
+ 
 // 「1時間経過」または「日付が変わった」を判定
 function isSessionExpired(){
   try{
@@ -398,7 +396,7 @@ function isSessionExpired(){
   }catch(e){}
   return false;
 }
-
+ 
 // 期限切れならログアウトしてログイン画面へ
 function checkAutoLogout(){
   if(!_pivotCurrentUser) return;          // 未ログインなら何もしない
@@ -410,7 +408,7 @@ function checkAutoLogout(){
     if(typeof showLoginScreen === 'function'){ showLoginScreen(); }
   }
 }
-
+ 
 // 操作のたびに最終操作時刻を更新(ログイン中のみ)
 ['click','keydown','scroll','touchstart','mousemove'].forEach(function(ev){
   try{ document.addEventListener(ev, function(){ if(_pivotCurrentUser) markActivity(); }, { passive:true }); }catch(e){}
@@ -418,7 +416,7 @@ function checkAutoLogout(){
 // 1分ごと、およびタブに戻ったときに期限をチェック
 try{ setInterval(checkAutoLogout, 60 * 1000); }catch(e){}
 try{ document.addEventListener('visibilitychange', function(){ if(!document.hidden) checkAutoLogout(); }); }catch(e){}
-
+ 
 // ===== ログイン履歴(GASスプレッドシートに記録) =====
 // ログイン成功時に「誰が・いつ」をクラウドに1行追記する。
 // 失敗してもログイン自体は妨げない(履歴は補助機能のため)。
@@ -434,7 +432,7 @@ async function recordLoginHistory(email){
     }, 15000);
   }catch(e){ /* 履歴記録の失敗は無視 */ }
 }
-
+ 
 // クラウドからログイン履歴を取得して返す(配列)。新しい順。
 async function fetchLoginHistory(limit){
   const url = (typeof getCloudUrl === 'function') ? getCloudUrl() : '';
@@ -444,7 +442,7 @@ async function fetchLoginHistory(limit){
   return Array.isArray(r.history) ? r.history : [];
 }
 try{ window.fetchLoginHistory = fetchLoginHistory; }catch(e){}
-
+ 
 // ログイン履歴モーダルを開いて、履歴を読み込んで表示する
 async function openLoginHistory(){
   const modal = document.getElementById('login-history-modal');
@@ -492,7 +490,7 @@ function closeLoginHistory(){
   if(modal){ modal.classList.remove('active'); }
 }
 try{ window.openLoginHistory = openLoginHistory; window.closeLoginHistory = closeLoginHistory; }catch(e){}
-
+ 
 // ===== ログイン画面(=クラウドから最新を読み込ませる強制ステップ) =====
 function showLoginScreen(){
   const url = (typeof getCloudUrl === 'function') ? getCloudUrl() : '';
@@ -520,7 +518,7 @@ function showLoginScreen(){
   const idInput = ov.querySelector('#pivot-login-id');
   const passInput = ov.querySelector('#pivot-login-pass');
   const resetLink = ov.querySelector('#pivot-login-reset');
-
+ 
   // Firebaseが読み込めていない場合の保険
   if(!_firebaseReady || typeof firebase === 'undefined' || !firebase.auth){
     msg.style.color = '#d33';
@@ -528,7 +526,7 @@ function showLoginScreen(){
     btn.disabled = true; btn.style.opacity = '0.6';
     return;
   }
-
+ 
   // Firebaseのエラーコードを日本語の分かりやすい文に変換
   const firebaseErrText = (code) => {
     switch(code){
@@ -542,7 +540,7 @@ function showLoginScreen(){
       default: return 'ログインに失敗しました。(' + code + ')';
     }
   };
-
+ 
   const doLogin = async () => {
     const email = (idInput.value || '').trim();
     const pass = passInput.value || '';
@@ -578,7 +576,7 @@ function showLoginScreen(){
       btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'ログイン';
     }
   };
-
+ 
   // パスワード再設定メールの送信
   const doReset = async () => {
     const email = (idInput.value || '').trim();
@@ -601,7 +599,7 @@ function showLoginScreen(){
       msg.textContent = firebaseErrText(code);
     }
   };
-
+ 
   const loginForm = ov.querySelector('#pivot-login-form');
   if(loginForm){
     loginForm.addEventListener('submit', (e) => { e.preventDefault(); doLogin(); });
@@ -613,14 +611,12 @@ function showLoginScreen(){
   passInput.addEventListener('keydown', (e) => { if(e.key === 'Enter'){ doLogin(); } });
   idInput.addEventListener('keydown', (e) => { if(e.key === 'Enter'){ passInput.focus(); } });
 }
-
+ 
 // ログイン時のクラウド読込(クラウドのデータでローカルを置き換える)
 /* まず端末に残っている内容で画面を出し、最新はうしろで取り込む。
    毎回クラウドの返事を待ってから画面を出していたため、開くのに時間がかかっていた。 */
 function showLocalFirst(){
-  try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
-  try{ if(window.KB && window.KB.renderAll) window.KB.renderAll(); }catch(e){}
-  try{ if(window.KT && window.KT.reload) window.KT.reload(); }catch(e){}
+  requestRender();
 }
 /* うしろで最新を取り込む。取り込み中に編集していたら、その内容を消さない。 */
 function backgroundPull(){
@@ -629,7 +625,7 @@ function backgroundPull(){
     try{ setSyncStatus('error', '⚠️ 最新の取り込みに失敗（端末の内容を表示中）'); }catch(e){}
   });
 }
-
+ 
 async function loginPull(opt){
   const url = (typeof getCloudUrl === 'function') ? getCloudUrl() : '';
   if(!url) return;
@@ -656,13 +652,11 @@ async function loginPull(opt){
   const cloudMtime = parseInt(payload.mtime || '0', 10) || Date.now();
   try{ localStorage.setItem(MTIME_KEY, String(cloudMtime)); }catch(e){}
   _hasUnsavedChanges = false;
-  if(typeof renderAll === 'function') renderAll();
-  if(typeof window.KB !== 'undefined' && typeof window.KB.renderAll === 'function'){ try{ window.KB.renderAll(); }catch(e){} }
-  if(typeof window.KT !== 'undefined' && typeof window.KT.reload === 'function'){ try{ window.KT.reload(); }catch(e){} }
+  requestRender();
   setSyncStatus('saved', '✅ ログイン済み(最新)');
   setTimeout(() => { const e=document.getElementById('sync-status'); if(e && e.dataset.state==='saved') setSyncStatus('idle',''); }, 2500);
 }
-
+ 
 // タブ・ロゴから呼ぶ「最新を取り込む」関数。
 // 時刻判定をせず、必ずクラウドの内容で画面を更新する(クラウドが更新時刻を返さない環境でも確実に反映)。
 // ただし未保存の変更があるときは、上書きで消えないよう確認してから取り込む。
@@ -696,9 +690,7 @@ async function forcePullLatest(){
       const cloudMtime = parseInt(payload.mtime || '0', 10) || Date.now();
       try{ localStorage.setItem(MTIME_KEY, String(cloudMtime)); }catch(e){}
       _hasUnsavedChanges = false;
-      if(typeof renderAll === 'function') renderAll();
-      if(typeof window.KB !== 'undefined' && typeof window.KB.renderAll === 'function'){ try{ window.KB.renderAll(); }catch(e){} }
-      if(typeof window.KT !== 'undefined' && typeof window.KT.reload === 'function'){ try{ window.KT.reload(); }catch(e){} }
+      requestRender();
       setSyncStatus('saved', '✅ 最新です');
       setTimeout(() => { const e=document.getElementById('sync-status'); if(e && e.dataset.state==='saved') setSyncStatus('idle',''); }, 2000);
     } else {
@@ -709,20 +701,20 @@ async function forcePullLatest(){
   }
 }
 try{ window.forcePullLatest = forcePullLatest; }catch(e){}
-
+ 
 function genId(){
   return 'bld_' + Date.now() + '_' + Math.floor(Math.random()*1000);
 }
-
+ 
 /* ==================================================================
  * CORE 2 / 会社情報・設定・GAS 通信レイヤ・起動処理
  * ================================================================== */
-
+ 
 // ==============================
 // 会社情報の管理(localStorage + クラウド同期)
 // ==============================
 const COMPANY_INFO_KEY = 'pivot_company_info';
-
+ 
 function getCompanyInfo(){
   try {
     const raw = localStorage.getItem(COMPANY_INFO_KEY);
@@ -734,7 +726,7 @@ function getCompanyInfo(){
     return getDefaultCompanyInfo();
   }
 }
-
+ 
 function getDefaultCompanyInfo(){
   // 初期値(過去PIVOTの情報)
   return {
@@ -749,7 +741,7 @@ function getDefaultCompanyInfo(){
     invoice_no: ''
   };
 }
-
+ 
 function saveCompanyInfo(info){
   try {
     localStorage.setItem(COMPANY_INFO_KEY, JSON.stringify(info));
@@ -759,7 +751,7 @@ function saveCompanyInfo(info){
     return false;
   }
 }
-
+ 
 // 設定メニュー(歯車)の開閉
 function toggleSettingsMenu(e){
   if(e){ e.stopPropagation(); }
@@ -775,7 +767,7 @@ document.addEventListener('click', function(e){
   const wrap = e.target.closest && e.target.closest('.settings-wrap');
   if(!wrap){ closeSettingsMenu(); }
 });
-
+ 
 // 会社情報モーダル: 開く
 function openCompanyModal(){
   const info = getCompanyInfo();
@@ -790,11 +782,11 @@ function openCompanyModal(){
   document.getElementById('cmp-invoice').value = info.invoice_no || '';
   document.getElementById('company-modal').classList.add('active');
 }
-
+ 
 function closeCompanyModal(){
   document.getElementById('company-modal').classList.remove('active');
 }
-
+ 
 function saveCompany(){
   const name = document.getElementById('cmp-name').value.trim();
   const addr = document.getElementById('cmp-addr').value.trim();
@@ -822,19 +814,19 @@ function saveCompany(){
     closeCompanyModal();
   }
 }
-
+ 
 // ==============================
 // クラウド同期(Google Apps Script 連携)
 // ==============================
 const CLOUD_URL_KEY = 'pivot_cloud_url';
-
+ 
 function getCloudUrl(){
   return (localStorage.getItem(CLOUD_URL_KEY) || '').trim();
 }
 function setCloudUrl(url){
   localStorage.setItem(CLOUD_URL_KEY, (url||'').trim());
 }
-
+ 
 function openCloudModal(){
   document.getElementById('cloud-url').value = getCloudUrl();
   document.getElementById('cloud-log').style.display = 'none';
@@ -847,7 +839,7 @@ function closeCloudModal(){
   setCloudUrl(url);
   document.getElementById('cloud-modal').classList.remove('active');
 }
-
+ 
 // ログ表示エリアに追記
 function cloudLog(msg, type){
   const logEl = document.getElementById('cloud-log');
@@ -857,7 +849,7 @@ function cloudLog(msg, type){
   logEl.textContent += '[' + ts + '] ' + prefix + msg + '\n';
   logEl.scrollTop = logEl.scrollHeight;
 }
-
+ 
 // GASにPOST送信
 async function postToGas(url, body, timeoutMs){
   // text/plain で送信(CORS preflight 回避)
@@ -888,7 +880,7 @@ async function postToGas(url, body, timeoutMs){
     throw new Error('GASからの応答が不正: ' + text.slice(0, 200));
   }
 }
-
+ 
 // ===== 機能別の独立保存(まとめ送信とは別に、各機能を単独でクラウドへ保存) =====
 // feature: 'buildings' | 'contracts' | 'owners'
 // 既存のまとめ送信(doAutoPush)はそのまま残し、これは「巻き添え防止の補助経路」として併用する。
@@ -926,7 +918,7 @@ async function pushFeatureToCloud(feature){
   }
 }
 if(typeof window !== 'undefined'){ window.pushFeatureToCloud = pushFeatureToCloud; }
-
+ 
 // 接続テスト
 async function testCloudPing(){
   const url = document.getElementById('cloud-url').value.trim();
@@ -948,7 +940,7 @@ async function testCloudPing(){
     cloudLog('  → URLが正しいか、GASのデプロイが「全員」になっているか確認', 'error');
   }
 }
-
+ 
 // クラウドへ全データを送信
 async function cloudSaveAll(){
   const url = document.getElementById('cloud-url').value.trim();
@@ -957,7 +949,7 @@ async function cloudSaveAll(){
     return;
   }
   setCloudUrl(url);
-
+ 
   const all = loadAll();
   const bldCount = Object.keys(all).length;
   if(bldCount === 0){
@@ -969,12 +961,12 @@ async function cloudSaveAll(){
       return;
     }
   }
-
+ 
   // ボタン無効化
   const btn = document.getElementById('cloud-upload-btn');
   if(btn) btn.disabled = true;
   cloudLog('送信中... ('+bldCount+'物件)');
-
+ 
   try {
     const r = await postToGas(url, { action: 'save', payload: { buildings: all } });
     if(r.ok){
@@ -990,7 +982,7 @@ async function cloudSaveAll(){
     if(btn) btn.disabled = false;
   }
 }
-
+ 
 // クラウドから全データを読込
 async function cloudLoadAll(){
   const url = document.getElementById('cloud-url').value.trim();
@@ -999,15 +991,15 @@ async function cloudLoadAll(){
     return;
   }
   setCloudUrl(url);
-
+ 
   if(!confirm('クラウドからデータを読み込みます。\n\n⚠️ 現在のローカルデータは上書きされます。\n(クラウドが空でも上書きされます)\n\nよろしいですか?')){
     return;
   }
-
+ 
   const btn = document.getElementById('cloud-download-btn');
   if(btn) btn.disabled = true;
   cloudLog('クラウドから読込中...');
-
+ 
   try {
     const r = await postToGas(url, { action: 'load' });
     if(r.ok){
@@ -1016,7 +1008,7 @@ async function cloudLoadAll(){
       document.dispatchEvent(new CustomEvent('pivot:save-buildings', { detail: buildings }));
       cloudLog('読込成功: 物件 '+(r.buildingCount||0)+'件', 'success');
       document.dispatchEvent(new CustomEvent('pivot:toast', { detail: '☁ クラウドから読込完了' }));
-      renderAll();
+      requestRender('buildings');
     } else {
       cloudLog('読込失敗: ' + (r.message || '不明'), 'error');
     }
@@ -1026,7 +1018,7 @@ async function cloudLoadAll(){
     if(btn) btn.disabled = false;
   }
 }
-
+ 
 // ==============================
 // 初期化
 // ==============================
@@ -1035,9 +1027,9 @@ window.addEventListener('DOMContentLoaded', () => {
   if(!getCloudUrl()){
     setCloudUrl('https://script.google.com/macros/s/AKfycbxJQZwtUy1gMVBxszZjkgSQVg-yy6xbDrAct1fRzvglDoEC1_1qMN27jL394XvOVnXdZQ/exec');
   }
-  renderAll();
+  requestRender('buildings');
   console.log('[PIVOT Simple v8.5] 起動完了');
-
+ 
   // ブラウザが画像/PDFを開いてしまうのを防ぐ(ドロップ領域外に落とした場合)
   ['dragover','drop'].forEach(ev => {
     window.addEventListener(ev, (e) => {
@@ -1046,7 +1038,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if(!inZone){ e.preventDefault(); }
     }, false);
   });
-
+ 
   // 配置図/写真エリアに確実な D&D リスナーを付与(onattr が効かない環境の保険)
   const bindDrop = (el, dropFn) => {
     if(!el) return;
@@ -1061,7 +1053,7 @@ window.addEventListener('DOMContentLoaded', () => {
   };
   bindDrop(document.getElementById('layout-area'), onLayoutDrop);
   bindDrop(document.getElementById('photos-area'), onPhotosDrop);
-
+ 
   // 起動から少し遅らせて自動切替チェック(画面表示が落ち着いてから)
   setTimeout(() => {
     runAutoSwitch(false);
@@ -1071,21 +1063,22 @@ window.addEventListener('DOMContentLoaded', () => {
     prefetchAllImages();
   }, 1500);
 });
-
+ 
 /* ==================================================================
  * CORE 3 / タブ切替
  * ================================================================== */
-
+ 
 function switchApp(which){
   document.body.classList.toggle('tab-kanban', which==='kanban');
   document.body.classList.toggle('tab-rent', which==='rent');
   document.getElementById('tab-pivot').classList.toggle('active', which==='pivot');
   document.getElementById('tab-kanban').classList.toggle('active', which==='kanban');
   document.getElementById('tab-rent').classList.toggle('active', which==='rent');
-  if(which==='kanban' && window.KB && window.KB.renderAll){ try{ window.KB.renderAll(); }catch(e){} }
+  if(which==='kanban'){ requestRender('kanban'); }
   if(which==='rent' && window.RENT && window.RENT.activate){ try{ window.RENT.activate(); }catch(e){} }
   // 注意: タブ切替ではクラウドからの取り込み(上書き)を行わない。
   // (取り込むと、入力直後・送信前のデータが古いクラウド内容で上書きされ「消えた・戻った」が起きるため)
   // 未送信の変更があれば送信だけ行う(取り込みはしない)。
   try{ if(typeof window.__pushNow === 'function'){ window.__pushNow(); } }catch(e){}
 }
+ 
