@@ -998,7 +998,7 @@ async function cloudLoadAll(){
     if(r.ok){
       const payload = r.payload || {};
       const buildings = payload.buildings || {};
-      saveAll(buildings);
+      document.dispatchEvent(new CustomEvent('pivot:save-buildings', { detail: buildings }));
       cloudLog('読込成功: 物件 '+(r.buildingCount||0)+'件', 'success');
       document.dispatchEvent(new CustomEvent('pivot:toast', { detail: '☁ クラウドから読込完了' }));
       renderAll();
