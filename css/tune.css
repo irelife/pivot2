@@ -736,3 +736,75 @@ body{
   /* 閉じるボタンだけ右上に固定。4つ並べると × が次の行へ落ちるため */
   #bstat-modal .done-head .pv-close{position:absolute;top:12px;right:12px;}
 }
+
+
+/* ============================================================
+   pv-sheet-mobile : 契約の編集が、左右にはみ出す
+     #kb-view .dd-item は width:calc((100% - 48px)/7) で
+     画面幅にかかわらず「常に横7個」。スマホでは1個57pxになり、
+     ・「契約書送付」が1文字ずつ縦に並ぶ
+     ・日付「2026/08/26」が枠に収まらず外へ出て、
+       グリッドが12px右へはみ出す（＝左右の遊び）
+     という状態でした。狭い画面では個数を減らします。
+     色・質感は変えていません。
+     ============================================================ */
+@media (max-width:860px){
+  /* はみ出しそのものを止める */
+  #kb-view .dd-grid{overflow-x:hidden;}
+  /* 横4個に。1個あたりの幅が約2倍になり、日付が枠に収まります */
+  #kb-view .dd-item{
+    width:calc((100% - 24px) / 4);
+    padding:12px 4px;
+    min-width:0;
+  }
+  #kb-view .dd-item img,
+  #kb-view .dd-item.zone-fill img,
+  #kb-view .dd-item.zone-outline img{width:40px;height:40px;}
+  #kb-view .dd-item .dd-label{
+    font-size:12.5px!important;line-height:1.3;text-align:center;
+    overflow-wrap:anywhere;word-break:normal;
+  }
+  #kb-view .dd-item .dd-date{font-size:11px!important;white-space:nowrap;}
+  #kb-view .dd-item .dd-note{font-size:10.5px!important;}
+  #kb-view .dd-item .dd-cycle-hint{font-size:9.5px!important;}
+}
+
+@media (max-width:520px){
+  /* さらに狭い画面では横3個。日付の幅を確実に確保します */
+  #kb-view .dd-item{width:calc((100% - 16px) / 3);}
+}
+
+/* 上段の基本情報も同じ理由でつぶれていました。
+   #kb-view .info-icons は flex-wrap:nowrap で7項目を必ず1行に詰めるため、
+   スマホでは1個42pxになり「未入力」が1文字ずつ縦に並んでいました。
+   折り返して、1行に3つ（狭い画面）／4つ（少し広い画面）にします。 */
+@media (max-width:860px){
+  /* align-content を止めないと、折り返した行が縦に引き伸ばされて
+     1個203pxの間延びした箱になります */
+  #kb-view .info-icons{flex-wrap:wrap;gap:8px;align-content:flex-start;align-items:flex-start;}
+  #kb-view .info-icon{
+    flex:1 1 calc((100% - 24px) / 4);
+    min-width:calc((100% - 24px) / 4);
+    min-height:86px;padding:10px 6px;
+  }
+  #kb-view .info-icon.info-icon-wide{
+    flex:1 1 calc((100% - 24px) / 4);min-width:calc((100% - 24px) / 4);
+  }
+  #kb-view .info-ico-label{font-size:11px;line-height:1.3;overflow-wrap:anywhere;}
+  #kb-view .info-ico-val{font-size:12px;}
+  #kb-view .info-ico-val.is-date{font-size:14px;letter-spacing:0;}
+  #kb-view .info-ico-val.is-park{font-size:17px;}
+  #kb-view .info-icon.info-icon-wide .info-ico-val{font-size:13px;}
+  #kb-view .info-icon .info-ico-svg svg{width:24px;height:24px;}
+  /* 未入力の値が padding:60px 20px を拾って、1マスが203pxに膨らんでいました。
+     値に付く class は "info-ico-val empty" で、base.css:515 の
+     .empty{padding:60px 20px}（データ無し画面用の全体ルール）に
+     偶然あたっていたためです。ここだけ余白を戻します。 */
+  #kb-view .info-ico-val.empty{padding:0;}
+}
+@media (max-width:520px){
+  #kb-view .info-icon,
+  #kb-view .info-icon.info-icon-wide{
+    flex:1 1 calc((100% - 16px) / 3);min-width:calc((100% - 16px) / 3);
+  }
+}
