@@ -4904,3 +4904,4 @@ function csvImport(){
   }
 }
 document.addEventListener('pivot:toast', e => showToast(e.detail));
+document.addEventListener('pivot:save-buildings', e => saveAll(e.detail));
