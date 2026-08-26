@@ -1033,7 +1033,7 @@ async function cloudLoadAll(){
 window.addEventListener('DOMContentLoaded', () => {
   // GAS URL の初期値(未設定時のみ)
   if(!getCloudUrl()){
-    setCloudUrl('https://script.google.com/macros/s/AKfycbxJQZwtUy1gMVBxszZjkgSQVg-yy6xbDrAct1fRzvglDoEC1_1qMN27jL394XvOVnXdZQ/exec');
+  setCloudUrl('https://script.google.com/macros/s/AKfycbzXofzG5Pk1U_QMHQ945UGf01esCoDEs-hqMheqGGAp0K-gtme8tYri6k3w2U91jarE/exec');
   }
   requestRender('buildings');
   console.log('[PIVOT Simple v8.5] 起動完了');
