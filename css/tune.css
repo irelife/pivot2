@@ -808,3 +808,148 @@ body{
     flex:1 1 calc((100% - 16px) / 3);min-width:calc((100% - 16px) / 3);
   }
 }
+
+
+/* ============================================================
+   pv-wide : 画面を広げた分だけ、中身も広げる
+   ============================================================ */
+@media (min-width:861px){
+  /* 物件の画面。1200pxで頭打ちになり、1920pxの窓では480px余っていました */
+  #pivot-view .container{max-width:none;}
+  /* オーナーメールの画面。1100pxで頭打ち。同じく580px余り */
+  #rent-view .wrap{max-width:none;}
+}
+
+/* ============================================================
+   pv-bstat-full : 客付業者ランキングを、画面いっぱいの1画面に
+     もとは 720px の小さな枠に、中身を押し込んでいました。
+     枠を画面全体に広げ、余白と角丸をなくして「1画面」にします。
+     ★HTML・id・class・JS には触れていません。
+     ============================================================ */
+#kb-view #bstat-modal.done-modal,
+#kb-view #bstat-modal.done-modal.active{
+  top:0;left:0;right:0;bottom:0;
+  transform:none;
+  width:100vw;max-width:none;
+  height:100vh;max-height:none;
+  border-radius:0;
+  box-shadow:none;
+}
+/* 中身が縦に伸びきるように */
+#kb-view #bstat-modal .done-head{flex:0 0 auto;}
+#kb-view #bstat-modal #bstat-body{flex:1 1 auto;min-height:0;}
+
+/* 広がった横幅を、グラフに使わせる */
+#bstat-body{padding-left:24px;padding-right:24px;}
+#bstat-body .ov-bars.ov-year{gap:20px;padding-left:4px;padding-right:4px;}
+#bstat-body .ov-year .ovb{flex:1 1 0;width:auto;min-width:56px;max-width:170px;}
+#bstat-body .ov-year .ovb-col i{width:74%;max-width:96px;}
+#bstat-body .ov-month .ovb{flex:1 0 36px;width:auto;max-width:64px;}
+/* 会社ごとの月別グラフも、余った分だけ広がるように */
+#bstat-body .bm-chart{gap:7px;}
+#bstat-body .mbar{flex:1 0 30px;max-width:52px;width:auto;}
+
+/* 狭い画面では、もともとの全画面指定（96vw/88vh）を保つ */
+@media (max-width:860px){
+  #kb-view #bstat-modal.done-modal,
+  #kb-view #bstat-modal.done-modal.active{
+    width:100vw;height:100vh;border-radius:0;
+  }
+  #bstat-body{padding-left:12px;padding-right:12px;}
+}
+
+/* ---- 個別の業者の明細を、広い画面では段組みにする ----
+   1社ぶんの明細が88件・縦3,639pxあり、1件ずつ縦に並んでいました。
+   横幅が余っているので、段に分けて一度に見えるようにします。
+   ★行の中身（物件名・号数・担当・日付・キャンセル/審査落ち）は
+     もともと出ているものです。並べ方だけ変えています。 */
+/* ★.bstat-props は display:flex のため column-count が効きません。
+     grid に変えて段に分けます。
+     閉じているときの .bstat-collapsed{display:none} は
+     こちらより指定が強いので、開閉の動きはそのままです。 */
+@media (min-width:1200px){
+  #bstat-body .bstat-props{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 20px;
+  }
+  #bstat-body .bstat-props.cx-only::before{grid-column:1 / -1;}
+}
+@media (min-width:1650px){
+  #bstat-body .bstat-props{grid-template-columns:repeat(3,minmax(0,1fr));}
+}
+
+/* 「押すと明細が出る」ことが分かるようにする。
+   いままで小さな ▼ だけで、気づけませんでした。 */
+#bstat-body .bstat-caret::before{
+  content:'明細';
+  font-size:11px;font-weight:700;color:#8a8a8f;
+  margin-right:6px;vertical-align:middle;letter-spacing:.02em;
+}
+#bstat-body .bstat-card:hover .bstat-caret::before{color:#111;}
+
+
+/* ============================================================
+   pv-date-bigger : 日付が小さすぎて読めない
+     ・獲得アイテムの日付「08/26」      15px → 20px
+     ・日付の入力欄「2026/08/26」       11px → 14px（枠も広げる）
+     ・カードの「ひな形送付 → 8/26」    16px → 21px
+   大きさだけの変更です。色・配置・機能は変えていません。
+   ============================================================ */
+#kb-view .dd-date{font-size:20px;font-weight:800;}
+#kb-view .dd-item.zone-fill .dd-date,
+#kb-view .dd-item.zone-outline .dd-date{font-size:20px;font-weight:800;}
+/* 取得日の入力欄。
+   日付は上に「08/26」と大きく出ているので、ここの日付の文字は消し、
+   カレンダーのアイコンだけ残します。押せば今までどおり日付を直せます。
+   （文字を消すだけで、入力欄そのものは残しています） */
+#kb-view .dd-date-edit{
+  width:auto;max-width:100%;box-sizing:border-box;
+  padding:2px 3px;margin-top:2px;
+  border:1px solid rgba(0,0,0,.16);border-radius:7px;
+  background:rgba(255,255,255,.75);
+  font-size:13px;line-height:1;
+}
+#kb-view .dd-date-edit::-webkit-datetime-edit{display:none;}
+#kb-view .dd-date-edit::-webkit-inner-spin-button{display:none;}
+#kb-view .dd-date-edit::-webkit-clear-button{display:none;}
+#kb-view .dd-date-edit::-webkit-calendar-picker-indicator{
+  opacity:.5;padding:0;margin:0;cursor:pointer;
+}
+#kb-view .dd-item:hover .dd-date-edit::-webkit-calendar-picker-indicator{opacity:.9;}
+
+/* カード上の「ステータス → 切替日」 */
+#kb-view .ct-status-date{font-size:21px;letter-spacing:.5px;}
+#kb-view .ct-status-date-label{font-size:13px;opacity:.9;}
+#kb-view .ct-status-date-arrow{font-size:13px;}
+#kb-view .ct-status-date-edit{font-size:13px;}
+
+/* スマホ。枠が3列で143pxあるので、こちらも読める大きさに戻します
+   （pv-sheet-mobile で11pxまで落としていました） */
+@media (max-width:860px){
+  #kb-view .dd-item .dd-date{font-size:15px!important;font-weight:800;}
+  #kb-view .dd-date-edit{font-size:13px;max-width:100%;}
+  #kb-view .ct-status-date{font-size:18px;}
+}
+
+
+/* ============================================================
+   pv-monthly-color : マンスリーが白のままで見分けられない
+     cardStatus() は 'monthly' を返しているのに、
+     .ct-card.status-monthly の背景がどこにも定義されておらず、
+     白いカードのまま他と区別がつきませんでした。
+     アプリ内で既にマンスリーに使っている水色
+     （#e4f1fc / #1a7fd4）にそろえます。
+     ============================================================ */
+#kb-view .ct-card.status-monthly{
+  background:#e4f1fc;
+  box-shadow:inset 4px 0 0 #1a7fd4,0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(26,127,212,.10);
+}
+#kb-view .ct-card.status-monthly:hover{
+  box-shadow:inset 4px 0 0 #1a7fd4,0 2px 6px rgba(0,0,0,.07),0 14px 36px rgba(26,127,212,.16);
+}
+#kb-view .ct-card.status-monthly .ct-badge{background:#d0e6f9!important;}
+#kb-view .ct-card.status-monthly .ct-stage-name{color:#0a5a9e;}
+
+/* 獲得アイテムの日付が薄い山吹色(#f5c000)で読みにくいので、
+   基本情報の日付（申込日・契約日）と同じ濃さ(#9a7b00)にそろえます。
+   赤（不要）とグレー（他保険）のアイテムは、意味のある色なのでそのまま。 */
+#kb-view .dd-item:not(.is-red):not(.is-gray) .dd-date{color:#9a7b00;}
