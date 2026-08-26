@@ -1549,3 +1549,21 @@ body{
   #kb-view .broker-stat-btn{font-size:16px;padding:14px 24px;width:auto;}
   #kb-view .broker-stat-bar{padding:6px 16px 12px;}
 }
+/* ===== pv-head-stable : 上のバーが同期表示で動くのを止める ===== */
+@media (max-width:860px){
+  .app-tabs{flex-wrap:wrap;align-items:center;row-gap:8px;}
+  .app-tabs > .app-pivot-logo{order:1;flex:1 1 auto;min-width:0;}
+  .app-tabs > #sync-status{order:2;}
+  .app-tabs > #tab-pivot{order:3;}
+  .app-tabs > #tab-kanban{order:4;}
+  .app-tabs > #tab-rent{order:5;}
+  .app-tabs > .kb-toolbar{order:6;flex:0 0 100%;margin-top:2px;}
+  .app-tabs > .settings-wrap{order:7;}
+  .app-tabs > .app-tab{padding:9px 16px;font-size:14px;}
+}
+/* 同期表示の幅を固定する（これがずれの原因でした） */
+#sync-status{
+  flex:0 0 118px!important;width:118px!important;max-width:118px!important;
+  justify-content:center!important;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
