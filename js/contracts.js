@@ -1323,6 +1323,75 @@ function computeBrokerStats(){
 }
 let _brokerStatMode = 'broker'; // 'broker' | 'property'
 function setBrokerStatMode(m){ _brokerStatMode = m; renderBrokerStats(); }
+/* PDFの中にしか無かった ①TOP20 ②掘り起こし候補 を、画面にも出す。
+   計算の考え方は exportBrokerStatsPdf と同じ（最終客付けからの経過月数）。 */
+function brokerInsightHtml(rows){
+  const now = new Date();
+  const fmt = s => (s && s.length>=8) ? (s.slice(0,4)+'/'+s.slice(4,6)+'/'+s.slice(6,8))
+                 : (s && s.length>=6) ? (s.slice(0,4)+'/'+s.slice(4,6)) : '';
+  const info = rows.map(r => {
+    const last = (r.items||[]).find(it => !it.cancel);
+    const ls = last ? last.sort : '';
+    let gap = '';
+    if(ls && ls.length>=6){
+      const y = +ls.slice(0,4), mo = +ls.slice(4,6);
+      const g = (now.getFullYear()-y)*12 + (now.getMonth()+1 - mo);
+      gap = g < 0 ? 0 : g;
+    }
+    return { r, gap, lastDisp: fmt(ls),
+             best3: (r.top3||[]).map(t => esc(t.name)+'('+t.count+')').join(' / ') };
+  });
+
+  /* ① よく客付けしてくれる業者 TOP20 */
+  let topRows = '';
+  info.slice(0,20).forEach((x,i) => {
+    topRows += '<tr class="' + (i<3 ? 'bi-top3' : '') + '">'
+      + '<td class="bi-c bi-rank">' + (i+1) + '</td>'
+      + '<td class="bi-nm">' + esc(x.r.broker) + '</td>'
+      + '<td class="bi-c"><b>' + x.r.count + '</b></td>'
+      + '<td class="bi-c">' + (x.r.cancel || '\u2014') + '</td>'
+      + '<td class="bi-c">' + (x.lastDisp || '\u2014') + '</td>'
+      + '<td class="bi-b3">' + x.best3 + '</td></tr>';
+  });
+
+  /* ② 掘り起こし候補（3件以上・6ヶ月以上あいている・経過の長い順） */
+  const dig = info.filter(x => x.gap !== '' && x.gap >= 6 && x.r.count >= 3)
+                  .sort((a,b) => b.gap - a.gap);
+  let digRows = '';
+  dig.forEach(x => {
+    const lv = (x.gap >= 24) ? 'bi-crit' : (x.gap >= 12) ? 'bi-hot' : 'bi-warn';
+    digRows += '<tr class="' + lv + '">'
+      + '<td class="bi-nm">' + esc(x.r.broker) + '</td>'
+      + '<td class="bi-c">' + x.r.count + ' 件</td>'
+      + '<td class="bi-c">' + x.lastDisp + '</td>'
+      + '<td class="bi-c bi-gap">' + x.gap + 'ヶ月</td>'
+      + '<td class="bi-b3">'
+        + (x.r.top3||[]).slice(0,2).map(t => esc(t.name)+'('+t.count+')').join(' / ')
+      + '</td></tr>';
+  });
+
+  return '<div class="bstat-insight">'
+    + '<div class="bi-card">'
+      + '<div class="bi-h">\u{1F3C6} よく客付けしてくれる業者 TOP20</div>'
+      + '<div class="bi-wrap"><table class="bi-table">'
+        + '<thead><tr><th>順</th><th>業者</th><th>客付</th><th>ｷｬﾝｾﾙ</th>'
+        + '<th>最終客付</th><th>よく決める物件 Best3</th></tr></thead>'
+        + '<tbody>' + topRows + '</tbody></table></div>'
+    + '</div>'
+    + '<div class="bi-card">'
+      + '<div class="bi-h">\u{1F514} 掘り起こし候補（広告・再アプローチ対象）'
+        + '<span class="bi-sub">3件以上の実績があり、6ヶ月以上あいている業者　'
+        + dig.length + ' 社</span></div>'
+      + (dig.length
+          ? '<div class="bi-wrap"><table class="bi-table">'
+            + '<thead><tr><th>業者</th><th>これまでの実績</th><th>最終客付</th>'
+            + '<th>経過</th><th>よく決める物件</th></tr></thead>'
+            + '<tbody>' + digRows + '</tbody></table></div>'
+          : '<div class="bi-none">該当なし。実績のある業者とは、いずれも6ヶ月以内に取引があります。</div>')
+    + '</div>'
+    + '</div>';
+}
+
 function renderBrokerStats(){
   const { rows, fyValid, fy, total, totalCancel, totalReject, totalBase, cancelRate, rejectRate, years, monthsAll, props: propRanking } = computeBrokerStats();
   const _now = new Date();
@@ -1382,6 +1451,9 @@ function renderBrokerStats(){
     return;
   }
 
+  // ① TOP20 と ② 掘り起こし候補（今までPDFの中にしか無かったもの）
+  html += brokerInsightHtml(rows);
+
   // 全体：年別グラフ（全期間表示のとき）
   if(!fyValid && years.length > 1){
     const ys = years.slice().sort((a,b)=>a.year.localeCompare(b.year)); // 古い順
@@ -1397,18 +1469,48 @@ function renderBrokerStats(){
   }
 
   // 全体：月別グラフ（成約件数の推移）
+  // ★横に一直線だと毎回スクロールが要るので、年で改行して1年ずつ並べます。
+  //   棒の高さは全期間の最大値でそろえてあるので、年をまたいでも高さを比べられます。
   if(monthsAll.length >= 2){
     const maxm = Math.max(1, ...monthsAll.map(m=>m.count));
-    html += '<div class="ov-chart"><div class="ov-h">📊 月ごとの客付け件数'+(fyValid?'（'+fy+'年）':'（全期間）')+'</div><div class="ov-bars ov-month">';
-    monthsAll.forEach(m=>{
-      const h = Math.round(m.count/maxm*100);
-      const lbl = m.ym.slice(2).replace('-','/'); // YY/MM
-      const isNow = (m.ym === THIS_YM);
-      html += '<div class="ovb'+(isNow?' ovb-now':'')+'" title="'+m.ym+'：'+m.count+'件'+(m.cancel?' / ｷｬﾝｾﾙ'+m.cancel:'')+'">'+
-        '<div class="ovb-col"><span class="ovb-v">'+m.count+'</span><i style="height:'+Math.max(6,h)+'%"></i></div>'+
-        '<span class="ovb-x">'+(isNow?'今月':lbl)+'</span></div>';
+    const byYear = {};
+    monthsAll.forEach(m => { const y = m.ym.slice(0,4); (byYear[y] = byYear[y] || []).push(m); });
+    const yearKeys = Object.keys(byYear).sort();
+    html += '<div class="ov-chart"><div class="ov-h">📊 月ごとの客付け件数'
+          + (fyValid ? '（'+fy+'年）' : '（年ごと）') + '</div>';
+    const nowY = _now.getFullYear(), nowM = _now.getMonth()+1;
+    yearKeys.forEach(y => {
+      const ms = byYear[y];
+      const sum = ms.reduce((a,m) => a + m.count, 0);
+      /* 年をまたいで月の位置がそろうよう、1月〜12月の枠を必ず並べます。
+         記録の無い月は0、まだ来ていない月は空欄にします。 */
+      const map = {};
+      ms.forEach(m => { map[+m.ym.slice(5)] = m; });
+      html += '<div class="ovy-row">'
+        + '<div class="ovy-h">' + y + '年 <b>' + sum + '</b> 件</div>'
+        + '<div class="ov-bars ov-month">';
+      for(let mo = 1; mo <= 12; mo++){
+        const mm = String(mo).padStart(2,'0');
+        const ym = y + '-' + mm;
+        const isNow = (ym === THIS_YM);
+        const future = (+y > nowY) || (+y === nowY && mo > nowM);
+        if(future){
+          html += '<div class="ovb ovb-future"><div class="ovb-col"></div>'
+                + '<span class="ovb-x">' + mm + '月</span></div>';
+          continue;
+        }
+        const m = map[mo];
+        const cnt = m ? m.count : 0;
+        const h = Math.round(cnt/maxm*100);
+        html += '<div class="ovb'+(isNow?' ovb-now':'')+(cnt===0?' ovb-zero':'')+'"'
+          + ' title="'+ym+'：'+cnt+'件'+((m&&m.cancel)?' / ｷｬﾝｾﾙ'+m.cancel:'')+'">'
+          + '<div class="ovb-col"><span class="ovb-v">'+(cnt===0?'':cnt)+'</span>'
+          + '<i style="height:'+(cnt===0?2:Math.max(6,h))+'%"></i></div>'
+          + '<span class="ovb-x">'+(isNow?'今月':(mm+'月'))+'</span></div>';
+      }
+      html += '</div></div>';
     });
-    html += '</div></div>';
+    html += '</div>';
   }
 
   rows.forEach((r, i) => {
