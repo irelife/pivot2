@@ -839,7 +839,8 @@ function openCloudModal(){
 }
 function closeCloudModal(){
   // 入力中のURLを保存
-  const url = document.getElementById('cloud-url').value.trim();
+  const _el = document.getElementById('cloud-url');
+  const url = (_el && _el.value.trim()) ? _el.value.trim() : getCloudUrl();
   setCloudUrl(url);
   document.getElementById('cloud-modal').classList.remove('active');
 }
@@ -891,8 +892,8 @@ async function postToGas(url, body, timeoutMs){
 // 失敗しても握りつぶす(本線はまとめ送信なので、補助が落ちても全体は壊さない)。
 async function pushFeatureToCloud(feature){
   try{
-    const urlEl = document.getElementById('cloud-url');
-    const url = urlEl ? urlEl.value.trim() : '';
+    // 保存済みのURLを使う。設定画面を開いていなくても動くようにする。
+    const url = getCloudUrl();
     if(!url) return;
     let action = '', payload = {};
     if(feature === 'buildings'){
@@ -925,7 +926,8 @@ if(typeof window !== 'undefined'){ window.pushFeatureToCloud = pushFeatureToClou
  
 // 接続テスト
 async function testCloudPing(){
-  const url = document.getElementById('cloud-url').value.trim();
+  const _el = document.getElementById('cloud-url');
+  const url = (_el && _el.value.trim()) ? _el.value.trim() : getCloudUrl();
   if(!url){
     cloudLog('GAS URL を入力してください', 'error');
     return;
@@ -947,7 +949,8 @@ async function testCloudPing(){
  
 // クラウドへ全データを送信
 async function cloudSaveAll(){
-  const url = document.getElementById('cloud-url').value.trim();
+  const _el = document.getElementById('cloud-url');
+  const url = (_el && _el.value.trim()) ? _el.value.trim() : getCloudUrl();
   if(!url){
     cloudLog('GAS URL を入力してください', 'error');
     return;
@@ -989,7 +992,8 @@ async function cloudSaveAll(){
  
 // クラウドから全データを読込
 async function cloudLoadAll(){
-  const url = document.getElementById('cloud-url').value.trim();
+  const _el = document.getElementById('cloud-url');
+  const url = (_el && _el.value.trim()) ? _el.value.trim() : getCloudUrl();
   if(!url){
     cloudLog('GAS URL を入力してください', 'error');
     return;
@@ -1085,4 +1089,3 @@ function switchApp(which){
   // 未送信の変更があれば送信だけ行う(取り込みはしない)。
   try{ if(typeof window.__pushNow === 'function'){ window.__pushNow(); } }catch(e){}
 }
- 
