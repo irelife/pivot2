@@ -2,6 +2,20 @@
  * CORE 1 / クラウド同期エンジン (mtime ベースの push / pull)
  * ================================================================== */
 
+// 画面の再描画を依頼する唯一の窓口。
+// core から buildings/KB/KT を直接呼ばないための集約点。
+function requestRender(target){
+  target = target || 'all';
+  if(target === 'all' || target === 'buildings'){
+    try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
+  }
+  if(target === 'all' || target === 'kanban'){
+    try{ if(window.KB && window.KB.renderAll) window.KB.renderAll(); }catch(e){}
+  }
+  if(target === 'all' || target === 'kintai'){
+    try{ if(window.KT && window.KT.reload) window.KT.reload(); }catch(e){}
+  }
+}
 // ===== 自動クラウド同期(一人運用向け) =====
 // 仕組み: データ保存のたびに少し待ってまとめて送信(デバウンス)。起動時は自動読込。
 let _autoPushTimer = null;
