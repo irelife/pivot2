@@ -471,8 +471,8 @@ function mergeYearIntoDetail(){
 }
  
 /* ===== 仕分け結果の保存・復元(PDF本体は保存しない=軽量) ===== */
-const LS_DETAIL = "rent_owner_send_detail_v1";
-const LS_HISTORY = "rent_owner_send_history_v1";   // 月をまたいで残す送信履歴
+const LS_DETAIL  = "pivot2_rent_owner_send_detail_v1";
+const LS_HISTORY = "pivot2_rent_owner_send_history_v1";   // 月をまたいで残す
  
 /* 送信/下書きの履歴を1件追記(月をまたいで永続) */
 function appendHistory(entries){
