@@ -1,10 +1,10 @@
 /* ==================================================================
  * CONTRACTS / 契約カンバン (IIFE / window.KB)
  * ================================================================== */
-
+ 
 /* ===== KANBAN (namespaced) ===== */
 (function(){
-
+ 
 const STORAGE_KEY = 'contract_kanban_v2';
 function loadAll(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e){ return {}; } }
 function saveAll(d){
@@ -18,7 +18,7 @@ function saveAll(d){
 }
 function genId(){ return 'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function today(){ return new Date().toISOString().slice(0,10); }
-
+ 
 // ステージ定義(順序が「標準的な流れ」。ただしドラッグは自由)
 // ===== カード用アイコン(インラインSVG・モノトーン) =====
 // 犬の顔
@@ -67,7 +67,7 @@ const ICON_PARK = 'data:image/svg+xml;utf8,' + encodeURIComponent(
 );
 // 駆け付け(ベル)
 const ICON_RESCUE = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#3a3a3c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="4.5" r="2"/><path d="M13.5 8l-3.2 2.3.6 3.7M10.9 14l-2.4 4.5M14.1 13.3l1.4 2.2 3 1.5"/><path d="M13.5 8c1.2-.3 2.6.2 3.3 1.3l1.1 1.7 2.4.4"/><path d="M5 12l2.5-.3"/></svg>');
-
+ 
 // ===== アイテム用アイコン(SVG) =====
 const ITEM_ICON = {
   insurance: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#3a3a3c" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.4c1.1-1.5 3.8-1.4 4.5.6.6 1.8-.9 3.7-4.5 6.1-3.6-2.4-5.1-4.3-4.5-6.1.7-2 3.4-2.1 4.5-.6z" fill="#3a3a3c" stroke="none"/><path d="M2.8 14c1.4-.7 2.6-.4 3.9.7L9 16.6c.5.4 1.1.6 1.7.6h3.6c.5 0 .9.4.9.9s-.4.9-.9.9h-3.9"/><path d="M21.2 14c-1.4-.7-2.6-.4-3.9.7l-1.4 1.1"/><path d="M2.8 13.6v6.4M21.2 13.6v6.4"/></svg>'),
@@ -102,7 +102,7 @@ const ITEM_ICON = {
   // AD(広告料): 円マーク付きの札
   ad: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#3a3a3c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M12 9v6M9.6 10.8h4.8M9.6 13.2h4.8" stroke-width="1.5"/><circle cx="5.5" cy="12" r="0.6" fill="#3a3a3c" stroke="none"/><circle cx="18.5" cy="12" r="0.6" fill="#3a3a3c" stroke="none"/></svg>'),
 };
-
+ 
 // アイテム定義(キー, ラベル, 取得判定関数, クリック時のON/OFF値)
 const ITEMS = [
   { key:'insurance',   label:'火災保険',     icon:'insurance',
@@ -178,7 +178,7 @@ function hexA(hex, a){
   const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
   return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
 }
-
+ 
 // ===== ステージ用アイコン(SVG・白線/色背景に乗せる) =====
 function stageIcon(svg){ return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg); }
 const STAGE_ICON = {
@@ -190,7 +190,7 @@ const STAGE_ICON = {
   key: stageIcon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="4.5"/><path d="M11 11l8 8M15.5 15.5l2-2M18 18l2-2"/></svg>'),
   done: stageIcon('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 5H4.5a2.5 2.5 0 0 0 2.5 4M17 5h2.5a2.5 2.5 0 0 1-2.5 4"/><path d="M12 13v3M9 20h6M10 16h4l.5 4h-5z"/></svg>'),
 };
-
+ 
 // ===== 日付記録用アイコン(SVG) =====
 const DATE_ICON = {
   send: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#3a3a3c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L3 11l7 2 2 7z"/><path d="M21 3l-9 10"/></svg>'),
@@ -200,7 +200,7 @@ const DATE_ICON = {
   handover: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#3a3a3c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="9" r="3.5"/><path d="M10.5 9h9M15 9v2.5M18 9v2"/><path d="M5 16c2 2 6 3 9 1l4-2"/></svg>'),
   payment: 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#3a3a3c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M9 10l3 3 3-3M9 14h6M9.5 16h5"/></svg>'),
 };
-
+ 
 const STAGES = [
   {key:'申込',         name:'申込',        emoji:'📥', icon:'apply',  color:'#8e8e93'},
   {key:'契約日確定',   name:'契約日確定',  emoji:'📅', icon:'cdate',  color:'#5856d6'},
@@ -211,7 +211,7 @@ const STAGES = [
   {key:'完了',         name:'完了',        emoji:'✅', icon:'done',   color:'#34c759'}
 ];
 function stageIndex(key){ return STAGES.findIndex(s => s.key === key); }
-
+ 
 let _editingId = null;
 let _editingType = '個人';
 let _editingWarn = 0;
@@ -255,7 +255,7 @@ function setStatFilter(k){
   renderBoard();
   renderStats();
 }
-
+ 
 // ====== レンダリング ======
 // CSVで保管済みの年（この年の完了は件数から外す）
 function archivedYears(){
@@ -277,7 +277,7 @@ function doneYearOf(c){
 function currentCountYear(){
   return String(new Date().getFullYear());
 }
-
+ 
 // 起動時に「一覧表示／カード表示」の文言をそろえる
 function syncViewBtn(){
   const b = document.getElementById('btn-view');
@@ -285,7 +285,7 @@ function syncViewBtn(){
   b.textContent = (_viewMode === 'list') ? 'カード表示' : '一覧表示';
   b.classList.toggle('on', _viewMode === 'list');
 }
-
+ 
 function renderStats(){
   const list = Object.values(loadAll());
   const active = list.filter(c => !c.archived);
@@ -324,7 +324,7 @@ function renderStats(){
   drawArchiveNotice();
   syncViewBtn();
 }
-
+ 
 /* =========================================================
  *  年をまたいだ完了ぶんの保管をうながす案内
  * ======================================================= */
@@ -379,7 +379,7 @@ function archiveYearCsv(y){
   renderStats();
   toast(y + '年ぶんを保管済みにしました');
 }
-
+ 
 function renderBoard(){
   const all = loadAll();
   const search = (document.getElementById('kb-search').value || '').trim().toLowerCase();
@@ -447,7 +447,7 @@ function renderBoard(){
   paintBoard(board, list);
   bindCardDrag();
 }
-
+ 
 // 現在到達している最終ステージのインデックスを返す
 function currentStageIndex(c){
   const reached = c.stageReached || {};
@@ -457,7 +457,7 @@ function currentStageIndex(c){
   if(idx < 0){ idx = Math.max(0, stageIndex(c.stage || '申込')); }
   return idx;
 }
-
+ 
 // 残タスク(まだ到達していないステージ)を計算
 function getRemainingStages(c){
   const reached = c.stageReached || {};
@@ -467,7 +467,7 @@ function getReachedStages(c){
   const reached = c.stageReached || {};
   return STAGES.filter(s => reached[s.key]);
 }
-
+ 
 // 進捗の段階定義(基本情報の日付 + アイテム化したステージ)
 const PROGRESS_STEPS = [
   { key:'applyDate',    name:'申込',       color:'#8e8e93', done:c => !!c.applyDate },
@@ -593,7 +593,7 @@ function cdateHtml(c){
     '<span class="cd-value">' + mo + '/' + d + '</span>' +
     '<span class="cd-md">' + y + '</span></div>';
 }
-
+ 
 // 破損レベル: 不備あり=3, 進行度で 2→1→0(完了) へ修復
 function damageLevel(c){
   if(isContractComplete(c)) return 0;
@@ -642,12 +642,12 @@ function setViewMode(m){
   renderBoard();
 }
 function toggleViewMode(){ setViewMode(_viewMode === 'list' ? 'card' : 'list'); }
-
+ 
 function paintBoard(board, list){
   if(_viewMode === 'list'){ board.innerHTML = renderListView(list); return; }
   board.innerHTML = '<div class="contract-grid" id="contract-grid">' + list.map(c => renderCard(c)).join('') + '</div>';
 }
-
+ 
 // 列（テーブル）で表示する
 function renderListView(list){
   const row = c => {
@@ -692,7 +692,7 @@ function renderListView(list){
     + '<th class="lv-miss-h">不備（足りていない項目）</th></tr></thead>'
     + '<tbody>' + list.map(row).join('') + '</tbody></table></div>';
 }
-
+ 
 function renderCard(c){
   const curIdx = progressCurrentIndex(c);
   const cur = PROGRESS_STEPS[curIdx] || PROGRESS_STEPS[0];
@@ -701,14 +701,14 @@ function renderCard(c){
   const accent = STATUS_COLOR[status];
   const prog = contractProgress(c);
   const doneCount = prog.done, totalCount = prog.total;
-
+ 
   // 進捗バー(20分割は細かいので、達成割合で塗る6セグメント表示)
   const ratio = doneCount / totalCount;
   const segHtml = Array.from({length:6}).map((_, i) => {
     const on = (i < Math.round(ratio * 6));
     return '<span class="prog-seg' + (on ? ' on' : '') + '"' + (on ? ' style="background:' + accent + ';"' : '') + '></span>';
   }).join('');
-
+ 
   // タイトル
   const roomNo = c.room ? String(c.room).replace(/^P/i, '') : '';
   const pkg = c.parking ? String(c.parking) : '';
@@ -716,7 +716,7 @@ function renderCard(c){
   if(c.tou) titleLine += '<span class="t-room">' + esc(c.tou) + '棟</span>';
   if(roomNo) titleLine += '<span class="t-room">' + esc(roomNo) + '号</span>';
   if(pkg) titleLine += '<span class="t-park">P' + esc(pkg.replace(/^P[-\s]?/i,'')) + '</span>';
-
+ 
   // 駐車場(P区画)があるのに、まだ物件管理の区画へ紐づけていない場合は警告する
   // (キャンセル・審査落ち・完了移動済みは対象外)
   let notLinked = false;
@@ -730,10 +730,10 @@ function renderCard(c){
   const notLinkedBadge = notLinked
     ? '<div class="ct-notlinked" title="この契約は駐車場区画にまだ紐づけられていません。カードを開いて「🅿 紐づけ」を押してください。">⚠ 駐車場 未紐づけ</div>'
     : '';
-
+ 
   const curName = (curIdx < 0) ? '未着手' : cur.name;
   const statusLabel = isDone ? '✓ 完了' : (status==='defect' ? '基本情報不備あり' : (status==='almost' ? 'もうすぐ完了' : '進行中'));
-
+ 
   const isCancel = (status === 'cancel');
   const moveBtn = ((isDone || isCancel) && !c.archived)
     ? '<button class="ct-move-done' + (isCancel ? ' ct-move-done-gray' : '') + '" onclick="KB.moveToDone(event,\'' + c.id + '\')">完了タブへ移動 ▸</button>'
@@ -742,7 +742,7 @@ function renderCard(c){
   const revertBtn = (isCancel && !c.archived)
     ? '<button class="ct-revert" onclick="KB.revertToApply(event,\'' + c.id + '\')">↩ 申込に戻す</button>'
     : '';
-
+ 
   // 状況プルダウン。法人のときは「ひな形送付済み」を選択肢に追加する。
   const ddStatus = dropdownStatus(c);
   const isCorp = (c && c.type === '法人');
@@ -782,22 +782,24 @@ function renderCard(c){
     '</select>';
   // ステータスを切り替えた日（自動記録）を、「ひな形送付済み」のときだけバッジの横に表示（年なし）
   // ステータスを切り替えた日を、どのステータスでもバッジの上に表示（年なし）
-  const ddDateHtml = c.dealStatusDate
+  // 既存カードは切替日が未記録なので、最終更新日から補う（タップで直せます）
+  const ddDate = c.dealStatusDate || String(c.updatedAt || '').slice(0, 10) || '';
+  const ddDateHtml = ddDate
     ? '<span class="ct-status-date" style="color:' + ddColor + ';cursor:pointer;" title="タップで日付だけ変更" onclick="event.stopPropagation();KB.promptStatusDate(\'' + c.id + '\')">' +
         '<span class="ct-status-date-label">' + esc(ddLabel) + '</span>' +
         '<span class="ct-status-date-arrow">→</span>' +
-        esc(String(c.dealStatusDate).replace(/^\d{4}-/, '').replace('-', '/')) +
+        esc(String(ddDate).replace(/^\d{4}-/, '').replace('-', '/')) +
         '<span class="ct-status-date-edit">✎</span>' +
       '</span>'
     : '';
   const statusBox = '<div class="ct-status-box">' + ddDateHtml + statusSelect + '</div>';
-
+ 
   // 個人/法人の横に出す AD 表示（未設定は既定100%。ティール色で目立たせる）
   const adNum = adValue(c.ad);
   const adCls = (adNum === 0) ? ' ad-zero' : (adNum === 200) ? ' ad-200' : (adNum === 300) ? ' ad-300' : '';
   const adText = (adNum === 0) ? 'ADなし' : ('AD' + esc(String(adNum)) + '%');
   const adLabelHtml = '<span class="ct-ad-label' + adCls + '">' + adText + '</span>';
-
+ 
   var _touch = ('ontouchstart' in window);
   return '<div class="ct-card status-' + status + (isDone ? ' done' : '') + (c.archived ? ' archived' : '') + '" data-id="' + c.id + '"' + (_touch ? '' : ' draggable="true"') +
     ' style="border-color:' + accent + ';"' +
@@ -999,7 +1001,7 @@ function onCardStatusChange(event, id){
     promptStatusDate(id);
   }
 }
-
+ 
 // ステータス切替日をカレンダーで選ばせる小さなダイアログ
 function promptStatusDate(id){
   const all = loadAll();
@@ -1046,15 +1048,15 @@ function iconForStep(key){
   const m = {applyDate:'apply', contractDate:'cdate', sendDate:'send', returnDate:'return', paymentDate:'pay', keyHandover:'key', doneStage:'done'};
   return m[key] || 'apply';
 }
-
+ 
 function esc(s){ if(s==null) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
+ 
 // ホバー可能なデバイス(PC等)か判定
 const _canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 let _hoverTimer = null;
 let _suppressHoverUntil = 0;
 let _previewId = null;
-
+ 
 // 中央ポップアップに詳細を描画して開く
 function showPreview(id){
   const c = loadAll()[id];
@@ -1065,12 +1067,12 @@ function showPreview(id){
   const reachedContract = !!reached['契約日確定'];
   const pkg = c.parking ? String(c.parking).replace(/^P[-\s]?/i,'') : '';
   const isPet = (c.pet === 'あり');
-
+ 
   // タイトル行
   let head = '<span class="pv-title">' + esc(c.property || '(物件未入力)') + '</span>';
   if(roomNo) head += '<span class="pv-room">' + esc(roomNo) + '号</span>';
   if(pkg) head += '<span class="pv-park">P' + esc(pkg) + '</span>';
-
+ 
   // ステージ一覧
   const stagesHtml = STAGES.map(s => {
     const d = reached[s.key];
@@ -1081,13 +1083,13 @@ function showPreview(id){
       (d ? '<span class="pv-st-date">' + dtxt + '</span>' : '<span class="pv-st-date" style="color:#bbb;">未到達</span>') +
     '</div>';
   }).join('');
-
+ 
   const metaHtml =
     (c.type === '法人' ? '<span class="pv-tag">法人</span>' : '<span class="pv-tag">個人</span>') +
     (c.warn ? '<span class="pv-tag" style="background:#ffe5e3;color:#c0392b;">不備あり</span>' : '') +
     (c.staff ? '<span class="pv-tag">担当 ' + esc(c.staff) + '</span>' : '') +
     (c.contractDate ? '<span class="pv-tag">契約日 ' + esc(c.contractDate.slice(5).replace('-','/')) + '</span>' : '');
-
+ 
   // 獲得アイテム(大きく表示)
   const pvItems = displayItems(c);                         // AD等の表示専用も出す
   const gotCount = applicableItems(c).filter(it => itemGot(c, it)).length;  // 取得数は達成項目のみ
@@ -1109,7 +1111,7 @@ function showPreview(id){
       '<span class="pv-item-status">' + (got ? (gotDate ? '取得 ' + gotDate : '✔ 取得') : '—') + '</span>' +
     '</div>';
   }).join('');
-
+ 
   const popup = document.getElementById('preview-popup');
   popup.innerHTML =
     '<button class="pv-close" onclick="KB.hidePreview(true)">×</button>' +
@@ -1124,7 +1126,7 @@ function showPreview(id){
     '<div class="pv-stages">' + stagesHtml + '</div>' +
     (c.memo ? '<div class="pv-section-title">📝 備考</div><div class="pv-memo">' + esc(c.memo).replace(/\n/g,'<br>') + '</div>' : '') +
     '<button class="pv-edit-btn" onclick="KB.openSheet(\'' + id + '\')">編集する</button>';
-
+ 
   document.getElementById('preview-backdrop').classList.add('active');
   popup.classList.add('active');
   popup.setAttribute('aria-hidden','false');
@@ -1136,7 +1138,7 @@ function hidePreview(){
   popup.classList.remove('active');
   popup.setAttribute('aria-hidden','true');
 }
-
+ 
 // ====== 完了済みモーダル ======
 function openDoneModal(){
   renderDoneList();
@@ -1151,7 +1153,7 @@ function closeDoneModal(){
   m.classList.remove('active');
   m.setAttribute('aria-hidden','true');
 }
-
+ 
 // ====== PIVOT導入前の客付け履歴（Excel契約書管理表より・カード化しない分析専用データ） ======
 /* 3年分(2023-2026) 804件。統計/分析にのみ使用。契約カンバンには出しません。 */
 const BROKER_HISTORY = [{"property":"ベラカーサノース","room":"705.0","broker":"穴吹ハウジングサービス　岡山","staff":"森川","contractDate":"2026-04-14","applyDate":"2026-03-18","status":"契約書類不備あり"},{"property":"ベラカーサノース","room":"501.0","broker":"ホーミィエステート","staff":"矢野","contractDate":"2026-04-15","applyDate":"2026-03-06","status":"契約書類不備あり"},{"property":"エスプレイスビルド","room":"106.0","broker":"エイブル総社店","staff":"吉村","contractDate":"2026-05-07","applyDate":"2026-04-09","status":"契約書類不備あり"},{"property":"アンティカベラカーサ","room":"207.0","broker":"DOORS岡山駅前店","staff":"水野","contractDate":"2026-06-11","applyDate":"2026-06-06","status":"契約書類不備あり"},{"property":"サントーシャ","room":"101.0","broker":"中国バス不動産　福山","staff":"上田","contractDate":"2026-06-14","applyDate":"2026-05-21","status":"契約書類不備あり"},{"property":"ラコリーヌ","room":"A102","broker":"ケイアイ沖野上","staff":"馬場","contractDate":"2026-06-17","applyDate":"2026-05-20","status":"契約書類不備あり"},{"property":"アイディール","room":"102.0","broker":"タカハシ東尾道駅前店","staff":"肌野","contractDate":"2026-06-26","applyDate":"2026-05-28","status":"契約書類不備あり"},{"property":"ベラカーササウス","room":"603.0","broker":"ワイケイ倉敷駅前店","staff":"永田","contractDate":"2026-07-01","applyDate":"2026-06-02","status":"契約書類不備あり"},{"property":"アンティカベラカーサ","room":"302.0","broker":"東建コーポレーション 倉敷支店","staff":"新田","contractDate":"2026-07-11","applyDate":"2026-06-29","status":"契約書類不備あり"},{"property":"エスプレイスビルド","room":"902.0","broker":"ワイケイ　新倉敷駅前","staff":"金光","contractDate":"2026-07-12","applyDate":"2026-06-14","status":"契約書類不備あり"},{"property":"アンティカベラカーサ","room":"402.0","broker":"エイブル　庭瀬","staff":"古谷","contractDate":"2026-07-18","applyDate":"2026-06-27","status":"契約書送付済み"},{"property":"エスプレイスビルド","room":"802.0","broker":"エイブルNW倉敷市役所前店","staff":"鳥越","contractDate":"2026-07-18","applyDate":"2026-07-07","status":"契約書送付済み"},{"property":"シティハイツ暁の星","room":"102.0","broker":"アパマンショップ沖野上店","staff":"段上","contractDate":"2026-07-23","applyDate":"2026-06-18","status":"契約書送付済み"},{"property":"アイディール","room":"201.0","broker":"中国バス不動産","staff":"宗政","contractDate":"2026-07-24","applyDate":"2026-06-05","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"806.0","broker":"ワイケイ　倉敷沖新店","staff":"安藤","contractDate":"2026-07-24","applyDate":"2026-07-11","status":"契約書送付済み"},{"property":"セラータ","room":"107.0","broker":"株式会社 ケイアイホーム神辺店","staff":"坂井","contractDate":"2026-07-25","applyDate":"2026-07-11","status":"契約書送付済み"},{"property":"エスプレイスビルド","room":"505.0","broker":"ケイアイホーム　倉敷白楽町店","staff":"豊嶋","contractDate":"2026-07-26","applyDate":"2026-07-05","status":"契約書送付済み"},{"property":"ベラカーサノース","room":"903.0","broker":"大東建託リーシング株式会社 倉敷店","staff":"赤堀","contractDate":"2026-07-27","applyDate":"2026-07-05","status":"契約書送付済み"},{"property":"ヘスティア","room":"105.0","broker":"ケイアイ　福山駅前","staff":"小葉竹","contractDate":"2026-07-28","applyDate":"2026-07-15","status":"契約書送付済み"},{"property":"アルバ","room":"北107","broker":"アヤカホーム 株式会社","staff":"有安","contractDate":"2026-07-29","applyDate":"2026-07-15","status":"契約書送付済み"},{"property":"ハルモニア","room":"103.0","broker":"中国バス　福山","staff":"","contractDate":"2026-07-31","applyDate":"2026-07-04","status":"契約書送付済み"},{"property":"ヘスティア","room":"110.0","broker":"いえなび春日","staff":"山本","contractDate":"2026-08-01","applyDate":"2026-07-02","status":"契約書送付済み"},{"property":"ベラカーサノース","room":"307.0","broker":"株式会社 ワイケイ　倉敷沖新店","staff":"安藤","contractDate":"2026-08-01","applyDate":"2026-07-04","status":"契約書送付済み"},{"property":"ヘスティア","room":"108.0","broker":"住まいのクエスト","staff":"富田","contractDate":"2026-08-01","applyDate":"2026-07-10","status":"契約書送付済み"},{"property":"アメリア","room":"103.0","broker":"いい部屋ネット　福山駅南口店","staff":"高橋","contractDate":"2026-08-25","applyDate":"2026-07-14","status":"契約書送付済み"},{"property":"ベラカーサノース","room":"405.0","broker":"ライフ","staff":"","contractDate":"2026-08-29","applyDate":"2026-06-25","status":"ひな形送付済み"},{"property":"フローレンス南蔵王","room":"2F北","broker":"","staff":"","contractDate":"","applyDate":"2026-04-14","status":"審査完了"},{"property":"ビラ芳翠","room":"B101","broker":"ケイアイ神辺","staff":"坂井","contractDate":"","applyDate":"2026-07-16","status":"条件確認中"},{"property":"アプリシティ","room":"103.0","broker":"中国バス不動産　見ない点","staff":"","contractDate":"","applyDate":"2026-07-18","status":"審査中"},{"property":"カルコーサ","room":"103.0","broker":"タカハシ　東尾道駅前","staff":"大前","contractDate":"2026-01-16","applyDate":"2025-12-01","status":"契約書類返送完備"},{"property":"マースフル","room":"102.0","broker":"株式会社 タカハシ福山南店","staff":"蟻田","contractDate":"2026-02-11","applyDate":"2026-01-30","status":"契約書類返送完備"},{"property":"ソフィア","room":"201.0","broker":"大東建託リーシング株式会社　福山店","staff":"平田","contractDate":"2026-01-31","applyDate":"2026-01-09","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"707.0","broker":"ＢＲＵＮＯ不動産 株式会社　総社","staff":"鷺原","contractDate":"","applyDate":"2026-01-25","status":"キャンセル"},{"property":"ベラカーサノース","room":"502.0","broker":"良和ハウス岡山駅前店","staff":"松本","contractDate":"2026-01-31","applyDate":"2026-01-14","status":"契約書類返送完備"},{"property":"ナディア","room":"B106","broker":"ワイケイ倉敷駅前店","staff":"永田","contractDate":"2026-01-01","applyDate":"2025-12-04","status":"契約書類返送完備"},{"property":"フローレンス南蔵王2F北","room":"","broker":"ライフ","staff":"","contractDate":"","applyDate":"2026-02-13","status":"審査落ち"},{"property":"タリスヴィータ","room":"B103","broker":"E-dith株式会社","staff":"三村","contractDate":"2026-02-20","applyDate":"2026-01-23","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"501.0","broker":"株式会社 ケイアイホーム倉敷インター南店","staff":"土井","contractDate":"2026-02-21","applyDate":"2026-01-17","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"407.0","broker":"ワイケイ倉敷沖新店","staff":"藤原","contractDate":"2026-02-20","applyDate":"2025-12-27","status":"契約書類返送完備"},{"property":"マジェステ","room":"B105","broker":"タカハシ東尾道駅前店","staff":"藤井","contractDate":"2026-02-28","applyDate":"2026-01-17","status":"契約書類返送完備"},{"property":"マルヴィナ","room":"201.0","broker":"トリコム","staff":"河野","contractDate":"2026-02-28","applyDate":"2026-01-26","status":"契約書類返送完備"},{"property":"アシンプトート","room":"Ａ105","broker":"アークス　イオンモール倉敷","staff":"阿部","contractDate":"2025-11-21","applyDate":"2025-01-09","status":"契約書類返送完備"},{"property":"カルコーサ","room":"102.0","broker":"株式会社 いえなび福山春日店","staff":"今井","contractDate":"2026-02-28","applyDate":"2026-01-20","status":"契約書類返送完備"},{"property":"スピネルデュオ","room":"102.0","broker":"大東建託リーシング株式会社　福山店","staff":"山田","contractDate":"2026-02-28","applyDate":"2026-01-29","status":"契約書類返送完備"},{"property":"スピネルデュオ","room":"108.0","broker":"いえなび春日","staff":"髙木","contractDate":"2026-02-28","applyDate":"2026-02-03","status":"契約書類返送完備"},{"property":"マースフル","room":"103.0","broker":"中国バス不動産株式会社　福山","staff":"田平","contractDate":"2026-02-28","applyDate":"2026-02-11","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"606.0","broker":"ＢＲＵＮＯ不動産 株式会社","staff":"平田","contractDate":"2026-03-01","applyDate":"2025-09-17","status":"契約書類返送完備"},{"property":"グロリオサ","room":"302.0","broker":"エイブルＮＷ神辺店","staff":"大塚","contractDate":"2026-03-01","applyDate":"2026-01-11","status":"契約書類返送完備"},{"property":"アルデバラン","room":"A106","broker":"不動産の岩原","staff":"岩原","contractDate":"2026-03-01","applyDate":"2026-01-17","status":"契約書類返送完備"},{"property":"タラッサ","room":"111.0","broker":"ワイケイ　倉敷沖新店","staff":"栗木","contractDate":"2026-03-01","applyDate":"2026-01-18","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"205.0","broker":"Ｔｏｒｕｓ不動産 合同会社","staff":"前田","contractDate":"2026-03-01","applyDate":"2026-01-19","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"502.0","broker":"ＢＲＵＮＯ不動産 株式会社庭瀬駅前店⇒総社店","staff":"福本","contractDate":"2026-03-01","applyDate":"2026-02-09","status":"契約書類返送完備"},{"property":"マースフル","room":"203.0","broker":"エイブルＮＷ福山蔵王店","staff":"井上","contractDate":"2026-03-08","applyDate":"2026-02-07","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"703.0","broker":"エイブルNW倉敷駅北店","staff":"鳥越","contractDate":"","applyDate":"2026-02-26","status":"キャンセル"},{"property":"マースフル","room":"101.0","broker":"大東建託リーシング株式会社　福山店","staff":"平田","contractDate":"2026-03-09","applyDate":"2026-02-26","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"306.0","broker":"エイブルNWイオンモール倉敷店　株式会社アークス","staff":"阿部","contractDate":"2026-02-28","applyDate":"2026-01-29","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"111.0","broker":"株式会社 いえなび福山春日店","staff":"山本","contractDate":"2026-03-16","applyDate":"2026-03-02","status":"キャンセル"},{"property":"テタンジェ","room":"108.0","broker":"株式会社 ケイアイホーム岡山西市店","staff":"野上","contractDate":"2026-03-20","applyDate":"2026-03-09","status":"審査落ち"},{"property":"エスプレイスビルド","room":"503.0","broker":"西日本開発 株式会社","staff":"横浦","contractDate":"2026-03-14","applyDate":"2026-02-21","status":"契約書類返送完備"},{"property":"ミステール","room":"103.0","broker":"アパマンショップ東尾道駅前店","staff":"藤井","contractDate":"2026-03-14","applyDate":"2026-02-23","status":"契約書類返送完備"},{"property":"アイディール","room":"205.0","broker":"いえなび春日","staff":"山本","contractDate":"2026-03-01","applyDate":"2026-02-02","status":"契約書類返送完備"},{"property":"マースフル","room":"202.0","broker":"あきつ住研","staff":"西澤","contractDate":"2026-02-22","applyDate":"2026-02-12","status":"契約書類返送完備"},{"property":"ミステール","room":"203.0","broker":"株式会社 タカハシ福山松永店","staff":"前迫","contractDate":"2026-03-20","applyDate":"2026-01-23","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"505.0","broker":"株式会社 さくらコーポレーション","staff":"髙原","contractDate":"2026-03-22","applyDate":"2026-02-23","status":"契約書類返送完備"},{"property":"モデルノ","room":"202.0","broker":"ダイシン都市開発㈱","staff":"宮地","contractDate":"2026-02-15","applyDate":"2026-01-21","status":"契約書類返送完備"},{"property":"エルキュール","room":"C203","broker":"エイブルNWイオンモール倉敷店　株式会社アークス","staff":"山本","contractDate":"2025-12-03","applyDate":"2025-11-23","status":"契約書類返送完備"},{"property":"ナディア","room":"Ｂ103","broker":"(株)ワイケイ　アパマンショップ倉敷水島店","staff":"薮井","contractDate":"2025-12-26","applyDate":"2025-12-14","status":"契約書類返送完備"},{"property":"ナディア","room":"A106","broker":"エイブル新倉敷店","staff":"守屋","contractDate":"2026-03-23","applyDate":"2026-02-27","status":"契約書類返送完備"},{"property":"カルムコート","room":"東105","broker":"大東建託リーシング株式会社 福山店","staff":"柴野","contractDate":"2026-04-09","applyDate":"2026-03-19","status":"キャンセル"},{"property":"アルカディア","room":"D203","broker":"大東建託リーシング株式会社　福山店","staff":"平田","contractDate":"2026-03-21","applyDate":"2026-02-23","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"706.0","broker":"ＢＲＵＮＯ不動産 株式会社庭瀬駅前店⇒総社店","staff":"福本","contractDate":"2026-03-24","applyDate":"2026-03-08","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"108.0","broker":"いえなび多治米","staff":"宮地","contractDate":"2026-03-24","applyDate":"2026-02-06","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"806.0","broker":"あびこ不動産","staff":"藤井","contractDate":"2026-03-25","applyDate":"2026-03-12","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"302.0","broker":"叶う不動産 株式会社","staff":"六車","contractDate":"2026-03-27","applyDate":"2025-12-19","status":"契約書類返送完備"},{"property":"ミーティア","room":"B101","broker":"いえなび　多治米","staff":"宮地","contractDate":"","applyDate":"2026-03-24","status":"キャンセル"},{"property":"ディアレスト","room":"103.0","broker":"株式会社いえなび 福山多治米店","staff":"宮地","contractDate":"2026-03-28","applyDate":"2026-03-13","status":"契約書類返送完備"},{"property":"ソルトグラス","room":"201.0","broker":"大東建託リーシング株式会社福山","staff":"平田","contractDate":"2026-03-28","applyDate":"2026-03-22","status":"契約書類返送完備"},{"property":"ミステール","room":"105.0","broker":"株式会社 ケイアイホーム沖野上店","staff":"大渡","contractDate":"2026-02-24","applyDate":"2026-02-14","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"201.0","broker":"株式会社さくらコーポレーションミニミニFC倉敷店","staff":"小林","contractDate":"2026-03-16","applyDate":"2026-02-21","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"505.0","broker":"株式会社ケイアイホーム","staff":"國定","contractDate":"2026-02-18","applyDate":"2026-01-28","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"702.0","broker":"ライフ","staff":"","contractDate":"2026-03-31","applyDate":"2026-03-05","status":"契約書類返送完備"},{"property":"ナディア","room":"A201","broker":"株式会社 さくらコーポレーション　ミニミニFC水島店","staff":"田村","contractDate":"2026-03-31","applyDate":"2026-03-23","status":"契約書類返送完備"},{"property":"アルバ","room":"北110","broker":"トリコム","staff":"山田","contractDate":"2026-04-01","applyDate":"2026-02-16","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"703.0","broker":"あびこ不動産","staff":"藤井","contractDate":"2026-04-02","applyDate":"2026-03-09","status":"契約書類返送完備"},{"property":"カルムコート","room":"東207","broker":"いえなび春日","staff":"髙木","contractDate":"2026-03-31","applyDate":"2026-02-24","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"906.0","broker":"ＢＲＵＮＯ不動産 株式会社　総社店","staff":"平田","contractDate":"2026-03-28","applyDate":"2026-03-17","status":"契約書類返送完備"},{"property":"プレジール高橋","room":"205.0","broker":"いえなび春日","staff":"今井","contractDate":"2026-03-23","applyDate":"2026-02-12","status":"契約書類返送完備"},{"property":"ミステール","room":"205.0","broker":"株式会社 いえなび福山春日店","staff":"山本","contractDate":"2026-03-28","applyDate":"2026-02-18","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"103.0","broker":"株式会社 吉備土地開発","staff":"原","contractDate":"2026-04-03","applyDate":"2026-03-06","status":"契約書類返送完備"},{"property":"KASUGAエコパティオ","room":"Ｂ","broker":"LIFUKU 福山南店","staff":"行友","contractDate":"2026-04-01","applyDate":"2026-03-07","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"707.0","broker":"ＢＲＵＮＯ不動産 株式会社　総社店","staff":"吉村","contractDate":"2026-03-28","applyDate":"2026-03-07","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"702.0","broker":"ＢＲＵＮＯ不動産 株式会社　総社店","staff":"平田","contractDate":"2026-04-03","applyDate":"2026-03-01","status":"契約書類返送完備"},{"property":"テタンジェ","room":"106.0","broker":"ミニミニFC玉島店","staff":"久保津","contractDate":"2026-04-04","applyDate":"2026-03-22","status":"契約書類返送完備"},{"property":"ミーティア","room":"B101","broker":"株式会社いえなび 福山多治米店","staff":"宮地","contractDate":"2026-04-07","applyDate":"2026-04-02","status":"キャンセル"},{"property":"アイディール","room":"203.0","broker":"いえなび　多治米","staff":"宮地","contractDate":"2026-04-13","applyDate":"2026-01-09","status":"契約書類返送完備"},{"property":"マルヴィナ","room":"102.0","broker":"エイブル神辺","staff":"大塚","contractDate":"2026-04-11","applyDate":"2026-01-30","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"403.0","broker":"さくら　ミニミニFC倉敷店","staff":"中原","contractDate":"2026-03-25","applyDate":"2026-02-24","status":"契約書類返送完備"},{"property":"マースフル","room":"201.0","broker":"ケイアイホーム福山駅前店","staff":"矢口","contractDate":"2026-03-26","applyDate":"2026-02-20","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"A102","broker":"大東建託リーシング株式会社 福山店","staff":"柴野","contractDate":"2026-04-13","applyDate":"2026-03-30","status":"契約書類返送完備"},{"property":"メゾンドリヴァージュ","room":"Ａ103","broker":"株式会社 いえなび福山春日店","staff":"山本","contractDate":"2026-04-14","applyDate":"2026-03-04","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"606.0","broker":"GHOUSE","staff":"リュウ シンコウ","contractDate":"2026-04-14","applyDate":"2026-03-11","status":"契約書類返送完備"},{"property":"テラストリア","room":"203.0","broker":"大東建託リーシング株式会社 三原店","staff":"佐藤","contractDate":"2026-04-14","applyDate":"2026-03-15","status":"契約書類返送完備"},{"property":"ナディア","room":"Ｂ105","broker":"ＢＲＵＮＯ不動産 株式会社妹尾店","staff":"山本","contractDate":"2026-01-31","applyDate":"2025-12-14","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"705.0","broker":"ケイアイホーム岡山駅西口店","staff":"木下","contractDate":"2026-03-19","applyDate":"2026-02-16","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"405.0","broker":"エイブルNWイオンモール倉敷店　株式会社アークス","staff":"山本","contractDate":"2026-03-18","applyDate":"2026-02-03","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"202.0","broker":"いえなび　春日","staff":"今井","contractDate":"2026-04-15","applyDate":"2026-03-08","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"507.0","broker":"エイブルNW倉敷駅北店","staff":"鳥越","contractDate":"2026-04-17","applyDate":"2026-03-04","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"502.0","broker":"ワイケイ倉敷沖新店","staff":"岡野","contractDate":"2026-03-28","applyDate":"2026-02-19","status":"契約書類返送完備"},{"property":"グロリオサ","room":"403.0","broker":"株式会社My Room","staff":"吉本","contractDate":"2026-04-20","applyDate":"2026-03-23","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"603.0","broker":"株式会社ジェイ・フィール　Doors岡山駅前店","staff":"中原","contractDate":"2026-03-22","applyDate":"2026-02-27","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"503.0","broker":"ケイアイホーム　アパマンショップ 白楽町店","staff":"今村","contractDate":"2026-04-25","applyDate":"2026-03-01","status":"契約書類返送完備"},{"property":"メゾンドリヴァージュ","room":"A302","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2026-04-25","applyDate":"2026-04-15","status":"契約書類返送完備"},{"property":"スピネルデュオ","room":"107.0","broker":"中国バス不動産　南店","staff":"行友","contractDate":"2026-04-26","applyDate":"2026-04-04","status":"契約書類返送完備"},{"property":"ナディア","room":"A103","broker":"株式会社 ケイアイホーム倉敷インター南店","staff":"土井","contractDate":"2026-04-30","applyDate":"2026-04-07","status":"契約書類返送完備"},{"property":"ナディア","room":"A203","broker":"株式会社 ケイアイホーム倉敷インター南店","staff":"土井","contractDate":"2026-04-30","applyDate":"2026-04-07","status":"契約書類返送完備"},{"property":"テタンジェ","room":"108.0","broker":"有限会社 エステート守屋本店","staff":"守屋","contractDate":"2026-05-01","applyDate":"2026-04-02","status":"契約書類返送完備"},{"property":"アプリシティ","room":"305.0","broker":"株式会社 いえなび福山春日店","staff":"髙木","contractDate":"2026-05-01","applyDate":"2026-04-06","status":"契約書類返送完備"},{"property":"アルカンシェル","room":"A105","broker":"中国バス不動産　福山店","staff":"小川","contractDate":"2026-04-30","applyDate":"2026-04-06","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"906.0","broker":"株式会社 さくらコーポレーション倉敷本店","staff":"小林","contractDate":"","applyDate":"2026-04-27","status":"審査落ち"},{"property":"ナディア","room":"A102","broker":"株式会社ワイケイ　アパマンショップ　倉敷水島店","staff":"佐藤","contractDate":"2026-04-29","applyDate":"2026-04-17","status":"契約書類返送完備"},{"property":"ルミエール静","room":"B301","broker":"株式会社 ケイアイホーム沖野上店","staff":"藤井","contractDate":"2026-04-15","applyDate":"2026-03-29","status":"契約書類返送完備"},{"property":"ナディア","room":"Ａ101","broker":"ネクステージホーム","staff":"松本","contractDate":"2026-03-29","applyDate":"2026-03-23","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"303.0","broker":"エイブル倉敷中庄店","staff":"田川","contractDate":"2026-05-01","applyDate":"2026-04-21","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"901.0","broker":"ワイケイ　倉敷沖新店","staff":"岡野","contractDate":"2026-03-31","applyDate":"2026-02-24","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"1003.0","broker":"株式会社さくらコーポレーション　ミニミニFC倉敷店","staff":"小林","contractDate":"2026-04-29","applyDate":"2026-04-16","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"503.0","broker":"アークス　倉敷中庄店","staff":"内田","contractDate":"2026-04-10","applyDate":"2026-03-23","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"806.0","broker":"エイブルNW倉敷市役所前店","staff":"","contractDate":"","applyDate":"2026-05-10","status":"審査落ち"},{"property":"ベラカーサノース","room":"907.0","broker":"株式会社 ケイアイホーム倉敷インター南店","staff":"土井","contractDate":"2026-04-18","applyDate":"2026-03-14","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"505.0","broker":"株式会社良和ハウス岡山駅前店","staff":"西川","contractDate":"2026-04-09","applyDate":"2026-03-10","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"806.0","broker":"株式会社 ワイケイ　倉敷沖新店","staff":"金光","contractDate":"","applyDate":"2026-05-14","status":"審査落ち"},{"property":"ベラカーサノース","room":"901.0","broker":"株式会社ワイケイ　アパマンショップ　倉敷駅前店","staff":"岡野","contractDate":"2026-05-09","applyDate":"2026-04-10","status":"契約書類返送完備"},{"property":"アルバ","room":"北106","broker":"いえなび春日","staff":"髙木","contractDate":"2026-05-21","applyDate":"2026-04-23","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"805.0","broker":"良和ハウス","staff":"三宅","contractDate":"2026-03-28","applyDate":"2026-03-06","status":"契約書類返送完備"},{"property":"シャンティ","room":"203.0","broker":"株式会社 タカハシ福山東インター南店","staff":"寺地","contractDate":"2026-05-24","applyDate":"2026-05-07","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"903.0","broker":"株式会社 ワイケイ","staff":"金光","contractDate":"","applyDate":"2026-05-22","status":"審査落ち"},{"property":"エスプレイスビルド","room":"607.0","broker":"株式会社 良和ハウス","staff":"松本","contractDate":"2026-03-08","applyDate":"2026-02-22","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"202.0","broker":"株式会社 金葉マネジメント","staff":"大石","contractDate":"2026-03-24","applyDate":"2026-01-13","status":"契約書類返送完備"},{"property":"プティメゾン","room":"202.0","broker":"株式会社 ケイアイホーム神辺店","staff":"羽原","contractDate":"2026-04-24","applyDate":"2026-03-29","status":"契約書類返送完備"},{"property":"ミステール","room":"102.0","broker":"株式会社 タカハシ本店","staff":"加藤","contractDate":"2026-03-21","applyDate":"2026-02-17","status":"契約書類返送完備"},{"property":"アプリシティ","room":"101.0","broker":"ケイアイホーム沖野上店","staff":"馬場","contractDate":"2026-06-01","applyDate":"2026-04-30","status":"契約書類返送完備"},{"property":"ラコリーヌ","room":"A101","broker":"エイブルＮＷ神辺店　株式会社アークス","staff":"井上","contractDate":"2026-06-03","applyDate":"2026-05-16","status":"契約書類返送完備"},{"property":"エバーグリーン福山西町","room":"302.0","broker":"アパマンショップ福山駅前店","staff":"友滝","contractDate":"2026-04-28","applyDate":"2026-04-17","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"905.0","broker":"エイブル総社店","staff":"鷺原","contractDate":"2026-06-08","applyDate":"2026-05-21","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"206.0","broker":"ワイケイ倉敷沖新店","staff":"藤原","contractDate":"2026-04-18","applyDate":"2026-02-21","status":"契約書類返送完備"},{"property":"ビラ芳翠","room":"B101","broker":"株式会社JAPANHOMES本店","staff":"PHAM MINH TAN","contractDate":"2026-06-20","applyDate":"2026-05-13","status":"キャンセル"},{"property":"ガーデンヒルズ長者町","room":"111.0","broker":"いえなび春日","staff":"髙木","contractDate":"2026-06-01","applyDate":"2026-05-02","status":"契約書類返送完備"},{"property":"マースフル","room":"102.0","broker":"不動産の岩原","staff":"岩原","contractDate":"2026-06-10","applyDate":"2026-05-23","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"1001.0","broker":"エイブルNWイオンモール倉敷店","staff":"阿部","contractDate":"","applyDate":"2026-06-11","status":"キャンセル"},{"property":"ミラヴィルタス","room":"東111","broker":"いえなび春日","staff":"山本","contractDate":"","applyDate":"2026-06-08","status":"キャンセル"},{"property":"ビラ芳翠","room":"A105","broker":"株式会社 ケイアイホーム神辺店","staff":"小葉竹","contractDate":"2026-06-20","applyDate":"2026-05-22","status":"契約書類返送完備"},{"property":"カルムコート","room":"東105","broker":"トリコム","staff":"山田","contractDate":"2026-06-20","applyDate":"2026-06-04","status":"契約書類返送完備"},{"property":"マジェステ","room":"B102","broker":"中国バス不動産　福山店","staff":"田平","contractDate":"2026-06-20","applyDate":"2026-06-08","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"302.0","broker":"株式会社ＨＹクレスト/いい部屋ネット　岡山南店","staff":"池田","contractDate":"","applyDate":"2026-06-18","status":"審査落ち"},{"property":"ルミエール静","room":"B201","broker":"株式会社 いえなび福山春日店","staff":"山本","contractDate":"2026-06-21","applyDate":"2026-05-17","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"201.0","broker":"東建コーポレーション 株式会社ホームメイト岡山店","staff":"山崎","contractDate":"2026-03-07","applyDate":"2026-01-20","status":"契約書類返送完備"},{"property":"ミーティア","room":"B101","broker":"LIFUKU 福山店","staff":"光吉","contractDate":"2026-06-27","applyDate":"2026-05-18","status":"契約書類返送完備"},{"property":"ビラ芳翠","room":"B103","broker":"トリコム","staff":"山田","contractDate":"2026-06-27","applyDate":"2026-05-18","status":"契約書類返送完備"},{"property":"アルカディア","room":"D102","broker":"株式会社 いえなび福山春日店","staff":"今井","contractDate":"2026-06-27","applyDate":"2026-05-29","status":"契約書類返送完備"},{"property":"KUSADO　HOUSE","room":"","broker":"ライフ","staff":"","contractDate":"2026-07-01","applyDate":"2026-05-18","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"705.0","broker":"あなぶき　倉敷","staff":"久保田","contractDate":"2026-04-06","applyDate":"2026-03-07","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"903.0","broker":"株式会社アシスト不動産プラス","staff":"田久間","contractDate":"2026-07-01","applyDate":"2026-05-21","status":"契約書類返送完備"},{"property":"アシンプトート","room":"Ａ303","broker":"株式会社 いえなび福山春日店","staff":"今井","contractDate":"2026-07-01","applyDate":"2026-06-01","status":"契約書類返送完備"},{"property":"ミラヴィルタス","room":"西202","broker":"いえなび春日","staff":"山本","contractDate":"2026-07-01","applyDate":"2026-06-14","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"102.0","broker":"エイブル新涯","staff":"","contractDate":"","applyDate":"2026-07-04","status":"キャンセル"},{"property":"ベラカーサフェリーチェ","room":"303.0","broker":"株式会社 ワイケイ　アパマンショップ倉敷駅前店","staff":"松尾","contractDate":"2026-05-20","applyDate":"2026-04-23","status":"契約書類返送完備"},{"property":"フェリックス","room":"102.0","broker":"いえなび春日","staff":"","contractDate":"","applyDate":"2026-07-08","status":"審査落ち"},{"property":"ヘスティア","room":"101.0","broker":"中国バス不動産　福山店","staff":"上田","contractDate":"2026-07-01","applyDate":"2026-05-10","status":"契約書類返送完備"},{"property":"エルキュール","room":"B201","broker":"大東建託リーシング株式会社　福山店","staff":"平田","contractDate":"2026-07-13","applyDate":"2026-06-28","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"305.0","broker":"ケイアイホーム　倉敷白楽町店","staff":"豊嶋","contractDate":"2026-07-14","applyDate":"2026-07-03","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"B103","broker":"不動産の岩原","staff":"岩原","contractDate":"2026-07-14","applyDate":"2026-07-07","status":"契約書類返送完備"},{"property":"ハルモニア","room":"201.0","broker":"いい部屋ネット　福山北店","staff":"石原","contractDate":"2026-07-17","applyDate":"2026-06-04","status":"契約書類返送完備"},{"property":"ヘスティア","room":"106.0","broker":"いえなび春日","staff":"山本","contractDate":"2026-07-19","applyDate":"2026-07-03","status":"契約書類返送完備"},{"property":"ヘスティア","room":"102.0","broker":"アフィット不動産","staff":"箱﨑","contractDate":"2026-07-14","applyDate":"2026-06-25","status":"契約書類返送完備"},{"property":"ハイサニー","room":"B101","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2025-01-10","applyDate":"2024-12-07","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"208.0","broker":"エイブルNW倉敷水島店","staff":"合田","contractDate":"2025-01-14","applyDate":"2024-12-15","status":"契約書類返送完備"},{"property":"アルバ","room":"北108","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2025-01-15","applyDate":"2024-12-29","status":"契約書類返送完備"},{"property":"スパーブコート","room":"201.0","broker":"いえなび","staff":"山本","contractDate":"2025-02-01","applyDate":"2024-12-12","status":"キャンセル"},{"property":"タリスヴィータ","room":"B101","broker":"エイブルネットワークイオンモール倉敷店","staff":"宮内","contractDate":"2024-12-18","applyDate":"2024-10-08","status":"契約書類返送完備"},{"property":"アルバ","room":"北208","broker":"IREライフ株式会社","staff":"","contractDate":"2024-12-30","applyDate":"2024-12-17","status":"契約書類不備あり"},{"property":"ベラカーササウス","room":"501.0","broker":"ワイケイ　アパマン倉敷沖新","staff":"山足","contractDate":"2025-01-07","applyDate":"2024-12-07","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"607.0","broker":"株式会社スカイホーム","staff":"渡辺","contractDate":"2025-01-31","applyDate":"2025-01-17","status":"審査落ち"},{"property":"プレジール高橋","room":"106.0","broker":"株式会社アークス　エイブルＮＷ福山蔵王店","staff":"鏡内","contractDate":"","applyDate":"2025-01-07","status":"キャンセル"},{"property":"ベラカーサノース","room":"902.0","broker":"和幸産業　幸町店","staff":"大森","contractDate":"2025-01-11","applyDate":"2024-12-21","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"401.0","broker":"エイブル倉敷駅北","staff":"山本","contractDate":"2025-01-18","applyDate":"2025-01-04","status":"契約書類返送完備"},{"property":"一宮戸建て","room":"B","broker":"ＢＲＵＮＯ不動産株式会社","staff":"上林","contractDate":"2025-01-25","applyDate":"2024-11-08","status":"契約書類返送完備"},{"property":"スパーブコート","room":"201.0","broker":"IREライフ","staff":"","contractDate":"","applyDate":"2025-01-23","status":"キャンセル"},{"property":"タリスヴィータＡ","room":"202.0","broker":"株式会社さくらコーポレーションミニミニＦＣ倉敷店","staff":"中原","contractDate":"2025-01-23","applyDate":"2025-01-11","status":"契約書類返送完備"},{"property":"エルキュール","room":"Ｃ101","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2025-01-26","applyDate":"2024-12-16","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"803.0","broker":"株式会社アークス　エイブルネットワーク倉敷中庄店","staff":"仲島","contractDate":"2025-01-29","applyDate":"2025-01-11","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"406.0","broker":"ホーミィエステート株式会社　倉敷店","staff":"藤井","contractDate":"2025-01-31","applyDate":"2025-01-09","status":"契約書類返送完備"},{"property":"ヒラリアス","room":"201.0","broker":"エイブルNW福山蔵王","staff":"大塚","contractDate":"2025-02-01","applyDate":"2024-10-27","status":"契約書類返送完備"},{"property":"ヒラリアス","room":"103.0","broker":"IREライフ株式会社","staff":"","contractDate":"2025-02-01","applyDate":"2024-09-30","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"A203","broker":"エイブルネットワーク　倉敷中庄店","staff":"柳澤","contractDate":"2025-02-01","applyDate":"2024-12-04","status":"契約書類返送完備"},{"property":"ヒラリアス","room":"101.0","broker":"いえなび","staff":"宮路","contractDate":"2025-02-01","applyDate":"2024-12-21","status":"契約書類返送完備"},{"property":"アプリシティ","room":"303.0","broker":"ケイアイ　沖野上","staff":"馬場","contractDate":"2025-02-01","applyDate":"2024-12-23","status":"契約書類返送完備"},{"property":"テタンジェ","room":"106.0","broker":"(株)ワイケイ　アパマンショップ倉敷沖新店","staff":"山足","contractDate":"2025-01-29","applyDate":"2025-01-12","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"408.0","broker":"株式会社ワイケイアパマンショップ倉敷沖新店","staff":"松尾","contractDate":"2025-02-01","applyDate":"2025-01-14","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"101.0","broker":"東建コーポレーション（株）倉敷支店","staff":"新田","contractDate":"2025-01-26","applyDate":"2025-01-11","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"507.0","broker":"ＢＲＵＮＯ不動産株式会社　エイブルネットワーク庭瀬駅前店","staff":"福本","contractDate":"2025-02-05","applyDate":"2025-01-24","status":"契約書類返送完備"},{"property":"スパーブコート","room":"201.0","broker":"LIFUKU福山北店　中国バス不動産株式会社","staff":"野島","contractDate":"2025-02-08","applyDate":"2025-01-24","status":"契約書類返送完備"},{"property":"スピネル","room":"108.0","broker":"中国バス不動産　北店","staff":"野島","contractDate":"2025-02-10","applyDate":"2025-01-06","status":"契約書類返送完備"},{"property":"アメリア","room":"107.0","broker":"","staff":"","contractDate":"","applyDate":"2025-02-11","status":"審査落ち"},{"property":"タリスヴィータ","room":"Ａ101","broker":"ワイケイ　アパマン倉敷沖新","staff":"藤井","contractDate":"2025-01-18","applyDate":"2024-12-13","status":"契約書類返送完備"},{"property":"ヒラリアス","room":"102.0","broker":"IREライフ株式会社","staff":"","contractDate":"2025-02-15","applyDate":"2024-09-30","status":"契約書類返送完備"},{"property":"アロモント","room":"A101","broker":"ケイアイホーム　神辺","staff":"坂井","contractDate":"2025-02-15","applyDate":"2024-12-10","status":"契約書類返送完備"},{"property":"ソフィア","room":"103.0","broker":"アヤカホーム","staff":"村上","contractDate":"","applyDate":"2025-02-14","status":"審査落ち"},{"property":"フローレンス南蔵王","room":"1F北","broker":"中国バス不動産　LIFUKU福山売買センター","staff":"山崎","contractDate":"2025-02-11","applyDate":"2024-12-13","status":"契約書類返送完備"},{"property":"プレジール高橋","room":"106.0","broker":"エイブルNW福山蔵王店","staff":"佐々木","contractDate":"2025-02-15","applyDate":"2025-01-27","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"408.0","broker":"ホーミィエステート株式会社　倉敷駅前店","staff":"矢野","contractDate":"2025-02-22","applyDate":"2025-01-25","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"210.0","broker":"ケイアイ沖野上","staff":"藤井","contractDate":"2025-03-20","applyDate":"2025-02-19","status":"キャンセル"},{"property":"ソアヴィータ","room":"203.0","broker":"いえなび","staff":"山本","contractDate":"2025-04-12","applyDate":"2025-02-21","status":"審査落ち"},{"property":"ベラカーサノース","room":"805.0","broker":"エイブルネットワーク倉敷中庄店","staff":"仲島","contractDate":"2025-02-26","applyDate":"2025-01-31","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"705.0","broker":"株式会社穴吹ハウジングサービス","staff":"堤","contractDate":"2025-02-28","applyDate":"2025-02-10","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"301.0","broker":"ＢＲＵＮＯ不動産株式会社　エイブルＮＷ総社","staff":"平田","contractDate":"2025-03-01","applyDate":"","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"201.0","broker":"株式会社アークス　エイブルネットワーク倉敷駅北店","staff":"山本","contractDate":"2025-03-01","applyDate":"2025-01-11","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"508.0","broker":"ホーミィエステート株式会社　倉敷店","staff":"小林","contractDate":"2025-03-01","applyDate":"2025-01-25","status":"契約書類返送完備"},{"property":"セラータ","room":"101.0","broker":"エイブルＮＷ神辺店","staff":"大塚（代理　難波）","contractDate":"2025-03-01","applyDate":"2025-01-15","status":"契約書類返送完備"},{"property":"スピネルデュオ","room":"101.0","broker":"中国バス不動産　北店","staff":"宗政","contractDate":"2025-01-31","applyDate":"2024-11-03","status":"契約書類返送完備"},{"property":"アロモント","room":"B202","broker":"株式会社タカハシアパマンショップ福山松永店","staff":"佐藤","contractDate":"2025-02-28","applyDate":"2025-01-14","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"201.0","broker":"株式会社アークス　エイブルネットワークイオンモール倉敷店","staff":"鳥越","contractDate":"2025-03-01","applyDate":"2025-01-10","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"607.0","broker":"株式会社アークス　エイブルネットワークイオンモール倉敷店","staff":"鳥越","contractDate":"2025-03-01","applyDate":"2025-01-27","status":"契約書類返送完備"},{"property":"ハルモニア","room":"102.0","broker":"いえなび","staff":"山本","contractDate":"2025-03-01","applyDate":"2025-02-02","status":"契約書類返送完備"},{"property":"アシンプトート","room":"A203","broker":"トリコム","staff":"河野","contractDate":"","applyDate":"2025-02-22","status":"キャンセル"},{"property":"グロリオサ","room":"602.0","broker":"トリコム","staff":"河野","contractDate":"2025-03-01","applyDate":"2025-02-22","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"305.0","broker":"株式会社アークス エイブルネットワーク倉敷駅北店","staff":"田川","contractDate":"2025-02-01","applyDate":"2025-01-22","status":"契約書類返送完備"},{"property":"ソフィア","room":"103.0","broker":"エイブルＮＷ福山南蔵王","staff":"佐々木","contractDate":"2025-03-01","applyDate":"2025-02-16","status":"契約書類返送完備"},{"property":"アメリア","room":"105.0","broker":"アフィット不動産","staff":"箱崎","contractDate":"2025-03-07","applyDate":"2025-02-14","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"703.0","broker":"IREライフ","staff":"","contractDate":"2025-03-16","applyDate":"2025-02-26","status":"契約書類返送完備"},{"property":"ラコリーヌ","room":"A201","broker":"ライフ","staff":"","contractDate":"","applyDate":"2025-03-08","status":"キャンセル"},{"property":"プティメゾン","room":"202.0","broker":"ケイアイ沖野上","staff":"藤井","contractDate":"2025-03-11","applyDate":"2025-02-19","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"702.0","broker":"ホーミィエステート　倉敷駅前店","staff":"藤井","contractDate":"2025-03-10","applyDate":"2025-02-23","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"303.0","broker":"株式会社アークス　エイブルネットワーク倉敷駅北店","staff":"山本","contractDate":"2025-03-15","applyDate":"2025-01-12","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"405.0","broker":"良和ハウス　岡山中央店","staff":"古田","contractDate":"2025-03-15","applyDate":"2025-02-15","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"205.0","broker":"㈱ワイケイ　倉敷駅前店","staff":"藤原","contractDate":"2025-03-15","applyDate":"2025-02-24","status":"契約書類返送完備"},{"property":"グロリオサ","room":"301.0","broker":"ケイアイ　神辺","staff":"小葉竹","contractDate":"2025-03-15","applyDate":"2025-02-22","status":"契約書類返送完備"},{"property":"ノブリス","room":"B103","broker":"ケイアイ駅前","staff":"萬代","contractDate":"2025-03-16","applyDate":"2025-02-21","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"203.0","broker":"エイブルNW倉敷中庄店","staff":"仲島","contractDate":"2025-03-18","applyDate":"2025-01-21","status":"契約書類返送完備"},{"property":"アロモント","room":"A203","broker":"IREライフ","staff":"","contractDate":"2025-03-15","applyDate":"2025-01-23","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"510.0","broker":"㈱アークス　エイブル倉敷駅北店","staff":"山本","contractDate":"2025-04-10","applyDate":"2025-03-04","status":"キャンセル"},{"property":"プレジール髙橋","room":"205.0","broker":"いえなび","staff":"宮路","contractDate":"2025-03-15","applyDate":"2025-02-09","status":"契約書類返送完備"},{"property":"アシンプトート","room":"A203","broker":"㈲山陽不動産","staff":"西原","contractDate":"2025-03-15","applyDate":"2025-03-03","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"210.0","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2025-03-18","applyDate":"2025-02-25","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"805.0","broker":"株式会社アークス エイブルネットワーク倉敷駅北店","staff":"田川","contractDate":"2025-03-19","applyDate":"2025-01-23","status":"契約書類返送完備"},{"property":"スパーブコート","room":"102.0","broker":"いえなび","staff":"山本","contractDate":"2025-03-28","applyDate":"2025-03-08","status":"キャンセル"},{"property":"アルバ","room":"北210","broker":"ライフ","staff":"","contractDate":"2025-03-22","applyDate":"2025-03-07","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"1003.0","broker":"エイブル倉敷市役所前店","staff":"木下","contractDate":"2025-03-25","applyDate":"2025-02-25","status":"契約書類返送完備"},{"property":"フレンディア常光","room":"Ａ101","broker":"エイブル神辺","staff":"大塚","contractDate":"","applyDate":"2025-03-21","status":"審査落ち"},{"property":"ベラカーササウス","room":"302.0","broker":"エイブルNW神辺","staff":"難波","contractDate":"2025-03-26","applyDate":"2025-02-19","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"407.0","broker":"ピタットハウス新倉敷店","staff":"鳥越","contractDate":"2025-03-11","applyDate":"2025-02-04","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"206.0","broker":"タイヨウエステート","staff":"岡山","contractDate":"2025-03-29","applyDate":"2025-03-20","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"902.0","broker":"エイブル倉敷市役所前店","staff":"中川","contractDate":"2025-03-30","applyDate":"2025-02-27","status":"契約書類返送完備"},{"property":"アルバ","room":"北110","broker":"ライフ","staff":"","contractDate":"2025-04-01","applyDate":"2025-03-17","status":"契約書類返送完備"},{"property":"アシンプトート","room":"Ａ301","broker":"トリコム","staff":"山田","contractDate":"2025-03-22","applyDate":"2025-03-14","status":"契約書類返送完備"},{"property":"スピネルデュオ","room":"106.0","broker":"エイブル神辺","staff":"大塚","contractDate":"","applyDate":"2025-03-30","status":"審査落ち"},{"property":"ベラカーサフェリーチェ","room":"602.0","broker":"大東建託リーシング株式会社　倉敷店","staff":"篠原","contractDate":"2025-03-29","applyDate":"2025-02-21","status":"契約書類返送完備"},{"property":"ソアヴィータ","room":"203.0","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2025-03-31","applyDate":"2025-03-20","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"601.0","broker":"株式会社さくらコーポレーションミニミニFC倉敷店","staff":"中原","contractDate":"2025-03-20","applyDate":"2025-02-13","status":"契約書類返送完備"},{"property":"ラコリーヌ","room":"B202","broker":"アパマンショップ福山東インター南店","staff":"川上","contractDate":"2025-04-01","applyDate":"2025-03-01","status":"契約書類返送完備"},{"property":"カルムコート","room":"東208","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2025-04-27","applyDate":"2025-04-01","status":"審査落ち"},{"property":"クラリス","room":"107.0","broker":"トリコム","staff":"山田","contractDate":"2025-04-01","applyDate":"2025-02-27","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"306.0","broker":"アパマンショップ倉敷白楽町店","staff":"高田","contractDate":"2025-04-05","applyDate":"2025-02-25","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"Ｂ111","broker":"エイブルＮＷ神辺","staff":"大塚","contractDate":"","applyDate":"2025-04-12","status":"審査落ち"},{"property":"フェリックス","room":"201.0","broker":"ケイアイ　沖野上店","staff":"藤井","contractDate":"2025-03-29","applyDate":"2025-03-10","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"1007.0","broker":"あすみらい株式会社","staff":"恵","contractDate":"2025-04-10","applyDate":"2025-02-25","status":"契約書類返送完備"},{"property":"ハルモニア","room":"103.0","broker":"エイブル神辺","staff":"鏡内","contractDate":"2025-04-10","applyDate":"2025-03-20","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"903.0","broker":"株式会社一矢　三恵不動産","staff":"山本","contractDate":"2025-04-12","applyDate":"2025-03-19","status":"契約書類返送完備"},{"property":"スパーブコート","room":"101.0","broker":"アムス・インターナショナル株式会社","staff":"延藤","contractDate":"2025-04-14","applyDate":"2025-03-11","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"A201","broker":"ケイアイ神辺","staff":"坂井","contractDate":"2025-04-14","applyDate":"2025-04-03","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"401.0","broker":"ＢＲＵＮＯ不動産株式会　エイブルネットワーク庭瀬駅前店","staff":"福本","contractDate":"2025-04-15","applyDate":"2025-03-23","status":"契約書類返送完備"},{"property":"ソレイユ","room":"西103","broker":"トリコム","staff":"山田","contractDate":"2025-03-31","applyDate":"2025-03-14","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"110.0","broker":"アパマンショップ福山駅前店","staff":"萬代","contractDate":"2025-03-27","applyDate":"2025-03-20","status":"契約書類返送完備"},{"property":"グロリオサ","room":"501.0","broker":"ケイアイ沖野上","staff":"馬場","contractDate":"2025-04-15","applyDate":"2025-02-21","status":"契約書類返送完備"},{"property":"アイディール","room":"105.0","broker":"ライフ","staff":"","contractDate":"2025-04-19","applyDate":"2025-03-13","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"205.0","broker":"株式会社一矢　三恵不動産","staff":"山本","contractDate":"2025-04-19","applyDate":"2025-03-20","status":"契約書類返送完備"},{"property":"マーベラス","room":"Ｂ102","broker":"トリコム","staff":"山田","contractDate":"2025-04-15","applyDate":"2025-03-13","status":"契約書類返送完備"},{"property":"アルバ","room":"南103","broker":"ハマ不動産","staff":"藤井","contractDate":"2025-03-29","applyDate":"2025-03-17","status":"契約書類返送完備"},{"property":"曙町戸建","room":"Ｆ","broker":"佐藤エステート","staff":"大植","contractDate":"2025-04-24","applyDate":"2025-03-24","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"1005.0","broker":"アパマンショップ倉敷水島店","staff":"鎌田","contractDate":"2025-03-31","applyDate":"2025-03-05","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"1002.0","broker":"アパマンショップ水島店","staff":"栗元","contractDate":"2025-03-31","applyDate":"2025-03-20","status":"契約書類返送完備"},{"property":"メゾンドリヴァージュ","room":"A201","broker":"穴吹ﾊｳｼﾞﾝｸﾞｻｰﾋﾞｽ","staff":"伊東","contractDate":"2025-05-07","applyDate":"2025-04-17","status":"キャンセル"},{"property":"ベラカーササウス","room":"1001.0","broker":"ＢＲＵＮＯ不動産株式会社　エイブルネットワーク総社店","staff":"平田","contractDate":"2025-04-25","applyDate":"2025-03-18","status":"契約書類返送完備"},{"property":"グロリオサ","room":"401.0","broker":"ハマ不動産","staff":"藤井","contractDate":"2025-04-25","applyDate":"2025-04-04","status":"契約書類返送完備"},{"property":"アルデバラン","room":"A202","broker":"エイブル蔵王","staff":"佐々木","contractDate":"2025-04-25","applyDate":"2025-04-15","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"203.0","broker":"ケイアイ福山駅前店","staff":"友滝","contractDate":"2025-04-26","applyDate":"2025-04-07","status":"契約書類返送完備"},{"property":"グロリオサ","room":"503.0","broker":"トリコム","staff":"河野","contractDate":"2025-05-01","applyDate":"2025-03-22","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"201.0","broker":"㈱ケイアイ福山駅前店","staff":"萬代","contractDate":"2025-04-19","applyDate":"2025-04-09","status":"契約書類返送完備"},{"property":"エルキュール","room":"C205","broker":"いえなび","staff":"山本","contractDate":"","applyDate":"2025-04-27","status":"審査落ち"},{"property":"ベラカーサフェリーチェ","room":"410.0","broker":"株式会社一矢　三恵不動産","staff":"山本","contractDate":"2025-04-30","applyDate":"2025-03-30","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"207.0","broker":"㈱タカハシ　インター南店","staff":"藤井","contractDate":"2025-05-01","applyDate":"2025-04-24","status":"契約書類返送完備"},{"property":"アルデバラン","room":"A101","broker":"有限会社佐藤不動産","staff":"佐藤","contractDate":"2025-04-28","applyDate":"2025-04-21","status":"契約書類返送完備"},{"property":"ラコリーヌ","room":"A201","broker":"いえなび","staff":"山本","contractDate":"","applyDate":"2025-04-30","status":"審査落ち"},{"property":"ディアレスト","room":"203.0","broker":"いえなび","staff":"山本","contractDate":"2025-05-01","applyDate":"2025-03-27","status":"契約書類返送完備"},{"property":"アプリシティ","room":"105.0","broker":"大東建託リーシング株式会社","staff":"田村","contractDate":"2025-05-09","applyDate":"2025-04-12","status":"契約書類返送完備"},{"property":"アルデバラン","room":"B105","broker":"ごゆう不動産株式会社","staff":"内山","contractDate":"2025-05-10","applyDate":"2025-04-26","status":"契約書類返送完備"},{"property":"アメリア","room":"107.0","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2025-05-15","applyDate":"2025-04-21","status":"契約書類返送完備"},{"property":"アルデバラン","room":"A105","broker":"エイブルＮＷ福山蔵王店","staff":"佐々木","contractDate":"2025-05-15","applyDate":"2025-04-26","status":"契約書類返送完備"},{"property":"タラッサ","room":"201.0","broker":"東建コーポレーション　倉敷店","staff":"板谷","contractDate":"2025-03-26","applyDate":"2025-03-09","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"B111","broker":"いえなび","staff":"高木","contractDate":"","applyDate":"2025-05-13","status":"審査落ち"},{"property":"ガーデンヒルズ長者町","room":"208.0","broker":"ケイアイ福山駅前店","staff":"萬代","contractDate":"2025-05-01","applyDate":"2025-04-17","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"603.0","broker":"東建コーポレーション㈱倉敷支店","staff":"藤原","contractDate":"2025-05-20","applyDate":"2025-04-15","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"903.0","broker":"株式会社穴吹ハウジングサービス倉敷店","staff":"堤","contractDate":"2025-04-05","applyDate":"2025-03-12","status":"契約書類返送完備"},{"property":"ルミエール静","room":"A202","broker":"大東建託リーシング","staff":"平田","contractDate":"2025-05-24","applyDate":"2025-04-29","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"905.0","broker":"株式会社穴吹ハウジングサービス倉敷店","staff":"堤","contractDate":"2025-03-23","applyDate":"2025-02-28","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"301.0","broker":"(株)穴吹ハウジングサービス　倉敷店","staff":"村木","contractDate":"2025-04-10","applyDate":"2025-03-17","status":"契約書類返送完備"},{"property":"アルデバラン","room":"B101","broker":"中国バス不動産　南店","staff":"光吉","contractDate":"2025-05-26","applyDate":"2025-05-01","status":"契約書類返送完備"},{"property":"アルカンシェル","room":"A106","broker":"ケイアイ福山駅","staff":"友滝","contractDate":"2025-06-01","applyDate":"2025-05-13","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"103.0","broker":"ケイアイ沖野上","staff":"藤井","contractDate":"2025-05-31","applyDate":"2025-05-18","status":"契約書類返送完備"},{"property":"アプリシティ","room":"306.0","broker":"ケイアイ沖野上","staff":"馬場","contractDate":"2025-05-31","applyDate":"2025-04-11","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"401.0","broker":"ケイアイ白楽町店","staff":"今村","contractDate":"2025-05-31","applyDate":"2025-04-30","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"Ｂ106","broker":"エイブルネットワーク神辺店","staff":"寺岡","contractDate":"2025-06-23","applyDate":"2025-05-28","status":"審査落ち"},{"property":"アプリシティ","room":"101.0","broker":"大東建託リーシング","staff":"平田","contractDate":"2025-05-17","applyDate":"2025-04-01","status":"契約書類返送完備"},{"property":"シンティランテ","room":"201.0","broker":"エイブル蔵王","staff":"藤井","contractDate":"2025-05-31","applyDate":"2025-04-02","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"A103","broker":"エステート高橋","staff":"福間","contractDate":"2025-06-01","applyDate":"2025-05-06","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"510.0","broker":"ケイアイ白楽町","staff":"今村","contractDate":"2025-04-26","applyDate":"2025-04-10","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"210.0","broker":"株式会社ワイケイ　アパマンショップ倉敷沖新店","staff":"上田","contractDate":"2025-05-19","applyDate":"2025-04-21","status":"契約書類返送完備"},{"property":"ヒラリアス","room":"201.0","broker":"いい部屋ネット北店","staff":"","contractDate":"","applyDate":"2025-05-30","status":"審査落ち"},{"property":"ガーデンヒルズ長者町","room":"211.0","broker":"㈱タカハシ　インター南店","staff":"山上","contractDate":"2025-04-17","applyDate":"2025-04-07","status":"契約書類返送完備"},{"property":"スパーブコート","room":"102.0","broker":"エイブル神辺","staff":"鏡内","contractDate":"2025-06-01","applyDate":"2025-05-18","status":"契約書類返送完備"},{"property":"アルデバラン","room":"B103","broker":"住まいのクエスト","staff":"富田","contractDate":"2025-06-29","applyDate":"2025-06-02","status":"キャンセル"},{"property":"アロモント","room":"B103","broker":"株式会社タカハシ　東尾道駅前店","staff":"新宅","contractDate":"2025-06-13","applyDate":"2025-05-17","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"403.0","broker":"エイブルNW倉敷市役所前店　株式会社アークス","staff":"","contractDate":"2025-06-13","applyDate":"2025-05-19","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"906.0","broker":"あくら不動産株式会社","staff":"山本","contractDate":"2025-06-15","applyDate":"2025-05-20","status":"契約書類返送完備"},{"property":"アルデバラン","room":"B102","broker":"カウ不動産","staff":"佐藤","contractDate":"2025-06-21","applyDate":"2025-05-30","status":"契約書類返送完備"},{"property":"テラストリア","room":"107.0","broker":"オリゾン株式会社","staff":"石原","contractDate":"","applyDate":"2025-06-12","status":"審査落ち"},{"property":"テラストリア","room":"106.0","broker":"株式会社 タカハシ","staff":"肌野","contractDate":"","applyDate":"2025-06-14","status":"審査落ち"},{"property":"ミラヴィルタス西棟 102","room":"西102","broker":"中国バス不動産株式会社","staff":"山田","contractDate":"2025-06-17","applyDate":"2025-05-30","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"A202","broker":"エイブルNW倉敷市役所前店","staff":"柳澤","contractDate":"2025-06-22","applyDate":"2025-06-07","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"402.0","broker":"東建コーポレーション（株）倉敷支店","staff":"新田","contractDate":"2025-06-26","applyDate":"2025-06-06","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"205.0","broker":"ケイアイ福山駅前店","staff":"友滝","contractDate":"2025-04-07","applyDate":"2025-03-28","status":"契約書類返送完備"},{"property":"ラコリーヌ","room":"A201","broker":"ケイアイ福山駅前店","staff":"萬代","contractDate":"2025-06-27","applyDate":"2025-05-10","status":"契約書類返送完備"},{"property":"ハイサニー","room":"B201","broker":"大東建託リーシング株式会社 福山店","staff":"山田","contractDate":"2025-06-27","applyDate":"2025-06-09","status":"契約書類返送完備"},{"property":"セラータ","room":"110.0","broker":"株式会社 My　Room","staff":"吉本","contractDate":"2025-06-28","applyDate":"2025-06-01","status":"契約書類返送完備"},{"property":"アルデバラン","room":"B202","broker":"オリゾン株式会社　いい部屋ネット福山北店","staff":"森原","contractDate":"2025-06-14","applyDate":"2025-05-08","status":"契約書類返送完備"},{"property":"アルカンシェル","room":"A102","broker":"中国バス不動産　福山店","staff":"岡川","contractDate":"2025-06-30","applyDate":"2025-05-19","status":"契約書類返送完備"},{"property":"カルムコート","room":"東208","broker":"大東建託リーシング","staff":"平田","contractDate":"2025-05-31","applyDate":"2025-05-10","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"111.0","broker":"ケイアイ沖野上","staff":"大渡","contractDate":"2025-03-30","applyDate":"2025-03-13","status":"契約書類返送完備"},{"property":"スピネルデュオ","room":"106.0","broker":"エイブル神辺","staff":"鏡内","contractDate":"2025-06-25","applyDate":"2025-05-15","status":"契約書類返送完備"},{"property":"テラストリア","room":"205.0","broker":"株式会社タカハシ　東尾道駅前店","staff":"肌野","contractDate":"2025-07-01","applyDate":"2025-06-06","status":"契約書類返送完備"},{"property":"ルミエール静","room":"A201","broker":"大東建託リーシング株式会社 福山店","staff":"平田","contractDate":"2025-06-30","applyDate":"2025-06-08","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"502.0","broker":"株式会社 ワイケイ　倉敷沖新店","staff":"松尾","contractDate":"2025-06-30","applyDate":"2025-06-08","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"201.0","broker":"エイブルNW倉敷中庄店　株式会社アークス","staff":"仲島","contractDate":"2025-07-01","applyDate":"2025-06-10","status":"契約書類返送完備"},{"property":"テラストリア","room":"203.0","broker":"オリゾン株式会社","staff":"石原","contractDate":"2025-07-01","applyDate":"2025-06-08","status":"契約書類返送完備"},{"property":"アイディール","room":"102.0","broker":"いえなび","staff":"高木","contractDate":"2025-04-28","applyDate":"2025-04-15","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"B106","broker":"エイブル蔵王","staff":"藤井","contractDate":"2025-07-31","applyDate":"2025-06-24","status":"審査落ち"},{"property":"アルデバラン","room":"A102","broker":"大東建託リーシング株式会社　ﾌｸﾔﾏﾃﾝ","staff":"近藤","contractDate":"2025-06-29","applyDate":"2025-06-23","status":"契約書類返送完備"},{"property":"アルデバラン","room":"A206","broker":"不動産の岩原","staff":"岩原","contractDate":"2025-07-01","applyDate":"2025-06-10","status":"契約書類返送完備"},{"property":"スピネルデュオ","room":"101.0","broker":"有限会社山陽不動産","staff":"西原","contractDate":"2025-07-02","applyDate":"2025-06-13","status":"契約書類返送完備"},{"property":"サントーシャ","room":"201.0","broker":"ライフ","staff":"","contractDate":"2025-07-01","applyDate":"2025-05-15","status":"契約書類返送完備"},{"property":"グロリオサ","room":"603.0","broker":"大東建託リーシング株式会社","staff":"平田","contractDate":"2025-06-21","applyDate":"2025-06-02","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"202.0","broker":"いえなび","staff":"高木","contractDate":"2025-06-30","applyDate":"2025-05-10","status":"契約書類返送完備"},{"property":"テラストリア","room":"202.0","broker":"株式会社ケイアイホーム沖野上店","staff":"馬場","contractDate":"2025-07-01","applyDate":"2025-06-10","status":"契約書類返送完備"},{"property":"テラストリア","room":"106.0","broker":"エイブル神辺","staff":"大塚","contractDate":"2025-07-01","applyDate":"2025-06-17","status":"契約書類返送完備"},{"property":"曙町戸建","room":"B","broker":"佐藤エステート","staff":"津組","contractDate":"2025-07-01","applyDate":"2025-06-14","status":"契約書類返送完備"},{"property":"プレジール高橋","room":"203.0","broker":"ケイアイ福山駅前店","staff":"友滝","contractDate":"2025-07-01","applyDate":"2025-06-18","status":"契約書類返送完備"},{"property":"フレンディア常光","room":"A101","broker":"ライフ","staff":"","contractDate":"2025-07-01","applyDate":"2025-06-23","status":"契約書類返送完備"},{"property":"テラストリア","room":"102.0","broker":"株式会社タカハシ　松永店","staff":"坂本","contractDate":"2025-07-01","applyDate":"2025-06-26","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"301.0","broker":"エイブル倉敷市役所前店","staff":"中川","contractDate":"2025-07-03","applyDate":"2025-06-21","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"303.0","broker":"エイブルネットワーク庭瀬駅前店","staff":"福本","contractDate":"2025-07-04","applyDate":"2025-06-05","status":"契約書類返送完備"},{"property":"テラストリア","room":"207.0","broker":"IREライフ","staff":"","contractDate":"2025-07-01","applyDate":"2025-06-03","status":"契約書類返送完備"},{"property":"テラストリア","room":"101.0","broker":"ライフ","staff":"","contractDate":"2025-07-01","applyDate":"2025-06-17","status":"契約書類返送完備"},{"property":"テラストリア","room":"206.0","broker":"株式会社タカハシ　東尾道駅前店","staff":"肌野","contractDate":"2025-07-06","applyDate":"2025-05-23","status":"契約書類返送完備"},{"property":"アルファステイツ福山駅前Ⅱ","room":"204.0","broker":"エイブルNW福山駅前店","staff":"難波","contractDate":"2025-08-01","applyDate":"2025-06-21","status":"キャンセル"},{"property":"ノブリス","room":"A101","broker":"中国バス不動産　福山店","staff":"光吉","contractDate":"2025-09-01","applyDate":"2025-07-03","status":"キャンセル"},{"property":"アルデバラン","room":"A203","broker":"いえなび","staff":"高木","contractDate":"2025-06-01","applyDate":"2025-05-18","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"603.0","broker":"株式会社ネクステージホーム","staff":"小出","contractDate":"2025-06-29","applyDate":"2025-06-01","status":"契約書類返送完備"},{"property":"テタンジェ","room":"103.0","broker":"株式会社 ケイアイホーム倉敷インター南店","staff":"飛田","contractDate":"2025-08-01","applyDate":"2025-07-06","status":"キャンセル"},{"property":"タラッサ","room":"110.0","broker":"ＢＲＵＮＯ不動産 株式会社エイブルネットワーク総社店","staff":"平田","contractDate":"2025-08-20","applyDate":"2025-06-22","status":"キャンセル"},{"property":"メゾンドリヴァージュ","room":"A201","broker":"いえなび","staff":"宮地","contractDate":"2025-07-13","applyDate":"2025-06-15","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"606.0","broker":"ホーミィエステート 株式会社本店","staff":"","contractDate":"","applyDate":"2025-07-10","status":"審査落ち"},{"property":"ベラカーサノース","room":"1001.0","broker":"ホーミィエステート㈱　倉敷駅前店","staff":"上田","contractDate":"2025-06-20","applyDate":"2025-05-26","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"406.0","broker":"ケイアイ白楽町","staff":"左京","contractDate":"2025-06-28","applyDate":"2025-05-16","status":"契約書類返送完備"},{"property":"ユニキューブ浦上","room":"前","broker":"いえなび","staff":"山本","contractDate":"2025-07-15","applyDate":"2025-06-25","status":"契約書類返送完備"},{"property":"テラストリア","room":"107.0","broker":"オリゾン","staff":"石原","contractDate":"2025-07-19","applyDate":"2025-06-23","status":"契約書類返送完備"},{"property":"上富井戸建","room":"東","broker":"エイブルネットワーク倉敷市役所前店","staff":"岡野","contractDate":"2025-07-11","applyDate":"2025-06-07","status":"契約書類返送完備"},{"property":"シティハイツ暁の星","room":"102.0","broker":"ライフ","staff":"","contractDate":"2025-07-14","applyDate":"2025-07-08","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"201.0","broker":"株式会社ケイアイホーム　倉敷白楽町店","staff":"","contractDate":"2025-06-28","applyDate":"2025-06-05","status":"契約書類返送完備"},{"property":"ハイサニー","room":"B102","broker":"ライフ","staff":"","contractDate":"2025-07-24","applyDate":"2025-06-20","status":"契約書類返送完備"},{"property":"テラストリア","room":"105.0","broker":"株式会社タカハシ　東尾道駅前店","staff":"肌野","contractDate":"2025-07-24","applyDate":"2025-06-26","status":"契約書類返送完備"},{"property":"アルデバラン","room":"B103","broker":"いえなび","staff":"宮地","contractDate":"2025-08-01","applyDate":"2025-07-17","status":"審査落ち"},{"property":"アルヴィータ","room":"B106","broker":"エイブル神辺","staff":"鏡内","contractDate":"2025-07-26","applyDate":"2025-06-28","status":"契約書類返送完備"},{"property":"アルデバラン","room":"A201","broker":"オリゾン","staff":"石原","contractDate":"2025-07-27","applyDate":"2025-06-28","status":"契約書類返送完備"},{"property":"アプリシティ","room":"301.0","broker":"株式会社 ケイアイホーム福山駅前店","staff":"友滝","contractDate":"2025-07-30","applyDate":"2025-07-21","status":"契約書類返送完備"},{"property":"テラストリア","room":"103.0","broker":"ケイアイ　三原店","staff":"裏崎","contractDate":"2025-08-01","applyDate":"2025-06-26","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"301.0","broker":"エイブルNW倉敷駅北店","staff":"鳥越","contractDate":"2025-08-01","applyDate":"2025-06-08","status":"契約書類返送完備"},{"property":"S place bld.","room":"501.0","broker":"ＢＲＵＮＯ不動産 株式会社エイブルネットワーク総社店","staff":"平田","contractDate":"2025-08-01","applyDate":"2025-06-29","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"606.0","broker":"株式会社 ワイケイ倉敷沖新店","staff":"下元","contractDate":"2025-08-01","applyDate":"2025-07-19","status":"契約書類返送完備"},{"property":"セラータ","room":"201.0","broker":"大東建託リーシング株式会社","staff":"山田","contractDate":"2025-07-29","applyDate":"2025-06-17","status":"契約書類返送完備"},{"property":"アルカディア","room":"D102","broker":"ケイアイ沖野上","staff":"馬場","contractDate":"2025-07-30","applyDate":"2025-07-24","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"B111","broker":"大東建託リーシング株式会社 福山店","staff":"近藤","contractDate":"2025-08-01","applyDate":"2025-06-29","status":"契約書類返送完備"},{"property":"テラストリア","room":"201.0","broker":"いえなび","staff":"宮地","contractDate":"2025-08-01","applyDate":"2025-07-06","status":"契約書類返送完備"},{"property":"カルムコート","room":"東106","broker":"いえなび","staff":"藤川","contractDate":"2025-08-01","applyDate":"2025-07-14","status":"契約書類返送完備"},{"property":"アルデバラン","room":"A205","broker":"中国バス不動産　南店","staff":"光吉","contractDate":"2025-08-01","applyDate":"2025-07-16","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"A201","broker":"大東建託リーシング株式会社　福山店","staff":"山田","contractDate":"2025-07-29","applyDate":"2025-07-15","status":"契約書類返送完備"},{"property":"アルファステイツ福山駅前Ⅱ","room":"204.0","broker":"ライフ","staff":"","contractDate":"2025-08-01","applyDate":"2025-07-24","status":"契約書類返送完備"},{"property":"ヒラリアス","room":"201.0","broker":"佐藤エステート","staff":"大元","contractDate":"2025-08-08","applyDate":"2025-07-24","status":"契約書類返送完備"},{"property":"メリッサ","room":"201.0","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2025-08-08","applyDate":"2025-07-26","status":"契約書類返送完備"},{"property":"セラータ","room":"103.0","broker":"エイブルＮＷ福山蔵王店　株式会社アークス","staff":"兼田","contractDate":"2025-08-10","applyDate":"2025-06-30","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"302.0","broker":"エイブルネットワーク総社店","staff":"鷺原","contractDate":"2025-08-18","applyDate":"2025-07-18","status":"契約書類返送完備"},{"property":"エバーグリーン福山西町","room":"302.0","broker":"ＬｉｆｅＶｉｓｉｏｎ 株式会社本店","staff":"坂本","contractDate":"2025-08-20","applyDate":"2025-07-28","status":"契約書類返送完備"},{"property":"セラータ","room":"101.0","broker":"いえなび","staff":"高木","contractDate":"2025-08-16","applyDate":"2025-08-01","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"A106","broker":"株式会社 ワイケイ新倉敷駅前店","staff":"栗木","contractDate":"2025-08-23","applyDate":"2025-07-12","status":"契約書類返送完備"},{"property":"ミラヴィルタス","room":"西103","broker":"いえなび","staff":"山本","contractDate":"2025-06-01","applyDate":"2025-05-07","status":"契約書類返送完備"},{"property":"アルデバラン","room":"Ａ106","broker":"いえなび","staff":"宮地","contractDate":"2025-09-01","applyDate":"2025-07-27","status":"キャンセル"},{"property":"スピネル","room":"202.0","broker":"エイブルNW福山駅前店","staff":"佐々木","contractDate":"2025-08-29","applyDate":"2025-06-30","status":"契約書類返送完備"},{"property":"アプリシティ","room":"305.0","broker":"不動産の岩原","staff":"岩原","contractDate":"2025-08-27","applyDate":"2025-08-10","status":"契約書類返送完備"},{"property":"プティメゾン","room":"102.0","broker":"ライフ","staff":"","contractDate":"2025-09-01","applyDate":"2025-08-25","status":"契約書類返送完備"},{"property":"マルヴィナ","room":"103.0","broker":"ＬｉｆｅＶｉｓｉｏｎ 株式会社本店","staff":"坂本","contractDate":"2025-08-31","applyDate":"2025-07-20","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"605.0","broker":"エイブルNW倉敷市役所前店","staff":"岡野","contractDate":"2025-09-01","applyDate":"2025-07-14","status":"契約書類返送完備"},{"property":"マルヴィナ","room":"105.0","broker":"中国バス不動産　福山店","staff":"宗政","contractDate":"2025-09-01","applyDate":"2025-07-20","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"803.0","broker":"エイブルNW倉敷駅北店","staff":"鳥越","contractDate":"2025-09-01","applyDate":"2025-07-16","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"602.0","broker":"あびこ不動産","staff":"藤井","contractDate":"2025-09-01","applyDate":"2025-08-01","status":"契約書類返送完備"},{"property":"タラッサ","room":"102.0","broker":"エイブルNW倉敷水島店","staff":"藤本","contractDate":"2025-09-01","applyDate":"2025-08-17","status":"契約書類返送完備"},{"property":"シャンティ","room":"101.0","broker":"いえなび福山多治米店","staff":"宮地","contractDate":"2025-08-19","applyDate":"2025-08-02","status":"契約書類返送完備"},{"property":"マルヴィナ","room":"201.0","broker":"いえなび多治米店","staff":"宮地","contractDate":"2025-09-01","applyDate":"2025-08-17","status":"契約書類返送完備"},{"property":"ソルトグラス","room":"110.0","broker":"ライフ","staff":"","contractDate":"2025-09-01","applyDate":"2025-07-29","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"1003.0","broker":"ミニミニFC倉敷店","staff":"中原","contractDate":"2025-09-07","applyDate":"2025-08-19","status":"契約書類返送完備"},{"property":"メリッサ","room":"205.0","broker":"エイブルＮＷ福山蔵王店","staff":"藤井","contractDate":"2025-10-01","applyDate":"2025-08-21","status":"キャンセル"},{"property":"ガーデンヒルズ長者町","room":"105.0","broker":"ライフ","staff":"","contractDate":"2025-07-10","applyDate":"2025-07-08","status":"契約書類返送完備"},{"property":"エルキュール","room":"Ｃ205","broker":"山陽不動産","staff":"西原","contractDate":"2025-08-17","applyDate":"2025-08-03","status":"契約書類返送完備"},{"property":"メゾンドリヴァージュ","room":"Ａ203","broker":"遠藤不動産","staff":"","contractDate":"","applyDate":"2025-09-03","status":"審査落ち"},{"property":"タラッサ","room":"110.0","broker":"ネクステージホーム","staff":"松本","contractDate":"2025-09-01","applyDate":"2025-08-02","status":"契約書類返送完備"},{"property":"メリッサ","room":"101.0","broker":"トリコム","staff":"山田","contractDate":"2025-09-15","applyDate":"2025-09-09","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"203.0","broker":"ライフ　代行タイセイハウジー","staff":"","contractDate":"2025-08-29","applyDate":"2025-07-07","status":"契約書類返送完備"},{"property":"マルヴィナ","room":"202.0","broker":"いえなび春日店","staff":"山本","contractDate":"2025-09-01","applyDate":"2025-08-03","status":"契約書類返送完備"},{"property":"メリッサ","room":"203.0","broker":"大東建託株式会社　福山","staff":"近藤","contractDate":"2025-09-19","applyDate":"2025-08-28","status":"契約書類返送完備"},{"property":"クラリス","room":"101.0","broker":"中バス　福山","staff":"小川","contractDate":"2025-09-20","applyDate":"2025-08-23","status":"契約書類返送完備"},{"property":"メゾンドリヴァージュ","room":"B305","broker":"アパマンショップ神辺店","staff":"小葉竹","contractDate":"2025-09-21","applyDate":"2025-08-24","status":"契約書類返送完備"},{"property":"メリッサ","room":"102.0","broker":"中国バス　福山","staff":"田平","contractDate":"2025-09-21","applyDate":"2025-08-23","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"102.0","broker":"いえなび　多治米店","staff":"中川","contractDate":"","applyDate":"2025-09-16","status":"キャンセル"},{"property":"カルコーサ","room":"101.0","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"","applyDate":"2025-09-19","status":"審査落ち"},{"property":"ガーデンヒルズ長者町","room":"101.0","broker":"株式会社ケイアイホーム　福山駅前店","staff":"矢口","contractDate":"2025-09-26","applyDate":"2025-09-17","status":"契約書類返送完備"},{"property":"メリッサ","room":"205.0","broker":"いえなび　春日店","staff":"今井","contractDate":"2025-09-30","applyDate":"2025-09-08","status":"契約書類返送完備"},{"property":"カルムコート","room":"東208","broker":"ライフ","staff":"","contractDate":"2025-10-01","applyDate":"2025-08-14","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"505.0","broker":"株式会社アークス　エイブルネットワーク倉敷駅北店","staff":"山本","contractDate":"2025-05-07","applyDate":"2025-04-21","status":"契約書類返送完備"},{"property":"ノブリス","room":"A101","broker":"株式会社 トリコム","staff":"河野","contractDate":"2025-09-30","applyDate":"2025-09-17","status":"契約書類返送完備"},{"property":"エルキュール","room":"A201","broker":"タイヨウエステート","staff":"岡山","contractDate":"2025-09-30","applyDate":"2025-09-22","status":"契約書類返送完備"},{"property":"ソルトグラス","room":"203.0","broker":"いえなび春日店","staff":"高木","contractDate":"2025-10-01","applyDate":"2025-08-06","status":"契約書類返送完備"},{"property":"アルデバラン","room":"B103","broker":"中国バス不動産　南店","staff":"光吉","contractDate":"2025-10-01","applyDate":"2025-08-21","status":"契約書類返送完備"},{"property":"ミルドレッド","room":"106.0","broker":"いえなび","staff":"山本","contractDate":"2025-10-01","applyDate":"2025-08-24","status":"契約書類返送完備"},{"property":"メリッサ","room":"106.0","broker":"エステート高橋有限会社","staff":"福間","contractDate":"2025-10-01","applyDate":"2025-09-10","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"305.0","broker":"ＢＲＵＮＯ不動産 株式会社","staff":"鷺原","contractDate":"2025-10-01","applyDate":"2025-09-15","status":"契約書類返送完備"},{"property":"カルコーサ","room":"111.0","broker":"いえなび　春日店","staff":"山本","contractDate":"2025-10-01","applyDate":"2025-09-17","status":"契約書類返送完備"},{"property":"メリッサ","room":"202.0","broker":"中国バス不動産　福山店","staff":"小川","contractDate":"2025-09-27","applyDate":"2025-09-04","status":"契約書類返送完備"},{"property":"カルコーサ","room":"108.0","broker":"いえなび","staff":"山本","contractDate":"2025-10-01","applyDate":"2025-08-17","status":"契約書類返送完備"},{"property":"カルコーサ","room":"110.0","broker":"いえなび　春日店","staff":"今井","contractDate":"2025-10-01","applyDate":"2025-09-10","status":"契約書類返送完備"},{"property":"瀬戸町戸建て","room":"1.0","broker":"中国バス不動産　南店","staff":"行友","contractDate":"2025-10-01","applyDate":"2025-09-05","status":"契約書類返送完備"},{"property":"仮）中畝AP3","room":"B101","broker":"(株)ワイケイ　アパマンショップ倉敷水島店","staff":"薮井","contractDate":"2025-12-05","applyDate":"2025-09-29","status":"審査落ち"},{"property":"カルコーサ","room":"101.0","broker":"株式会社 タカハシ福山松永店","staff":"佐藤","contractDate":"2025-10-18","applyDate":"2025-09-27","status":"キャンセル"},{"property":"テタンジェ","room":"103.0","broker":"ワイケイ","staff":"安藤","contractDate":"2025-09-20","applyDate":"2025-08-23","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"107.0","broker":"不動産の岩原","staff":"岩原","contractDate":"2025-09-30","applyDate":"2025-09-19","status":"契約書類返送完備"},{"property":"メリッサ","room":"105.0","broker":"不動産の岩原","staff":"岩原","contractDate":"2025-10-01","applyDate":"2025-09-17","status":"契約書類返送完備"},{"property":"メリッサ","room":"206.0","broker":"エイブルＮＷ福山蔵王店","staff":"藤井","contractDate":"2025-10-01","applyDate":"2025-09-14","status":"契約書類返送完備"},{"property":"ミルドレッド","room":"101.0","broker":"大東建託リーシング三原店","staff":"佐藤","contractDate":"2025-10-03","applyDate":"2025-09-19","status":"契約書類返送完備"},{"property":"メリッサ","room":"103.0","broker":"株式会社 レイクスコーポレーション","staff":"川上","contractDate":"2025-09-29","applyDate":"2025-09-12","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"610.0","broker":"東建コーポレーション　倉敷","staff":"難波","contractDate":"2025-09-27","applyDate":"2025-09-06","status":"契約書類返送完備"},{"property":"アルデバラン","room":"A103","broker":"㈱タカハシインター南店","staff":"加藤","contractDate":"2025-07-10","applyDate":"2025-06-30","status":"契約書類返送完備"},{"property":"マジェステ","room":"A103","broker":"ケイアイ　三原","staff":"内山","contractDate":"2025-10-19","applyDate":"2025-10-05","status":"審査落ち"},{"property":"マルヴィナ","room":"102.0","broker":"株式会社タカハシ　東尾道駅前店","staff":"大前","contractDate":"2025-09-25","applyDate":"2025-09-16","status":"契約書類返送完備"},{"property":"ミルドレッド","room":"202.0","broker":"株式会社 タカハシ福山松永店","staff":"前迫","contractDate":"2025-10-11","applyDate":"2025-09-30","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"106.0","broker":"エイブルＮＷ福山蔵王店","staff":"井上","contractDate":"2025-10-08","applyDate":"2025-09-30","status":"契約書類返送完備"},{"property":"ソアヴィータ","room":"203.0","broker":"エイブルＮＷ福山蔵王店","staff":"藤井","contractDate":"2025-10-19","applyDate":"2025-08-21","status":"契約書類返送完備"},{"property":"ソフィア","room":"201.0","broker":"いえなび春日","staff":"山本","contractDate":"","applyDate":"2025-10-04","status":"キャンセル"},{"property":"カルコーサ","room":"101.0","broker":"株式会社タカハシ　南店","staff":"蟻田","contractDate":"2025-10-17","applyDate":"2025-10-02","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"302.0","broker":"あなぶきハウジングサービス　倉敷店","staff":"村木","contractDate":"2025-09-26","applyDate":"2025-09-05","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"402.0","broker":"あなぶきハウジングサービス 倉敷店","staff":"久保田","contractDate":"2025-10-04","applyDate":"2025-08-30","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"108.0","broker":"不動産の岩原","staff":"岩原","contractDate":"","applyDate":"2025-10-19","status":"審査落ち"},{"property":"アンティカベラカーサ","room":"102.0","broker":"株式会社Connect","staff":"平川","contractDate":"2025-10-25","applyDate":"2025-09-02","status":"契約書類返送完備"},{"property":"カルコーサ","room":"102.0","broker":"エイブルＮＷ神辺店","staff":"鏡内","contractDate":"2025-10-27","applyDate":"2025-10-08","status":"契約書類返送完備"},{"property":"ナディア","room":"B107","broker":"(株)ワイケイ　アパマンショップ倉敷水島店","staff":"薮井","contractDate":"","applyDate":"2025-10-24","status":"キャンセル"},{"property":"カルムコート","room":"東207","broker":"いえなび　多治米","staff":"宮地","contractDate":"","applyDate":"2025-10-28","status":"審査落ち"},{"property":"ハイサニー","room":"B105","broker":"ライフ","staff":"","contractDate":"2025-10-31","applyDate":"2025-09-30","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"102.0","broker":"ケイアイホーム　福山駅前店","staff":"友滝","contractDate":"2025-10-31","applyDate":"2025-10-15","status":"契約書類返送完備"},{"property":"ミルドレッド","room":"201.0","broker":"中国バス不動産　福山店","staff":"髙橋","contractDate":"2025-11-01","applyDate":"2025-09-29","status":"契約書類返送完備"},{"property":"ナディア","room":"B107","broker":"エイブルNW倉敷駅北店","staff":"中川","contractDate":"","applyDate":"2025-10-24","status":"キャンセル"},{"property":"ミルドレッド","room":"107.0","broker":"タカハシ東尾道","staff":"肌野","contractDate":"2025-11-07","applyDate":"2025-09-22","status":"契約書類返送完備"},{"property":"ミステール","room":"206.0","broker":"株式会社 タカハシ福山松永店","staff":"佐藤","contractDate":"","applyDate":"2025-11-06","status":"審査落ち"},{"property":"ナディア","room":"B106","broker":"エイブルNW倉敷水島店","staff":"藤本","contractDate":"","applyDate":"2025-11-06","status":"審査落ち"},{"property":"ミステール","room":"106.0","broker":"中国バス不動産株式会社　福山店","staff":"小川","contractDate":"2025-11-08","applyDate":"2025-10-06","status":"契約書類返送完備"},{"property":"ミルドレッド","room":"103.0","broker":"いえなび　春日","staff":"高木","contractDate":"2025-11-01","applyDate":"2025-10-03","status":"契約書類返送完備"},{"property":"メゾンドリヴァージュ","room":"B306","broker":"中国バス不動産　南店","staff":"光吉","contractDate":"2025-11-15","applyDate":"2025-09-14","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"901.0","broker":"東建コーポレーション　岡山店","staff":"山﨑","contractDate":"2025-10-06","applyDate":"2025-09-18","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"607.0","broker":"株式会社ワイケイ倉敷沖新店","staff":"下元","contractDate":"2025-10-24","applyDate":"2025-08-20","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"701.0","broker":"ワイケイ　倉敷駅前店","staff":"永田","contractDate":"2025-11-01","applyDate":"2025-09-26","status":"契約書類返送完備"},{"property":"ミルドレッド","room":"105.0","broker":"タカハシ　東尾道駅前店","staff":"肌野","contractDate":"2025-10-31","applyDate":"2025-09-26","status":"契約書類返送完備"},{"property":"タラッサ","room":"103.0","broker":"株式会社 ワイケイ倉敷沖新店","staff":"安藤","contractDate":"2025-11-15","applyDate":"2025-10-25","status":"契約書類返送完備"},{"property":"ミルドレッド","room":"102.0","broker":"株式会社コミコミ","staff":"政野","contractDate":"2025-11-01","applyDate":"2025-09-29","status":"契約書類返送完備"},{"property":"ナディア","room":"B107","broker":"株式会社ケイアイホーム　白楽町店","staff":"今村","contractDate":"2025-12-23","applyDate":"2025-11-16","status":"審査落ち"},{"property":"スピネル","room":"107.0","broker":"ライフ","staff":"","contractDate":"2025-11-21","applyDate":"2025-10-20","status":"契約書類返送完備"},{"property":"ソルトグラス","room":"201.0","broker":"いい部屋ネット　福山北店","staff":"石原","contractDate":"","applyDate":"2025-11-22","status":"キャンセル"},{"property":"ナディア","room":"B105","broker":"株式会社OFC本店","staff":"","contractDate":"","applyDate":"2025-11-24","status":"審査落ち"},{"property":"メゾンドリヴァージュ","room":"B206","broker":"トリコム","staff":"河野","contractDate":"2025-11-23","applyDate":"2025-10-22","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"303.0","broker":"株式会社ワイケイ倉敷沖新店","staff":"安藤","contractDate":"2025-11-23","applyDate":"2025-10-25","status":"契約書類返送完備"},{"property":"スパーブコート","room":"106.0","broker":"大東建託リーシング株式会社　福山店","staff":"近藤","contractDate":"2025-11-26","applyDate":"2025-09-28","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"606.0","broker":"ＢＲＵＮＯ不動産 株式会社庭瀬駅前店","staff":"古谷","contractDate":"2025-11-27","applyDate":"2025-10-14","status":"契約書類返送完備"},{"property":"ミステール","room":"207.0","broker":"中国バス不動産　福山店","staff":"田平","contractDate":"2025-11-27","applyDate":"2025-10-27","status":"契約書類返送完備"},{"property":"ベラカーサノース","room":"1002.0","broker":"ライフ","staff":"","contractDate":"2025-12-01","applyDate":"2025-10-20","status":"契約書類返送完備"},{"property":"カルコーサ","room":"105.0","broker":"トリコム","staff":"山田","contractDate":"2025-11-20","applyDate":"2025-09-25","status":"契約書類返送完備"},{"property":"エルキュール","room":"C102","broker":"中国バス不動産株式会社　福山店","staff":"小川","contractDate":"2025-11-30","applyDate":"2025-10-19","status":"契約書類返送完備"},{"property":"ルミエール静","room":"B202","broker":"ケイアイホーム　沖野上店","staff":"馬場","contractDate":"2025-12-01","applyDate":"2025-11-23","status":"契約書類返送完備"},{"property":"マジェステ","room":"A103","broker":"株式会社 タカハシ福山松永店","staff":"高本","contractDate":"2025-11-30","applyDate":"2025-11-24","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"B110","broker":"いえなび　春日","staff":"今井","contractDate":"2025-11-20","applyDate":"2025-10-21","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"211.0","broker":"株式会社 タカハシ福山南店","staff":"山上","contractDate":"2025-09-27","applyDate":"2025-09-13","status":"契約書類返送完備"},{"property":"ミステール","room":"202.0","broker":"ＬｉｆｅＶｉｓｉｏｎ 株式会社本店","staff":"坂本","contractDate":"2025-11-16","applyDate":"2025-11-07","status":"契約書類返送完備"},{"property":"S place bld.","room":"507.0","broker":"ＢＲＵＮＯ不動産 株式会社　総社","staff":"鷺原","contractDate":"2025-12-06","applyDate":"2025-11-22","status":"契約書類返送完備"},{"property":"KASUGAエコパティオ B","room":"B","broker":"エイブルNW福山駅前店","staff":"寺岡","contractDate":"","applyDate":"2025-12-11","status":"審査落ち"},{"property":"カルコーサ","room":"106.0","broker":"エイブルNW福山駅前店","staff":"佐々木","contractDate":"2025-11-30","applyDate":"2025-10-20","status":"契約書類返送完備"},{"property":"ガーデンヒルズ長者町","room":"201.0","broker":"いえなび　春日","staff":"髙木","contractDate":"2025-12-06","applyDate":"2025-11-12","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"406.0","broker":"叶う不動産","staff":"六車","contractDate":"2025-12-08","applyDate":"2025-11-14","status":"契約書類返送完備"},{"property":"アシンプトート","room":"B103","broker":"いえなび春日","staff":"","contractDate":"2025-12-10","applyDate":"2025-11-26","status":"契約書類返送完備"},{"property":"ナディア","room":"A203","broker":"株式会社OFC本店","staff":"松山","contractDate":"2025-12-19","applyDate":"2025-11-25","status":"キャンセル"},{"property":"サントーシャ","room":"102.0","broker":"大東建託リーシング　福山店","staff":"田村","contractDate":"2025-12-14","applyDate":"2025-11-05","status":"契約書類返送完備"},{"property":"ナディア","room":"Ｂ102","broker":"(株)ワイケイ　アパマンショップ倉敷水島店","staff":"","contractDate":"","applyDate":"2025-12-13","status":"審査落ち"},{"property":"サントーシャ","room":"205.0","broker":"ライフ","staff":"","contractDate":"2025-12-18","applyDate":"2025-12-01","status":"契約書類返送完備"},{"property":"ミステール","room":"201.0","broker":"中国バス不動産　福山店","staff":"宗政","contractDate":"2025-12-20","applyDate":"2025-11-14","status":"契約書類返送完備"},{"property":"アルカディア","room":"Ａ302","broker":"いえなび多治米","staff":"中川","contractDate":"2025-12-15","applyDate":"2025-11-09","status":"契約書類返送完備"},{"property":"アロモント","room":"B102","broker":"タカハシ　福山松永店","staff":"前迫","contractDate":"2025-12-07","applyDate":"2025-11-24","status":"契約書類返送完備"},{"property":"ラコリーヌ","room":"A202","broker":"アフィット不動産","staff":"箱﨑","contractDate":"2025-11-29","applyDate":"2025-10-18","status":"契約書類返送完備"},{"property":"ナディア","room":"B101","broker":"大東建託リーシング株式会社 倉敷店","staff":"赤堀","contractDate":"2025-12-10","applyDate":"2025-10-13","status":"契約書類返送完備"},{"property":"マルヴィナ","room":"101.0","broker":"株式会社タカハシ　東尾道駅前店","staff":"肌野","contractDate":"2025-12-01","applyDate":"2025-11-20","status":"契約書類返送完備"},{"property":"ナディア","room":"Ｂ107","broker":"ＢＲＵＮＯ不動産 株式会社","staff":"平田","contractDate":"2025-12-06","applyDate":"2025-11-30","status":"契約書類返送完備"},{"property":"ミステール","room":"206.0","broker":"タイヨウエステート","staff":"岡山","contractDate":"2025-12-21","applyDate":"2025-11-30","status":"契約書類返送完備"},{"property":"ミーティア","room":"B203","broker":"大東建託リーシング株式会社 福山店","staff":"山田","contractDate":"2025-12-21","applyDate":"2025-11-25","status":"契約書類返送完備"},{"property":"ナディア","room":"B102","broker":"ケイアイ　白楽町店","staff":"豊島","contractDate":"","applyDate":"2025-12-19","status":"審査落ち"},{"property":"ソアヴィータ","room":"106.0","broker":"エイブルＮＷ福山蔵王店","staff":"藤井","contractDate":"2025-12-23","applyDate":"2025-11-30","status":"契約書類返送完備"},{"property":"西谷ユニキューブ","room":"B","broker":"大東建託リーシング株式会社 福山店","staff":"片山","contractDate":"2025-12-23","applyDate":"2025-11-15","status":"契約書類返送完備"},{"property":"カルコーサ","room":"107.0","broker":"中国バス不動産株式会社　福山西・尾道店","staff":"宗政","contractDate":"2025-12-25","applyDate":"2025-12-05","status":"契約書類返送完備"},{"property":"ミステール","room":"101.0","broker":"穴吹ハウジングサービス　福山店","staff":"野村","contractDate":"2025-12-21","applyDate":"2025-11-21","status":"契約書類返送完備"},{"property":"アルカンシェル","room":"A102","broker":"エイブルNW福山駅前店","staff":"佐々木","contractDate":"2025-12-19","applyDate":"2025-11-27","status":"契約書類返送完備"},{"property":"曙戸建て","room":"A","broker":"エイブルNW福山駅前店","staff":"佐々木","contractDate":"2025-12-20","applyDate":"2025-11-20","status":"契約書類返送完備"},{"property":"ナディア","room":"A205","broker":"株式会社OFC本店","staff":"太田","contractDate":"2025-12-26","applyDate":"2025-11-23","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"308.0","broker":"エイブル　倉敷","staff":"阿部","contractDate":"2025-11-23","applyDate":"2025-10-05","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"205.0","broker":"エイブルNWイオンモール倉敷店","staff":"山本","contractDate":"","applyDate":"2025-12-10","status":"キャンセル"},{"property":"ベラカーササウス","room":"407.0","broker":"エイブルNW倉敷水島店","staff":"宮内","contractDate":"","applyDate":"2025-12-26","status":"審査落ち"},{"property":"スピネルデュオ","room":"108.0","broker":"いえなび春日","staff":"","contractDate":"","applyDate":"2026-01-04","status":"審査落ち"},{"property":"アルバ","room":"北208","broker":"株式会社 ケイアイホーム福山駅前店","staff":"萬代","contractDate":"2025-12-25","applyDate":"2025-12-07","status":"契約書類返送完備"},{"property":"エスプレイスビルド","room":"103.0","broker":"ＢＲＵＮＯ不動産 株式会社庭瀬駅前店","staff":"福本","contractDate":"","applyDate":"2026-01-08","status":"キャンセル"},{"property":"メゾンドリヴァージュ","room":"A203","broker":"株式会社 いえなび福山春日店","staff":"山本","contractDate":"2026-01-17","applyDate":"2026-01-08","status":"キャンセル"},{"property":"カルムコート","room":"東105","broker":"株式会社いえなび 福山多治米店","staff":"宮地","contractDate":"","applyDate":"2026-01-11","status":"審査落ち"},{"property":"カルコーサ","room":"102.0","broker":"ライフ","staff":"","contractDate":"2026-02-15","applyDate":"2025-12-21","status":"キャンセル"},{"property":"ベラカーササウス","room":"206.0","broker":"株式会社つぼみ不動産","staff":"徐 蕾","contractDate":"","applyDate":"2026-01-19","status":"キャンセル"},{"property":"アイディール","room":"206.0","broker":"株式会社 いえなび福山多治米店","staff":"宮地","contractDate":"2026-01-10","applyDate":"2025-12-01","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"508.0","broker":"大東建託リーシング株式会社 倉敷店","staff":"赤堀","contractDate":"2026-01-15","applyDate":"2025-11-15","status":"契約書類返送完備"},{"property":"ミステール","room":"107.0","broker":"株式会社 タカハシ福山松永店","staff":"高本","contractDate":"2026-01-16","applyDate":"2025-12-07","status":"契約書類返送完備"},{"property":"S place bld.","room":"506.0","broker":"ＢＲＵＮＯ不動産 株式会社","staff":"鷺原","contractDate":"2026-01-16","applyDate":"2025-11-29","status":"契約書類返送完備"},{"property":"アシンプトート","room":"A205","broker":"ライフ","staff":"","contractDate":"2026-01-16","applyDate":"2025-12-19","status":"契約書類返送完備"},{"property":"セラータ","room":"107.0","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2026-01-16","applyDate":"2025-12-21","status":"契約書類返送完備"},{"property":"マーベラス","room":"B106","broker":"タカハシ　東尾道駅前店","staff":"加藤","contractDate":"2026-01-18","applyDate":"2025-12-18","status":"契約書類返送完備"},{"property":"エルキュール","room":"B101","broker":"ライフ","staff":"","contractDate":"2026-02-01","applyDate":"2026-01-08","status":"契約書類返送完備"},{"property":"ミラヴィルタス","room":"西201","broker":"いえなび　春日","staff":"髙木","contractDate":"2026-01-31","applyDate":"2025-12-13","status":"契約書類返送完備"},{"property":"セラータ","room":"105.0","broker":"株式会社 いえなび福山春日店","staff":"今井","contractDate":"2026-02-01","applyDate":"2025-12-07","status":"契約書類返送完備"},{"property":"メゾンドリヴァージュ","room":"A203","broker":"ライフ","staff":"","contractDate":"2026-01-29","applyDate":"2026-01-23","status":"契約書類返送完備"},{"property":"マースフル","room":"101.0","broker":"株式会社 いえなび福山春日店","staff":"","contractDate":"","applyDate":"2026-01-27","status":"審査落ち"},{"property":"アプリシティ","room":"201.0","broker":"トリコム","staff":"山田","contractDate":"2026-01-31","applyDate":"2026-01-11","status":"契約書類返送完備"},{"property":"テタンジェ","room":"108.0","broker":"エイブルNWイオンモール倉敷店　株式会社アークス","staff":"山本","contractDate":"2026-03-01","applyDate":"2026-01-14","status":"キャンセル"},{"property":"スピネルデュオ","room":"108.0","broker":"いえなび春日","staff":"","contractDate":"","applyDate":"2026-01-24","status":"審査落ち"},{"property":"ナディア","room":"B102","broker":"ネクステージホーム","staff":"小出","contractDate":"2026-02-01","applyDate":"2026-01-11","status":"契約書類返送完備"},{"property":"手城3丁目戸建て","room":"","broker":"エイブル蔵王","staff":"井上","contractDate":"2026-02-01","applyDate":"2025-12-22","status":"契約書類返送完備"},{"property":"アイディール","room":"205.0","broker":"中国バス不動産　LIFUKU福山西・尾道店","staff":"宗政","contractDate":"2026-03-20","applyDate":"2026-01-29","status":"キャンセル"},{"property":"ディアレスト","room":"201.0","broker":"いえなび　春日","staff":"山本","contractDate":"2025-12-19","applyDate":"2025-12-01","status":"契約書類返送完備"},{"property":"ディアレスト","room":"203.0","broker":"いえなび　春日","staff":"今井","contractDate":"2025-12-21","applyDate":"2025-11-08","status":"契約書類返送完備"},{"property":"ソフィア","room":"105.0","broker":"いえなび","staff":"","contractDate":"2023-09-30","applyDate":"2023-09-30","status":"契約書類返送完備"},{"property":"ソフィア","room":"","broker":"エステート高橋","staff":"","contractDate":"2023-10-15","applyDate":"2023-09-15","status":"契約書類返送完備"},{"property":"ソフィア","room":"201.0","broker":"ケイアイ沖野上","staff":"","contractDate":"2023-11-01","applyDate":"2023-10-10","status":"契約書類返送完備"},{"property":"ソフィア","room":"202.0","broker":"いえなび","staff":"","contractDate":"2023-12-16","applyDate":"2023-12-03","status":"契約書類返送完備"},{"property":"モデルノ","room":"202.0","broker":"いえなび","staff":"","contractDate":"2023-12-20","applyDate":"","status":"契約書類返送完備"},{"property":"モデルノ","room":"201.0","broker":"ＩＲＥライフ","staff":"西澤","contractDate":"2023-12-23","applyDate":"2023-11-30","status":"契約書類返送完備"},{"property":"ソフィア","room":"102.0","broker":"タカハシ　南店","staff":"山上","contractDate":"2023-12-25","applyDate":"2023-12-07","status":"契約書類返送完備"},{"property":"ミーティア","room":"B201","broker":"住まいのクエスト","staff":"富田","contractDate":"2024-01-01","applyDate":"2023-12-13","status":"契約書類返送完備"},{"property":"ソフィア","room":"101.0","broker":"中バス　北店","staff":"黒川","contractDate":"2024-01-05","applyDate":"2023-12-12","status":"契約書類返送完備"},{"property":"セラータ","room":"201.0","broker":"ＩＲＥライフ","staff":"","contractDate":"2024-01-15","applyDate":"2024-01-13","status":"契約書類返送完備"},{"property":"モデルノ","room":"203.0","broker":"不動産の岩原","staff":"岩原","contractDate":"2024-01-31","applyDate":"2023-12-24","status":"契約書類返送完備"},{"property":"モデルノ","room":"306.0","broker":"2024-01-16 00:00:00","staff":"山本","contractDate":"2024-02-01","applyDate":"2023-12-24","status":"契約書類返送完備"},{"property":"モデルノ","room":"206.0","broker":"ＩＲＥライフ","staff":"","contractDate":"2024-02-01","applyDate":"2024-01-26","status":"契約書類返送完備"},{"property":"グロリオサ","room":"302.0","broker":"ＩＲＥライフ","staff":"西澤","contractDate":"2024-02-01","applyDate":"2023-12-25","status":"契約書類返送完備"},{"property":"マーベラス","room":"A106","broker":"株式会社Jubilation","staff":"亀岡","contractDate":"2024-02-01","applyDate":"2024-01-11","status":"契約書類返送完備"},{"property":"アシンプトート","room":"B203","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2024-02-15","applyDate":"","status":"契約書類返送完備"},{"property":"セラータ","room":"105.0","broker":"ハマ不動産","staff":"藤井","contractDate":"2024-02-15","applyDate":"2024-02-01","status":"契約書類返送完備"},{"property":"クラリス","room":"106.0","broker":"住まいのクエスト","staff":"藤井","contractDate":"2024-02-18","applyDate":"2024-02-03","status":"申し込み"},{"property":"プティメゾン","room":"102.0","broker":"ＩＲＥライフ","staff":"","contractDate":"2024-02-19","applyDate":"2024-02-13","status":"契約書類返送完備"},{"property":"ルミエール静","room":"B102","broker":"ケイアイ駅前","staff":"亀谷","contractDate":"2024-02-20","applyDate":"2024-01-26","status":"契約書類返送完備"},{"property":"モデルノ","room":"305.0","broker":"中国バス不動産　南店","staff":"中山","contractDate":"2024-02-24","applyDate":"2024-01-27","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"A103","broker":"株式会社OneStepForward","staff":"石井","contractDate":"2024-02-25","applyDate":"2024-02-16","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"A203","broker":"不動産の岩原","staff":"岩原","contractDate":"2024-02-26","applyDate":"2024-01-26","status":"契約書類返送完備"},{"property":"モデルノ","room":"205.0","broker":"大東建託　福山","staff":"田村","contractDate":"2024-02-29","applyDate":"2024-01-01","status":"契約書類返送完備"},{"property":"ミラヴィルタス","room":"東111","broker":"いえなび","staff":"宮地","contractDate":"2024-02-29","applyDate":"2024-01-14","status":"契約書類返送完備"},{"property":"アルカンシェル","room":"A103","broker":"タイヨウエステート","staff":"岡山","contractDate":"2024-02-29","applyDate":"2024-02-21","status":"契約書類返送完備"},{"property":"セラータ","room":"103.0","broker":"大東建託　福山","staff":"近藤","contractDate":"2024-03-01","applyDate":"2024-01-18","status":"契約書類返送完備"},{"property":"アルバ","room":"南101～105","broker":"佐藤エステート","staff":"佐藤","contractDate":"2024-03-01","applyDate":"2024-01-22","status":"契約書類返送完備"},{"property":"モデルノ","room":"303.0","broker":"株式会社穴吹ハウジングサービス","staff":"安部","contractDate":"2024-03-01","applyDate":"2024-01-26","status":"契約書類返送完備"},{"property":"セラータ","room":"110.0","broker":"㈱ケイアイホーム　神辺店","staff":"朝野","contractDate":"2024-03-01","applyDate":"2024-02-03","status":"契約書類返送完備"},{"property":"セラータ","room":"202.0","broker":"㈱ケイアイホーム　神辺店","staff":"馬場","contractDate":"2024-03-01","applyDate":"2024-02-06","status":"契約書類返送完備"},{"property":"セラータ","room":"101.0","broker":"㈱ケイアイホーム　福山駅前店","staff":"萬代","contractDate":"2024-03-01","applyDate":"2024-02-06","status":"契約書類返送完備"},{"property":"クラリス","room":"106.0","broker":"いえなび","staff":"宮地","contractDate":"2024-03-01","applyDate":"2024-02-14","status":"契約書類返送完備"},{"property":"プレジール高橋","room":"103.0","broker":"中国バス不動産","staff":"宗政","contractDate":"2024-03-01","applyDate":"2024-02-23","status":"契約書類返送完備"},{"property":"ルミエール静","room":"A102","broker":"㈱ケイアイホーム　沖野上店","staff":"藤井","contractDate":"2024-03-01","applyDate":"2024-02-03","status":"契約書類返送完備"},{"property":"アシンプトート","room":"Ａ201","broker":"大東建託　福山","staff":"平田","contractDate":"2024-03-01","applyDate":"2024-01-09","status":"契約書類返送完備"},{"property":"セラータ","room":"106.0","broker":"穴吹ハウジングサービス","staff":"野村","contractDate":"2024-03-02","applyDate":"2024-02-15","status":"契約書類返送完備"},{"property":"アルバ","room":"南202","broker":"佐藤エステート","staff":"津組","contractDate":"2024-03-03","applyDate":"2024-02-06","status":"契約書類返送完備"},{"property":"アシンプトート","room":"A102","broker":"IREライフ","staff":"","contractDate":"2024-03-14","applyDate":"2024-02-27","status":"契約書類返送完備"},{"property":"アルカディア","room":"D205","broker":"大東建託","staff":"近藤","contractDate":"2024-03-15","applyDate":"2024-02-23","status":"契約書類返送完備"},{"property":"モデルノ","room":"302.0","broker":"いえなび","staff":"宮地","contractDate":"2024-03-16","applyDate":"2024-01-29","status":"契約書類返送完備"},{"property":"セラータ","room":"108.0","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2024-03-16","applyDate":"2024-03-04","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"502.0","broker":"㈱ケイアイホーム　倉敷白楽町店","staff":"高田","contractDate":"2024-03-16","applyDate":"2024-02-02","status":"契約書類返送完備"},{"property":"アシンプトート","room":"A303","broker":"ＩＲＥライフ","staff":"","contractDate":"2024-03-17","applyDate":"2024-02-06","status":"契約書類返送完備"},{"property":"アルカディア","room":"A102","broker":"中国バス不動産　福山店","staff":"高田","contractDate":"2024-03-17","applyDate":"2024-02-22","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"208.0","broker":"㈱ケイアイホーム　倉敷白楽町店","staff":"中山","contractDate":"2024-03-17","applyDate":"2024-02-23","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"307.0","broker":"株式会社アークス\nエイブルネットワーク倉敷駅北店","staff":"林田","contractDate":"2024-03-20","applyDate":"2024-01-26","status":"契約書類返送完備"},{"property":"セトハウス　イースト","room":"1.0","broker":"なごみ不動産","staff":"須田","contractDate":"2024-03-20","applyDate":"2024-02-13","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"B106","broker":"いえなび","staff":"宮地","contractDate":"2024-03-20","applyDate":"2024-03-17","status":"契約書類返送完備"},{"property":"アルカディア","room":"B102","broker":"タカハシ　インター南店","staff":"西村","contractDate":"2024-03-20","applyDate":"2024-03-01","status":"契約書類返送完備"},{"property":"アルバ","room":"南201","broker":"ケイアイホーム　沖野上店","staff":"友滝","contractDate":"2024-03-22","applyDate":"2024-02-27","status":"契約書類返送完備"},{"property":"春日町ユニキューブ","room":"B","broker":"住まいのクエスト","staff":"富田","contractDate":"2024-03-25","applyDate":"2024-02-14","status":"契約書類返送完備"},{"property":"アルバ","room":"北106","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2024-03-25","applyDate":"2024-03-06","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"A102","broker":"中国バス不動産　北店","staff":"黒川","contractDate":"2024-03-25","applyDate":"2024-02-27","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"B113","broker":"ケイアイ　神辺","staff":"馬場","contractDate":"2024-03-29","applyDate":"2024-03-07","status":"契約書類返送完備"},{"property":"アシンプトート","room":"A202","broker":"中国バス不動産","staff":"中重","contractDate":"2024-03-30","applyDate":"2024-03-04","status":"契約書類返送完備"},{"property":"セラータ","room":"107.0","broker":"アヤカホーム","staff":"吉岡・村上","contractDate":"2024-03-30","applyDate":"2024-02-12","status":"契約書類返送完備"},{"property":"サントーシャ","room":"205.0","broker":"タカハシ南店","staff":"山上","contractDate":"2024-03-30","applyDate":"2024-03-21","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"206.0","broker":"","staff":"吉田","contractDate":"2024-03-31","applyDate":"2024-02-15","status":"契約書類返送完備"},{"property":"スピネル","room":"202.0","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2024-03-31","applyDate":"2024-03-22","status":"契約書類返送完備"},{"property":"スピネル","room":"106.0","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2024-03-31","applyDate":"2024-03-15","status":"契約書類返送完備"},{"property":"アルバ","room":"北110","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2024-03-31","applyDate":"2024-03-20","status":"契約書類返送完備"},{"property":"セラータ","room":"102.0","broker":"タイヨウエステート","staff":"岡山","contractDate":"2024-03-31","applyDate":"2024-03-06","status":"契約書類返送完備"},{"property":"スピネル","room":"108.0","broker":"いえなび","staff":"山本","contractDate":"2024-03-31","applyDate":"2024-02-04","status":"契約書類返送完備"},{"property":"カルムコート","room":"東107","broker":"いえなび","staff":"山本","contractDate":"2024-03-31","applyDate":"2024-03-14","status":"契約書類返送完備"},{"property":"アルバ","room":"北207","broker":"タカハシ　インター南店","staff":"千葉","contractDate":"2024-03-31","applyDate":"2024-03-24","status":"契約書類返送完備"},{"property":"テタンジェ","room":"110.0","broker":"㈱ケイアイホーム　倉敷白楽町店","staff":"蜂谷","contractDate":"2024-04-01","applyDate":"2024-02-04","status":"契約書類返送完備"},{"property":"アルバ","room":"南203","broker":"アットホーム","staff":"板崎","contractDate":"2024-04-01","applyDate":"2024-02-29","status":"契約書類返送完備"},{"property":"スピネル","room":"101.0","broker":"ケイアイ神辺","staff":"馬場","contractDate":"2024-04-01","applyDate":"2024-03-20","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"305.0","broker":"旭株式会社","staff":"林","contractDate":"2024-04-02","applyDate":"2024-03-21","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"601.0","broker":"株式会社MPCコーポレーション","staff":"ジョコウ","contractDate":"2024-04-02","applyDate":"2024-03-21","status":"契約書類返送完備"},{"property":"スピネル","room":"201.0","broker":"ケイアイ　神辺","staff":"坂井","contractDate":"2024-04-06","applyDate":"2024-03-11","status":"契約書類返送完備"},{"property":"ディアレスト","room":"102.0","broker":"中国バス不動産","staff":"髙田","contractDate":"2024-04-06","applyDate":"2024-03-21","status":"契約書類返送完備"},{"property":"アルカディア","room":"Ｃ102","broker":"中国バス不動産","staff":"山田","contractDate":"2024-04-10","applyDate":"2024-04-03","status":"契約書類返送完備"},{"property":"ミラヴィルタス","room":"西102","broker":"中国バス不動産　北店","staff":"黒川","contractDate":"2024-04-13","applyDate":"2024-03-10","status":"契約書類返送完備"},{"property":"アシンプトート","room":"A101","broker":"IREライフ","staff":"","contractDate":"2024-04-15","applyDate":"2024-03-07","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"308.0","broker":"（株）金葉マネジメント","staff":"藤山","contractDate":"2024-04-20","applyDate":"2024-04-13","status":"契約書類返送完備"},{"property":"スピネル","room":"203.0","broker":"大東建託リーシング","staff":"平田","contractDate":"2024-04-27","applyDate":"2024-04-12","status":"契約書類返送完備"},{"property":"アルカディア","room":"Ｃ202","broker":"大東建託リーシング","staff":"近藤","contractDate":"2024-04-28","applyDate":"2024-03-25","status":"契約書類返送完備"},{"property":"ソルトグラス","room":"205.0","broker":"中国バス不動産　北店","staff":"山田","contractDate":"2024-04-30","applyDate":"2024-03-12","status":"キャンセル"},{"property":"マジェスティ","room":"N201","broker":"あかりホーム","staff":"藤村","contractDate":"2024-04-30","applyDate":"2024-02-11","status":"契約書類返送完備"},{"property":"マジェスティ","room":"Ｎ101","broker":"ＩＲＥライフ株式会社","staff":"","contractDate":"2024-04-30","applyDate":"2024-04-18","status":"契約書類返送完備"},{"property":"（仮）南松永ＡＰ","room":"北203","broker":"あかりホーム","staff":"藤村","contractDate":"2024-05-01","applyDate":"2024-02-17","status":"キャンセル"},{"property":"テタンジェ","room":"108.0","broker":"株式会社サンホーム","staff":"福原","contractDate":"2024-05-01","applyDate":"2024-03-25","status":"契約書類返送完備"},{"property":"アルバ","room":"北108","broker":"㈲ウィーク","staff":"中村","contractDate":"2024-05-01","applyDate":"2024-04-12","status":"契約書類返送完備"},{"property":"アシンプトート","room":"A105","broker":"IREライフ","staff":"瀧口","contractDate":"2024-05-01","applyDate":"2024-04-05","status":"契約書類返送完備"},{"property":"スピネル","room":"107.0","broker":"ＩＲＥライフ株式会社","staff":"","contractDate":"2024-05-01","applyDate":"2024-04-25","status":"契約書類返送完備"},{"property":"テタンジェ","room":"102.0","broker":"株式会社ワイケイ　アパマンショップ新倉敷駅前店","staff":"松島","contractDate":"2024-05-01","applyDate":"2024-04-18","status":"契約書類返送完備"},{"property":"マジェスティ","room":"Ｎ105","broker":"IREライフ","staff":"","contractDate":"2024-05-01","applyDate":"2024-04-13","status":"契約書類返送完備"},{"property":"マジェスティ","room":"N102","broker":"あかりホーム","staff":"藤村","contractDate":"2024-05-01","applyDate":"2024-02-28","status":"契約書類返送完備"},{"property":"西谷ユニキューブ","room":"Ｂ","broker":"いえなび","staff":"髙木","contractDate":"2024-05-01","applyDate":"2024-04-01","status":"契約書類返送完備"},{"property":"マジェスティ","room":"N205","broker":"いえなび","staff":"宮地","contractDate":"2024-05-01","applyDate":"2024-03-24","status":"契約書類返送完備"},{"property":"グロリオサ","room":"403.0","broker":"いえなび","staff":"宮地","contractDate":"2024-05-01","applyDate":"2024-04-08","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"Ａ201","broker":"Oggi合同会社","staff":"三島","contractDate":"2024-05-01","applyDate":"2024-04-18","status":"契約書類返送完備"},{"property":"アルバ","room":"北210","broker":"大東建託リーシング","staff":"近藤","contractDate":"2024-05-01","applyDate":"2024-04-15","status":"契約書類返送完備"},{"property":"マジェスティ","room":"N202","broker":"いえなび","staff":"藤川","contractDate":"2024-05-01","applyDate":"2024-03-03","status":"契約書類返送完備"},{"property":"マジェスティ","room":"Ｎ103","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2024-05-12","applyDate":"2024-04-21","status":"契約書類返送完備"},{"property":"テタンジェ","room":"203.0","broker":"㈱ｱｰｸｽ　エイブルイオンモール倉敷店","staff":"鳥越","contractDate":"2024-05-14","applyDate":"2024-05-03","status":"契約書類返送完備"},{"property":"クラリス","room":"103.0","broker":"ごゆう不動産","staff":"内山","contractDate":"2024-05-18","applyDate":"2024-05-02","status":"契約書類返送完備"},{"property":"タラッサ","room":"113.0","broker":"株式会社ワイケイ","staff":"薮井","contractDate":"2024-05-18","applyDate":"2024-03-17","status":"契約書類返送完備"},{"property":"スピネル","room":"103.0","broker":"アカリホーム","staff":"藤村","contractDate":"2024-05-20","applyDate":"2024-05-21","status":"契約書類返送完備"},{"property":"アルカンシェル","room":"A102","broker":"中国バス不動産","staff":"山田","contractDate":"2024-05-23","applyDate":"2024-05-10","status":"契約書類返送完備"},{"property":"スピネル","room":"102.0","broker":"中国バス不動産","staff":"山田","contractDate":"2024-05-24","applyDate":"2024-05-06","status":"契約書類返送完備"},{"property":"ソルトグラス","room":"202.0","broker":"(株)アフィット不動産 <info@affitto.jp>","staff":"岩崎","contractDate":"2024-05-25","applyDate":"2024-05-11","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"207.0","broker":"","staff":"","contractDate":"2024-05-25","applyDate":"2024-05-13","status":"契約書類返送完備"},{"property":"アイディール","room":"106.0","broker":"IREライフ","staff":"","contractDate":"2024-05-25","applyDate":"2024-05-14","status":"契約書類返送完備"},{"property":"クラリス","room":"202.0","broker":"共立不動産","staff":"藤野","contractDate":"2024-05-27","applyDate":"2024-04-12","status":"契約書類返送完備"},{"property":"アシンプトート","room":"Ａ301","broker":"穴吹ハウジングサービス","staff":"野村","contractDate":"2024-05-28","applyDate":"2024-05-15","status":"契約書類返送完備"},{"property":"エルキュール","room":"Ｃ203","broker":"中国バス不動産","staff":"髙田","contractDate":"2024-05-31","applyDate":"2024-05-07","status":"キャンセル"},{"property":"ベラカーサフェリーチェ","room":"407.0","broker":"ミニミニＦＣ倉敷","staff":"田村","contractDate":"2024-05-31","applyDate":"2024-05-19","status":"契約書類返送完備"},{"property":"ルミエール静","room":"Ｂ201","broker":"株式会社ケイアイホーム　福山駅前店","staff":"矢口","contractDate":"2024-05-31","applyDate":"2024-05-09","status":"契約書類返送完備"},{"property":"カルムコート","room":"東105","broker":"ケイアイ　沖野上","staff":"藤井","contractDate":"2024-06-01","applyDate":"2024-05-12","status":"契約書類返送完備"},{"property":"アプリシティ","room":"102.0","broker":"エステート髙橋","staff":"福間","contractDate":"2024-06-01","applyDate":"2024-05-02","status":"契約書類返送完備"},{"property":"テタンジェ","room":"201.0","broker":"ピタットハウス新倉敷店","staff":"松崎","contractDate":"2024-06-01","applyDate":"2024-05-02","status":"契約書類返送完備"},{"property":"テタンジェ","room":"107.0","broker":"ピタットハウス新倉敷店","staff":"松崎","contractDate":"2024-06-01","applyDate":"2024-05-07","status":"契約書類返送完備"},{"property":"マジェスティ","room":"Ａ203","broker":"佐藤エステート","staff":"佐藤","contractDate":"2024-06-01","applyDate":"2024-05-10","status":"契約書類返送完備"},{"property":"アプリシティ","room":"201.0","broker":"佐藤エステート","staff":"大植","contractDate":"2024-06-01","applyDate":"2024-05-18","status":"契約書類返送完備"},{"property":"エルキュール","room":"A202","broker":"エステート高橋","staff":"福間","contractDate":"2024-06-01","applyDate":"2024-05-19","status":"契約書類返送完備"},{"property":"ミーティア","room":"Ｂ101","broker":"(株)Ｊｕｂｉｌａｔｉｏｎ","staff":"平良","contractDate":"2024-06-01","applyDate":"2024-05-17","status":"契約書類返送完備"},{"property":"マジェスティ","room":"Ｂ205","broker":"いえなび","staff":"藤川","contractDate":"2024-06-01","applyDate":"2024-04-28","status":"契約書類返送完備"},{"property":"ソルトグラス","room":"205.0","broker":"いえなび","staff":"山本","contractDate":"2024-06-01","applyDate":"2024-05-21","status":"契約書類返送完備"},{"property":"テタンジェ","room":"202.0","broker":"アパマンショップ倉敷白楽町店","staff":"左京","contractDate":"2024-06-12","applyDate":"2024-05-05","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"Ｂ101","broker":"中国バス不動産　北店","staff":"黒川","contractDate":"2024-06-15","applyDate":"2024-05-17","status":"キャンセル"},{"property":"アルヴィータＢ","room":"101.0","broker":"中国バス","staff":"黒川","contractDate":"2024-06-15","applyDate":"2024-06-02","status":"契約書類返送完備"},{"property":"タラッサ","room":"107.0","broker":"ワールドクィーン株式会社","staff":"鳥越","contractDate":"2024-06-15","applyDate":"2024-05-26","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"608.0","broker":"エイブル倉敷駅北店","staff":"福島","contractDate":"2024-06-19","applyDate":"2024-05-30","status":"契約書類返送完備"},{"property":"アルバ","room":"北206","broker":"アフィット不動産","staff":"箱崎","contractDate":"2024-06-20","applyDate":"2024-06-12","status":"契約書類返送完備"},{"property":"メゾンドリヴァージュ","room":"Ｂ105","broker":"大東建託リーシング","staff":"近藤","contractDate":"2024-06-25","applyDate":"2024-05-23","status":"契約書類返送完備"},{"property":"テタンジェ","room":"106.0","broker":"ホーミィエステート株式会社","staff":"越智","contractDate":"2024-06-29","applyDate":"2024-05-11","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"B108","broker":"中国バス北","staff":"高橋","contractDate":"2024-06-29","applyDate":"2024-06-23","status":"契約書類返送完備"},{"property":"サントーシャ","room":"202.0","broker":"大東建託リーシング","staff":"山田","contractDate":"2024-06-30","applyDate":"2024-06-07","status":"契約書類返送完備"},{"property":"アルバ南","room":"205.0","broker":"中国バス　南店","staff":"中山","contractDate":"2024-06-30","applyDate":"2024-06-08","status":"契約書類返送完備"},{"property":"タラッサ","room":"112.0","broker":"ワールドクィーン株式会社","staff":"鳥越","contractDate":"2024-07-01","applyDate":"2024-06-02","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"302.0","broker":"名義変更","staff":"","contractDate":"2024-07-01","applyDate":"2024-06-05","status":"契約書類返送完備"},{"property":"テタンジェ","room":"105.0","broker":"アパマンショップ倉敷白楽町店","staff":"左京","contractDate":"2024-07-01","applyDate":"2024-06-09","status":"契約書類返送完備"},{"property":"テタンジェ","room":"103.0","broker":"ホーミィエステート(株)　倉敷駅北口店","staff":"矢野","contractDate":"2024-07-01","applyDate":"2024-06-09","status":"契約書類返送完備"},{"property":"ソフィア","room":"202.0","broker":"大東リーシング","staff":"山田","contractDate":"2024-07-01","applyDate":"2024-06-04","status":"契約書類返送完備"},{"property":"ソルトグラス","room":"203.0","broker":"大東建託リーシング","staff":"近藤","contractDate":"2024-07-01","applyDate":"2024-06-10","status":"契約書類返送完備"},{"property":"スピネル","room":"105.0","broker":"ＩＲＥライフ株式会社","staff":"","contractDate":"2024-07-01","applyDate":"2024-05-02","status":"契約書類返送完備"},{"property":"アプリシティ","room":"203.0","broker":"ハマ不動産","staff":"藤井","contractDate":"2024-07-01","applyDate":"2024-06-23","status":"契約書類返送完備"},{"property":"ローレルコート霞町","room":"1301.0","broker":"あかりホーム","staff":"藤村","contractDate":"2024-07-14","applyDate":"2024-07-01","status":"契約書類返送完備"},{"property":"マジェステ","room":"B103","broker":"大東建託リーシング株式会社　三原店","staff":"速水","contractDate":"2024-07-14","applyDate":"2024-07-01","status":"契約書類返送完備"},{"property":"アシンプトート","room":"Ａ303","broker":"ＩＲＥライフ株式会社","staff":"","contractDate":"2024-07-17","applyDate":"2024-06-27","status":"契約書類返送完備"},{"property":"マジェステ","room":"Ｂ102","broker":"大東建託リーシング株式会社　三原店","staff":"速水","contractDate":"2024-07-24","applyDate":"2024-07-08","status":"契約書類返送完備"},{"property":"テタンジェ","room":"101.0","broker":"(株)アークス　エイブル　水島店","staff":"山下","contractDate":"2024-07-25","applyDate":"2024-06-13","status":"契約書類返送完備"},{"property":"マジェステ","room":"Ｂ206","broker":"㈱タカハシ　東尾道駅前店","staff":"大瀬戸","contractDate":"2024-07-25","applyDate":"2024-07-11","status":"契約書類返送完備"},{"property":"エルキュール","room":"C203","broker":"住まいのクエスト","staff":"富田","contractDate":"2024-07-28","applyDate":"2024-06-29","status":"契約書類返送完備"},{"property":"アルカディア","room":"Ｂ302","broker":"ケイアイ沖野上","staff":"佐久間","contractDate":"2024-07-28","applyDate":"2024-07-10","status":"契約書類返送完備"},{"property":"タラッサ","room":"202.0","broker":"㈱ワイケイ","staff":"安野","contractDate":"2024-08-01","applyDate":"2024-06-20","status":"契約書類返送完備"},{"property":"ミーティア","room":"Ｂ202","broker":"大東建託リーシング株式会社","staff":"山田","contractDate":"2024-08-01","applyDate":"2024-07-14","status":"契約書類返送完備"},{"property":"ユニキューブ浦上","room":"B","broker":"いえなび","staff":"宮地","contractDate":"2024-08-01","applyDate":"2024-06-21","status":"契約書類返送完備"},{"property":"ソレイユ","room":"西103","broker":"いえなび","staff":"高木","contractDate":"2024-08-01","applyDate":"2024-07-27","status":"契約書類返送完備"},{"property":"アルバ","room":"北107","broker":"ＩＲＥライフ株式会社","staff":"","contractDate":"2024-08-20","applyDate":"2024-08-10","status":"キャンセル"},{"property":"シンティランテ","room":"103.0","broker":"あかりホーム","staff":"","contractDate":"2024-08-20","applyDate":"2024-07-05","status":"契約書類返送完備"},{"property":"アロモント","room":"B102","broker":"ＩＲＥライフ株式会社","staff":"","contractDate":"2024-08-30","applyDate":"2024-07-27","status":"契約書類返送完備"},{"property":"アルカディア","room":"Ａ301","broker":"エイブル　南蔵王","staff":"難波","contractDate":"2024-08-31","applyDate":"2024-07-13","status":"契約書類返送完備"},{"property":"マジェステ","room":"B101","broker":"株式会社タカハシ　東尾道駅","staff":"岡本","contractDate":"2024-08-31","applyDate":"2024-07-25","status":"契約書類返送完備"},{"property":"アルバ","room":"208.0","broker":"エイブル蔵王","staff":"兼田","contractDate":"2024-09-01","applyDate":"2024-07-31","status":"キャンセル"},{"property":"カルムコート","room":"東205","broker":"トリコム","staff":"村上","contractDate":"2024-09-01","applyDate":"2024-08-02","status":"契約書類返送完備"},{"property":"マジェステ","room":"B202","broker":"いえなび","staff":"山本","contractDate":"2024-09-01","applyDate":"2024-08-17","status":"契約書類返送完備"},{"property":"アルカディア","room":"A201","broker":"ＩＲＥライフ株式会社","staff":"名義変更","contractDate":"2024-09-05","applyDate":"2024-07-29","status":"契約書類返送完備"},{"property":"マジェステ→201が申込\nのため105に。\n1ヶ月FR（賃料共益費P）\n+鍵交換代無し","room":"B105","broker":"いえなび","staff":"山本","contractDate":"2024-09-09","applyDate":"2024-09-01","status":"契約書類返送完備"},{"property":"マジェステ","room":"Ｂ201","broker":"ケイアイ　神辺","staff":"馬場","contractDate":"2024-09-15","applyDate":"2024-08-26","status":"契約書類返送完備"},{"property":"アシンプトート","room":"A205","broker":"中国バス不動産福山","staff":"小川","contractDate":"2024-09-15","applyDate":"2024-08-10","status":"契約書類返送完備"},{"property":"シンティランテ","room":"206.0","broker":"いえなび","staff":"高木","contractDate":"2024-09-17","applyDate":"2024-09-03","status":"契約書類返送完備"},{"property":"マジェステ","room":"B203","broker":"タカハシ松永","staff":"佐藤","contractDate":"2024-09-17","applyDate":"2024-08-17","status":"契約書類返送完備"},{"property":"アルカディア","room":"C102","broker":"ケイアイ　福山駅前","staff":"水城","contractDate":"2024-09-18","applyDate":"2024-09-08","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"406.0","broker":"株式会社OFC","staff":"松山","contractDate":"2024-09-21","applyDate":"2024-07-28","status":"契約書類返送完備"},{"property":"マジェステ","room":"B106","broker":"いえなび","staff":"高木","contractDate":"2024-09-21","applyDate":"2024-08-31","status":"契約書類返送完備"},{"property":"アンティカベラカーサ","room":"207.0","broker":"エイブル倉敷駅北店","staff":"山本","contractDate":"2024-09-29","applyDate":"2024-09-21","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"503.0","broker":"穴吹ハウジングサービス　倉敷","staff":"久保田","contractDate":"2024-09-29","applyDate":"2024-09-13","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"202.0","broker":"穴吹ハウジングサービス","staff":"村木","contractDate":"2024-09-29","applyDate":"2024-09-11","status":"契約書類返送完備"},{"property":"アルバ","room":"南201","broker":"エイブル南蔵王","staff":"兼田","contractDate":"2024-09-30","applyDate":"2024-08-23","status":"キャンセル"},{"property":"アメリア","room":"101.0","broker":"ケイアイホーム　沖野上","staff":"友滝","contractDate":"2024-09-30","applyDate":"2024-09-18","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"B112","broker":"佐藤エステート","staff":"大元","contractDate":"2024-10-01","applyDate":"2024-08-25","status":"契約書類返送完備"},{"property":"ベラカーサフェリーチェ","room":"603.0","broker":"クローバー不動産","staff":"大塚","contractDate":"2024-10-01","applyDate":"2024-09-22","status":"契約書類返送完備"},{"property":"ルミエール静","room":"A301","broker":"IREライフ株式会社","staff":"","contractDate":"2024-10-15","applyDate":"2024-09-27","status":"契約書類返送完備"},{"property":"ハイサニー","room":"A101","broker":"中国バス不動産福山南店","staff":"光吉","contractDate":"2024-10-20","applyDate":"2024-08-10","status":"契約書類返送完備"},{"property":"ハイサニー","room":"Ｂ201","broker":"ケイアイ沖野上","staff":"友滝","contractDate":"2024-10-21","applyDate":"2024-06-19","status":"契約書類返送完備"},{"property":"ハイサニー","room":"A103","broker":"ＩＲＥライフ株式会社","staff":"","contractDate":"2024-10-26","applyDate":"2024-08-25","status":"契約書類返送完備"},{"property":"ハイサニー","room":"A102","broker":"IREライフ株式会社","staff":"","contractDate":"2024-10-28","applyDate":"2024-09-02","status":"契約書類返送完備"},{"property":"ハイサニー","room":"B203","broker":"ケイアイ福山駅前","staff":"水城","contractDate":"2024-10-29","applyDate":"2024-07-17","status":"キャンセル"},{"property":"ハイサニー","room":"Ｂ202","broker":"タイヨウエステート","staff":"鼻戸","contractDate":"2024-10-31","applyDate":"2024-09-08","status":"契約書類返送完備"},{"property":"スピネルデュオ→AD100","room":"108.0","broker":"いえなび","staff":"山本","contractDate":"2024-10-31","applyDate":"2024-09-11","status":"契約書類返送完備"},{"property":"ディアレスト","room":"201.0","broker":"アフィット不動産","staff":"箱崎","contractDate":"2024-10-31","applyDate":"2024-09-21","status":"契約書類返送完備"},{"property":"スピネルデュオ","room":"101.0","broker":"ＩＲＥライフ株式会社","staff":"","contractDate":"2024-11-01","applyDate":"2024-07-23","status":"キャンセル"},{"property":"ハイサニー","room":"Ｂ203","broker":"佐藤エステート","staff":"津組","contractDate":"2024-11-01","applyDate":"2024-10-05","status":"キャンセル"},{"property":"ハイサニー","room":"Ｂ205","broker":"アカリホーム","staff":"","contractDate":"2024-11-01","applyDate":"2024-06-15","status":"契約書類返送完備"},{"property":"ハイサニー","room":"Ａ106","broker":"いえなび","staff":"山本","contractDate":"2024-11-01","applyDate":"2024-07-18","status":"契約書類返送完備"},{"property":"スピネルデュオ→AD50","room":"105.0","broker":"いえなび","staff":"山本","contractDate":"2024-11-01","applyDate":"2024-08-17","status":"契約書類返送完備"},{"property":"スピネルデュオ→AD50","room":"103.0","broker":"いえなび","staff":"山本","contractDate":"2024-11-01","applyDate":"2024-08-24","status":"契約書類返送完備"},{"property":"ハイサニー","room":"B102","broker":"中国バス不動産株式会社　南店","staff":"光吉","contractDate":"2024-11-01","applyDate":"2024-09-13","status":"契約書類返送完備"},{"property":"シンティランテ","room":"105.0","broker":"ケイアイ沖野上","staff":"大渡","contractDate":"2024-11-01","applyDate":"2024-10-03","status":"契約書類返送完備"},{"property":"フローレンス南蔵王","room":"2階北","broker":"タカセ不動産","staff":"井上","contractDate":"2024-11-01","applyDate":"2024-08-09","status":"契約書類返送完備"},{"property":"アルヴィータ","room":"B103","broker":"中国バス不動産　福山北店","staff":"髙田","contractDate":"2024-11-01","applyDate":"2024-10-13","status":"契約書類返送完備"},{"property":"ハイサニー","room":"B103","broker":"(株)住徳","staff":"垣原","contractDate":"2024-11-02","applyDate":"2024-09-19","status":"契約書類返送完備"},{"property":"シンティランテ","room":"106.0","broker":"エイブル福山蔵王","staff":"難波","contractDate":"2024-11-09","applyDate":"2024-10-03","status":"契約書類返送完備"},{"property":"ミラヴィルタス→軽なら4","room":"西201","broker":"ケイアイ神辺","staff":"小葉竹","contractDate":"2024-11-09","applyDate":"2024-10-06","status":"契約書類返送完備"},{"property":"アルバ","room":"北107","broker":"ケイアイホーム　沖野上","staff":"友滝","contractDate":"2024-11-09","applyDate":"2024-10-28","status":"契約書類返送完備"},{"property":"アルバ","room":"南201","broker":"中国バス不動産　福山店","staff":"小川","contractDate":"2024-11-14","applyDate":"2024-10-11","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"A107","broker":"ピタットハウス新倉敷店","staff":"鳥越","contractDate":"2024-11-20","applyDate":"2024-10-13","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"A106","broker":"ピタットハウス新倉敷店","staff":"松崎","contractDate":"2024-11-20","applyDate":"2024-10-31","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"A103","broker":"株式会社ワイケイ　アパマンショップ沖新店","staff":"上田","contractDate":"2024-11-20","applyDate":"2024-11-07","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"B102","broker":"ピタットハウス新倉敷店","staff":"川上","contractDate":"2024-11-21","applyDate":"2024-10-22","status":"キャンセル"},{"property":"スピネルデュオ⇒AD200","room":"106.0","broker":"大東建託リーシング株式会社","staff":"近藤","contractDate":"2024-11-23","applyDate":"2024-10-28","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"A102","broker":"株式会社アクセスホーム","staff":"藤田","contractDate":"2024-11-23","applyDate":"2024-10-28","status":"契約書類返送完備"},{"property":"セラータ","room":"108.0","broker":"㈱ケイアイホーム　福山駅前店","staff":"矢口","contractDate":"2024-11-28","applyDate":"2024-10-27","status":"契約書類返送完備"},{"property":"ソルトグラス","room":"108.0","broker":"大東建託リーシング","staff":"平田","contractDate":"2024-11-29","applyDate":"2024-10-20","status":"契約書類返送完備"},{"property":"ハイサニー","room":"A105","broker":"佐藤エステート","staff":"大元","contractDate":"2024-11-30","applyDate":"2024-08-24","status":"契約書類返送完備"},{"property":"ハイサニー","room":"B203","broker":"エイブルＮＷ福山蔵王店　株式会社アークス","staff":"兼田","contractDate":"2024-11-30","applyDate":"2024-10-17","status":"契約書類返送完備"},{"property":"ソフィア","room":"106.0","broker":"ケイアイホーム　沖野上","staff":"藤井","contractDate":"2024-11-30","applyDate":"2024-10-31","status":"契約書類返送完備"},{"property":"セラータ","room":"202.0","broker":"中国バス不動産　北店","staff":"野島","contractDate":"2024-11-30","applyDate":"2024-11-08","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"A105","broker":"エイブルネットワークイオンモール倉敷店","staff":"阿部","contractDate":"2024-12-01","applyDate":"2024-10-25","status":"契約書類返送完備"},{"property":"ノブリス","room":"Ｂ101","broker":"中国バス不動産　南店","staff":"高田","contractDate":"2024-12-01","applyDate":"2024-10-13","status":"契約書類返送完備"},{"property":"アルカディア","room":"B301","broker":"ケイアイ沖野上","staff":"大渡","contractDate":"2024-12-01","applyDate":"2024-10-13","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"Ｂ103","broker":"ＩREライフ株式会社","staff":"","contractDate":"2024-12-01","applyDate":"2024-10-28","status":"契約書類返送完備"},{"property":"アルカディア","room":"D201","broker":"大東建託リーシング株式会社","staff":"平田","contractDate":"2024-12-01","applyDate":"2024-11-03","status":"契約書類返送完備"},{"property":"メゾンドリヴァージュ","room":"Ｂ305","broker":"中国バス不動産　北店","staff":"宗政","contractDate":"2024-12-01","applyDate":"2024-11-15","status":"契約書類返送完備"},{"property":"クラリス","room":"105.0","broker":"いえなび","staff":"宮地","contractDate":"2024-12-01","applyDate":"2024-11-13","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"A201","broker":"ピタットハウス新倉敷店","staff":"鳥越","contractDate":"2024-12-12","applyDate":"2024-11-15","status":"契約書類返送完備"},{"property":"ベラカーササウス","room":"802.0","broker":"ホーミィエステート","staff":"矢野","contractDate":"2024-12-13","applyDate":"","status":"契約書類返送完備"},{"property":"アルバ","room":"北206","broker":"穴吹ハウジングサービス","staff":"安部","contractDate":"2024-12-14","applyDate":"2024-11-22","status":"契約書類返送完備"},{"property":"アプリシティ","room":"101.0","broker":"アパマンショップ福山東インター南店","staff":"加藤","contractDate":"2024-12-14","applyDate":"2024-11-23","status":"契約書類返送完備"},{"property":"ノブリス","room":"Ｂ102","broker":"エイブル蔵王","staff":"大塚","contractDate":"2024-12-15","applyDate":"2024-10-19","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"B105","broker":"IREライフ株式会社","staff":"","contractDate":"2024-12-15","applyDate":"2024-10-20","status":"契約書類返送完備"},{"property":"タラッサ","room":"108.0","broker":"ピタットハウス新倉敷店","staff":"川上","contractDate":"2024-12-15","applyDate":"2024-11-03","status":"契約書類返送完備"},{"property":"タリスヴィータ","room":"B102","broker":"株式会社さくらコーポレーション","staff":"久保津","contractDate":"2024-12-15","applyDate":"2024-11-10","status":"契約書類返送完備"},{"property":"スピネルデュオ","room":"102.0","broker":"エイブル　福山蔵王","staff":"井上","contractDate":"2024-12-15","applyDate":"2024-11-10","status":"契約書類返送完備"},{"property":"マーベラス","room":"A105","broker":"大東建託リーシング株式会社","staff":"山田","contractDate":"2024-12-15","applyDate":"2024-10-31","status":"契約書類返送完備"},{"property":"スピネルデュオ","room":"107.0","broker":"ハマ不動産","staff":"藤井","contractDate":"2024-12-20","applyDate":"2024-11-10","status":"契約書類返送完備"},{"property":"カルムコート","room":"西101","broker":"中国バス不動産　南店","staff":"光吉","contractDate":"2024-12-21","applyDate":"2024-11-23","status":"契約書類返送完備"},{"property":"アロモント","room":"B203","broker":"株式会社ケイアイホーム","staff":"水城","contractDate":"2024-12-22","applyDate":"2024-10-20","status":"契約書類返送完備"},{"property":"ミラヴィルタス西","room":"202.0","broker":"ケイアイ　神辺","staff":"坂井","contractDate":"2024-12-22","applyDate":"2024-11-10","status":"契約書類返送完備"},{"property":"アルカディア","room":"A202","broker":"大東建託リーシング株式会社","staff":"山田","contractDate":"2024-12-22","applyDate":"2024-11-24","status":"契約書類返送完備"},{"property":"アプリシティ","room":"106.0","broker":"中国バス不動産　南店","staff":"光吉","contractDate":"2024-12-22","applyDate":"2024-12-15","status":"契約書類返送完備"},{"property":"ハイサニー","room":"B105","broker":"タイヨウエステート","staff":"岡山","contractDate":"2024-12-23","applyDate":"2024-12-11","status":"契約書類返送完備"},{"property":"ルミエール静","room":"B101","broker":"アヤカホーム","staff":"吉岡","contractDate":"2024-12-24","applyDate":"2024-12-17","status":"契約書類返送完備"},{"property":"モデルノ","room":"303.0","broker":"ケイアイホーム　沖野上","staff":"馬場","contractDate":"2024-12-26","applyDate":"2024-11-27","status":"契約書類返送完備"},{"property":"ヒラリアス","room":"101.0","broker":"いえなび","staff":"山本","contractDate":"2025-02-20","applyDate":"2024-12-07","status":"キャンセル"},{"property":"ベラカーサフェリーチェ","room":"201.0","broker":"エイブルNW市役所前店","staff":"木下（代理；茅窪）","contractDate":"","applyDate":"2025-01-05","status":"審査落ち"},{"property":"タリスヴィータ","room":"Ａ105","broker":"㈱さくらコーポレーション","staff":"日名","contractDate":"","applyDate":"2024-10-03","status":"審査落ち"},{"property":"アルバ","room":"北206","broker":"エイブル蔵王","staff":"井上","contractDate":"","applyDate":"2024-10-19","status":"キャンセル"},{"property":"クラリス","room":"105.0","broker":"大東建託リーシング株式会社","staff":"山田","contractDate":"","applyDate":"2024-11-10","status":"審査落ち"},{"property":"メゾンドリヴァージュ","room":"B305","broker":"","staff":"","contractDate":"","applyDate":"2024-11-03","status":"審査落ち"}];
@@ -1176,7 +1178,7 @@ function _cancelKind(s){
 }
 // 率の表示（小数第1位まで。母数0は「—」）
 function _rate(n, d){ return (d>0) ? (Math.round(n/d*1000)/10) + "%" : "—"; }
-
+ 
 // ====== 客付業者 統計 ======
 function openBrokerStats(){
   renderBrokerStats();
@@ -1218,7 +1220,7 @@ function _canonBroker(name){
   if(/中国バス/.test(n) || /中バス/.test(n)) return { key:'中国バス不動産', name:'中国バス不動産' };
   return { key:n, name:String(name||'').trim() };
 }
-
+ 
 // 統計データを集計して返す(業者ごと)。現在の契約 ＋ PIVOT導入前の履歴(BROKER_HISTORY)を合算
 function computeBrokerStats(){
   const yearInput = document.getElementById('bstat-year');
@@ -1228,7 +1230,7 @@ function computeBrokerStats(){
   const yearMap = {};  // year -> {count, cancel, reject}
   const monthAll = {}; // "YYYY-MM" -> {count, cancel, reject} 全業者横断
   const propMap = {};  // 建物名 -> { building, count, brokers:{brokerName:count} } 物件別
-
+ 
   // kind: 'ok'(成約) / 'cancel'(キャンセル) / 'reject'(審査落ち)
   function add(broker, when, propName, building, staff, kind){
     const canon = _canonBroker(broker);
@@ -1265,7 +1267,7 @@ function computeBrokerStats(){
     if(!yearMap[yr]) yearMap[yr] = { count:0, cancel:0, reject:0 };
     if(isCx) yearMap[yr].cancel++; else if(isRj) yearMap[yr].reject++; else yearMap[yr].count++;
   }
-
+ 
   // 現在の契約カード（完了タブへ移動した確定分だけを集計する）
   Object.values(loadAll()).forEach(c => {
     if(!c.archived) return;                    // 完了タブに入るまでは集計しない
@@ -1277,7 +1279,7 @@ function computeBrokerStats(){
     add(broker, w, bldg + (roomNo ? ' '+roomNo+'号' : ''), bldg, c.staff,
         (c.dealStatus === 'cancel') ? 'cancel' : (c.dealStatus === 'rejected') ? 'reject' : 'ok');
   });
-
+ 
   // PIVOT導入前の履歴（カード化しない分析専用データ）
   (typeof BROKER_HISTORY !== 'undefined' ? BROKER_HISTORY : []).forEach(h => {
     const broker = (h.broker || '').trim(); if(!broker) return;
@@ -1287,7 +1289,7 @@ function computeBrokerStats(){
     const bldg = (h.property||'(物件未入力)').trim();
     add(broker, w, bldg + (roomNo ? ' '+roomNo+'号' : ''), bldg, h.staff, _cancelKind(h.status));
   });
-
+ 
   const rows = Object.values(map);
   rows.forEach(r => {
     r.items.sort((a,b)=>b.sort.localeCompare(a.sort));
@@ -1341,7 +1343,7 @@ function brokerInsightHtml(rows){
     return { r, gap, lastDisp: fmt(ls),
              best3: (r.top3||[]).map(t => esc(t.name)+'('+t.count+')').join(' / ') };
   });
-
+ 
   /* ① よく客付けしてくれる業者 TOP20 */
   let topRows = '';
   info.slice(0,20).forEach((x,i) => {
@@ -1353,7 +1355,7 @@ function brokerInsightHtml(rows){
       + '<td class="bi-c">' + (x.lastDisp || '\u2014') + '</td>'
       + '<td class="bi-b3">' + x.best3 + '</td></tr>';
   });
-
+ 
   /* ② 掘り起こし候補（3件以上・6ヶ月以上あいている・経過の長い順） */
   const dig = info.filter(x => x.gap !== '' && x.gap >= 6 && x.r.count >= 3)
                   .sort((a,b) => b.gap - a.gap);
@@ -1369,7 +1371,7 @@ function brokerInsightHtml(rows){
         + (x.r.top3||[]).slice(0,2).map(t => esc(t.name)+'('+t.count+')').join(' / ')
       + '</td></tr>';
   });
-
+ 
   return '<div class="bstat-insight">'
     + '<div class="bi-card">'
       + '<div class="bi-h">\u{1F3C6} よく客付けしてくれる業者 TOP20</div>'
@@ -1391,7 +1393,7 @@ function brokerInsightHtml(rows){
     + '</div>'
     + '</div>';
 }
-
+ 
 function renderBrokerStats(){
   const { rows, fyValid, fy, total, totalCancel, totalReject, totalBase, cancelRate, rejectRate, years, monthsAll, props: propRanking } = computeBrokerStats();
   const _now = new Date();
@@ -1420,7 +1422,7 @@ function renderBrokerStats(){
     '<div class="bstat-chip">🧮 申込総数 <b>' + totalBase + '</b> 件</div>' +
     '</div>' +
     '<div class="bstat-ratenote">率の母数は「成約＋キャンセル＋審査落ち」＝申込総数です。</div>';
-
+ 
   // ===== 物件別ビュー =====
   if(_brokerStatMode === 'property'){
     if(propRanking.length === 0){ body.innerHTML = html + '<div class="bstat-empty"><span class="be-ico">🏠</span>物件データがありません。</div>'; return; }
@@ -1450,10 +1452,10 @@ function renderBrokerStats(){
     body.innerHTML = html;
     return;
   }
-
+ 
   // ① TOP20 と ② 掘り起こし候補（今までPDFの中にしか無かったもの）
   html += brokerInsightHtml(rows);
-
+ 
   // 全体：年別グラフ（全期間表示のとき）
   if(!fyValid && years.length > 1){
     const ys = years.slice().sort((a,b)=>a.year.localeCompare(b.year)); // 古い順
@@ -1467,7 +1469,7 @@ function renderBrokerStats(){
     });
     html += '</div></div>';
   }
-
+ 
   // 全体：月別グラフ（成約件数の推移）
   // ★横に一直線だと毎回スクロールが要るので、年で改行して1年ずつ並べます。
   //   棒の高さは全期間の最大値でそろえてあるので、年をまたいでも高さを比べられます。
@@ -1512,7 +1514,7 @@ function renderBrokerStats(){
     });
     html += '</div>';
   }
-
+ 
   rows.forEach((r, i) => {
     const rankCls = i < 3 ? ' rk' + (i+1) : '';
     const medal = (i+1);
@@ -1640,7 +1642,7 @@ function showBrokerCancels(i){
 function exportBrokerStatsCsv(){
   const { rows, fyValid, fy } = computeBrokerStats();
   if(rows.length === 0){ alert('出力できる統計データがありません。'); return; }
-
+ 
   // "YYYYMMDD" を "YYYY-MM-DD" に整形
   const fmtSort = (s) => (s && s.length>=8) ? (s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8))
                        : (s && s.length>=6) ? (s.slice(0,4)+'-'+s.slice(4,6)) : '';
@@ -1652,13 +1654,13 @@ function exportBrokerStatsCsv(){
     const now = new Date();
     return (now.getFullYear()-y)*12 + (now.getMonth()+1 - m);
   };
-
+ 
   const header = ['順位','客付業者','成約数','キャンセル数','審査落ち数','申込総数',
                   'キャンセル率','審査落ち率',
                   '最終客付け日','客付けなし(ヶ月)','広告おすすめ',
                   'よく客付けする物件Best3'];
   const lines = [header];
-
+ 
   rows.forEach((r, i) => {
     // 成約のみの最新客付け（items は新しい順ソート済み）
     const lastDeal = (r.items||[]).find(it => !it.cancel);
@@ -1673,7 +1675,7 @@ function exportBrokerStatsCsv(){
       fmtSort(lastSort), (gap===''?'':String(gap)), reco, best3
     ]);
   });
-
+ 
   const csv = lines.map(row => row.map(v => '"' + String(v).replace(/"/g,'""') + '"').join(',')).join('\r\n');
   const bom = '\uFEFF';
   const blob = new Blob([bom + csv], {type:'text/csv;charset=utf-8;'});
@@ -1689,7 +1691,7 @@ function exportBrokerStatsPdf(){
   const { rows, fyValid, fy } = computeBrokerStats();
   if(rows.length === 0){ alert('出力できる統計データがありません。'); return; }
   const esc = (s)=> String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
+ 
   // 集計期間（客付け日の最古〜最新）
   let allSort = [];
   rows.forEach(r => (r.items||[]).forEach(it => { if(it.sort && it.sort!=='00000000') allSort.push(it.sort); }));
@@ -1697,10 +1699,10 @@ function exportBrokerStatsPdf(){
   const fmtSort = (s)=> (s && s.length>=8) ? (s.slice(0,4)+'/'+s.slice(4,6)+'/'+s.slice(6,8))
                      : (s && s.length>=6) ? (s.slice(0,4)+'/'+s.slice(4,6)) : '';
   const period = allSort.length ? (fmtSort(allSort[0]) + ' 〜 ' + fmtSort(allSort[allSort.length-1])) : '全期間';
-
+ 
   // 各業者の最終客付け・経過月数・Best3を用意
   const now = new Date();
-
+ 
   // 物件名 → 住所エリア判定用マップ
   const bAll = (typeof loadAll==='function') ? loadAll() : {};
   const addrByName = {};
@@ -1719,7 +1721,7 @@ function exportBrokerStatsPdf(){
     const top = (r.top3 && r.top3[0]) ? r.top3[0].name : '';
     return areaOf(addrByName[top] || '');
   };
-
+ 
   rows.forEach(r => {
     const lastDeal = (r.items||[]).find(it => !it.cancel);
     r._lastSort = lastDeal ? lastDeal.sort : '';
@@ -1732,7 +1734,7 @@ function exportBrokerStatsPdf(){
     r._best3 = (r.top3||[]).map(t=>esc(t.name)+'('+t.count+')').join(' / ');
     r._area = brokerArea(r);
   });
-
+ 
   // ① ランキングTOP20（業者名を地域色・地域ドット付き）
   let rankRows = '';
   rows.slice(0,20).forEach((r,i)=>{
@@ -1747,7 +1749,7 @@ function exportBrokerStatsPdf(){
       <td class="c">${r._lastDisp||'－'}</td>
       <td>${r._best3}</td></tr>`;
   });
-
+ 
   // ② 掘り起こし候補（3件以上・6ヶ月以上・経過の長い順）
   const dig = rows.filter(r=> r._gap!=='' && r._gap>=6 && r.count>=3).sort((a,b)=> b._gap - a._gap);
   let digRows = '';
@@ -1764,10 +1766,10 @@ function exportBrokerStatsPdf(){
       <td class="c gap">${r._gap}ヶ月</td>
       <td>${b2}</td></tr>`;
   });
-
+ 
   const today = new Date();
   const dstr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
-
+ 
   const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">
 <title>客付業者分析レポート</title>
 <style>
@@ -1808,7 +1810,7 @@ function exportBrokerStatsPdf(){
 <h1>客付業者 分析レポート</h1>
 <div class="sub">作成日：${dstr} ／ 集計期間：${period}（全客付け実績）${fyValid?'／年絞り込み: '+fy+'年':''}</div>
 <div class="rule"></div>
-
+ 
 <h2>① よく客付けしてくれる業者 TOP20</h2>
 <div class="note">成約実績の多い順。感謝を伝えつつ関係を維持したい主力業者です。上位3社は青で強調しています。</div>
 <div class="legend">エリア色：<span><i class="lg" style="background:#7c3aed"></i>福山</span><span><i class="lg" style="background:#1d4ed8"></i>倉敷</span><span><i class="lg" style="background:#047857"></i>岡山</span><span><i class="lg" style="background:#b7791f"></i>広島(その他)</span></div>
@@ -1816,7 +1818,7 @@ function exportBrokerStatsPdf(){
   <tr><th style="width:8%">順位</th><th style="width:20%">客付業者</th><th style="width:10%">客付け数</th><th style="width:8%">ｷｬﾝｾﾙ</th><th style="width:14%">最終客付け</th><th>よく客付けする物件 Best3</th></tr>
   ${rankRows}
 </table>
-
+ 
 <div class="pagebreak"></div>
 <h2 id="digttl">② 掘り起こし候補（広告・再アプローチ対象）</h2>
 <div class="note">過去に客付け実績（3件以上）がありながら、6ヶ月以上 紹介の途絶えている業者。経過の長い順。色が濃いほど再アプローチの優先度が高い業者です。</div>
@@ -1826,7 +1828,7 @@ function exportBrokerStatsPdf(){
   ${digRows || '<tr><td colspan="5" class="c">該当なし</td></tr>'}
 </table>
 </body></html>`;
-
+ 
   const w = window.open('', '_blank');
   if(!w){ alert('ポップアップがブロックされました。このサイトのポップアップを許可してください。'); return; }
   w.document.write(html); w.document.close();
@@ -1946,7 +1948,7 @@ function updateDoneSelCount(){
     allBtn.textContent = allChecked ? '☐ 全解除' : '☑ 全選択';
   }
 }
-
+ 
 // 選択した完了済み契約をCSV出力(未選択時は表示中の全件)
 function exportSelectedDoneCsv(){
   const all = loadAll();
@@ -1957,7 +1959,7 @@ function exportSelectedDoneCsv(){
     ids = checks.map(ch => ch.value);
   }
   if(ids.length === 0){ toast('出力する契約がありません'); return; }
-
+ 
   const q = v => {
     const s = (v==null) ? '' : String(v);
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
@@ -1979,7 +1981,7 @@ function exportSelectedDoneCsv(){
       c.paymentDate||'', c.keyHandover||'', c.hinagata||'', c.memo||''
     ].map(q).join(',');
   }).filter(Boolean);
-
+ 
   const csv = '\uFEFF' + header.map(q).join(',') + '\n' + rows.join('\n') + '\n';
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');
@@ -1993,18 +1995,18 @@ function exportSelectedDoneCsv(){
   a.click();
   toast(rows.length + '件をCSV出力しました');
 }
-
+ 
 // ホバーで編集フォームを開く(PCのみ・ドラッグ中は無視・誤反応防止に短い遅延)
 function onCardHover(event, id){ /* ホバーでの自動オープンは無効化(クリックで開く) */ }
 function onCardLeave(event){ clearTimeout(_hoverTimer); }
-
+ 
 // クリック/タップでも開く(ドラッグ直後は無視)
 function onCardClick(event, id){
   if(_justDragged) return;   // ドラッグ直後の誤クリックを無視
   clearTimeout(_hoverTimer);
   openSheet(id);            // 閲覧ポップアップを介さず直接編集フォームを開く
 }
-
+ 
 // ====== ドラッグ&ドロップ ======
 let _justDragged = false;
 function onCardDragStart(e, id){
@@ -2033,15 +2035,15 @@ function onColDrop(e, stageKey){
   const all = loadAll();
   const c = all[_draggingId];
   if(!c){ _draggingId = null; return; }
-
+ 
   const prevStage = c.stage || '申込';
   if(prevStage === stageKey){ _draggingId = null; renderBoard(); return; }
-
+ 
   if(!c.stageReached) c.stageReached = {};
-
+ 
   const newIdx = stageIndex(stageKey);
   const prevIdx = stageIndex(prevStage);
-
+ 
   if(newIdx > prevIdx){
     // 前進: ここまでの全ステージに到達日を記録(まだ無いものは今日の日付)
     for(let i = 0; i <= newIdx; i++){
@@ -2067,14 +2069,14 @@ function onColDrop(e, stageKey){
       toast('「' + (c.property||'契約') + '」を ' + stageKey + ' に戻しました(以降の記録を解除)');
     }
   }
-
+ 
   c.stage = stageKey;
   c.updatedAt = new Date().toISOString();
   saveAll(all);
   _draggingId = null;
   renderAll();
 }
-
+ 
 // ====== シート ======
 function openSheet(id){
   hidePreview();
@@ -2142,7 +2144,7 @@ function updateSheetStatusBg(){
     h.classList.add('bih-defect');
   }
 }
-
+ 
 // 日付項目サマリー描画
 function renderSheetDateSummary(){
   const elc = document.getElementById('sheet-date-summary');
@@ -2183,7 +2185,7 @@ function toggleSheetDate(key){
   }
   renderSheetDateSummary();
 }
-
+ 
 // 編集シート内のアイテム取得サマリー(フォーム値から判定して点灯)
 function renderSheetItemSummary(){
   const elc = document.getElementById('sheet-item-summary');
@@ -2545,7 +2547,7 @@ function closeSheet(){
   clearTimeout(_hoverTimer);
   _suppressHoverUntil = Date.now() + 600;
 }
-
+ 
 // シート内のステージ到達履歴(チェック+日付)
 function renderStageTimeline(){
   const el = document.getElementById('stage-timeline');
@@ -2658,7 +2660,7 @@ function maybeUnlinkOnClear(reasonMsg, onCancelRestore){
     }
   }catch(e){ _unlinkPromptBusy = false; }
 }
-
+ 
 function switchType(type){
   _editingType = type;
   document.querySelectorAll('#type-seg button').forEach(b => b.classList.toggle('active', b.dataset.type === type));
@@ -2686,7 +2688,7 @@ function switchWarn(v){
   const seg = document.getElementById('warn-seg');
   if(seg) seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', String(b.dataset.warn) === String(v)));
 }
-
+ 
 // ===== アイコン式 基本情報フィールド =====
 const INFO_ICON = {
   apply: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
@@ -3269,7 +3271,7 @@ function toast(m){
   window._toastT = setTimeout(()=>el.classList.remove('show'), 2400);
 }
 function renderAll(){ renderStats(); renderBoard(); }
-
+ 
 function seed(){
   const all = loadAll();
   if(Object.keys(all).length > 0) return;
@@ -3293,17 +3295,17 @@ function seed(){
   samples.forEach(s => { s.id = genId(); s.updatedAt = new Date().toISOString(); all[s.id] = s; });
   saveAll(all);
 }
-
+ 
 // seed();
 renderAll();
-
+ 
 // プレビュー: バックドロップのクリックで閉じる
 document.getElementById('preview-backdrop').addEventListener('click', () => hidePreview());
 document.getElementById('done-backdrop').addEventListener('click', () => closeDoneModal());
 document.getElementById('bstat-backdrop').addEventListener('click', () => closeBrokerStats());
 // Escで閉じる
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape'){ hidePreview(); closeDoneModal(); closeBrokerStats(); } });
-
+ 
 // 編集シートからカーソルが外れたら閉じる(PCのみ・少し待って誤作動防止・戻れば取消)
 let _sheetLeaveTimer = null;
 let _sheetOpenedAt = 0;
@@ -3311,8 +3313,8 @@ let _sheetOpenedAt = 0;
   // マウスがシート外に出ても自動で閉じない。閉じるのは「閉じる」「×」ボタンのみ。
   return;
 })();
-
-
+ 
+ 
 /* =========================================================
  *  スマホの誤タップ対策
  *  ・指が動いた（スワイプした）ときは、そのあとのタップを無効にする
@@ -3324,20 +3326,20 @@ let _sheetOpenedAt = 0;
   var sx = 0, sy = 0, moved = false, lastScroll = 0;
   var MOVE = 12;        // これ以上動いたらスワイプとみなす（px）
   var AFTER_SCROLL = 350;  // スクロールが止まってから、この時間はタップを無視（ミリ秒）
-
+ 
   document.addEventListener('touchstart', function(e){
     var t = e.touches && e.touches[0]; if(!t) return;
     sx = t.clientX; sy = t.clientY; moved = false;
   }, {passive:true, capture:true});
-
+ 
   document.addEventListener('touchmove', function(e){
     var t = e.touches && e.touches[0]; if(!t) return;
     if(Math.abs(t.clientX - sx) > MOVE || Math.abs(t.clientY - sy) > MOVE) moved = true;
   }, {passive:true, capture:true});
-
+ 
   document.addEventListener('scroll', function(){ lastScroll = Date.now(); },
     {passive:true, capture:true});
-
+ 
   document.addEventListener('click', function(e){
     var recent = (Date.now() - lastScroll) < AFTER_SCROLL;
     if(!moved && !recent) return;                  // 素直なタップは通す
@@ -3348,7 +3350,7 @@ let _sheetOpenedAt = 0;
       try{ document.activeElement.blur(); }catch(_){}
     }
   }, true);
-
+ 
   // 触って操作する端末では、カードのドラッグ移動を無効にする（スクロールと干渉するため）
   document.addEventListener('DOMContentLoaded', function(){
     var css = document.createElement('style');
@@ -3476,8 +3478,8 @@ try{window.KB.toggleTypeField=toggleTypeField;}catch(e){}
 try{window.KB.toggleMonthlyField=toggleMonthlyField;}catch(e){}
 try{window.KB.setContractorType=setContractorType;}catch(e){}
 try{window.KB.updateSortButtons=updateSortButtons;}catch(e){}
-
-
+ 
+ 
 /* expose kanban handlers as globals (non-colliding only) */
 try{window.autoCompleteCheck=autoCompleteCheck;}catch(e){}
 try{window.autoSave=autoSave;}catch(e){}
@@ -3567,4 +3569,4 @@ try{window.toggleTypeField=toggleTypeField;}catch(e){}
 try{window.toggleMonthlyField=toggleMonthlyField;}catch(e){}
 try{window.updateSortButtons=updateSortButtons;}catch(e){}
 })();
-
+ 
