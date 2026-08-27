@@ -1639,3 +1639,67 @@ body{
 }
 /* 取込前は「1ページを取込…」の表示が空なので、場所を取らせない */
 #rent-view .pdfstat:empty{min-height:0;margin:0;}
+
+/* ============================================================
+   pv-rank-grid : 客付業者ランキングを「大きめのカード」で並べる
+     いままでは1社ぶんが横いっぱいの帯で、画面に2社しか入りませんでした。
+     カードにして格子状に並べ、件数の数字を大きく見せます。
+     ★HTML・id・class・JS には触れていません。並べ方と大きさだけです。
+   ============================================================ */
+@media (min-width:900px){
+  #kb-view #bstat-body{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(380px,1fr));
+    grid-auto-rows:min-content;
+    align-content:start;
+    gap:16px;
+  }
+  /* タブ・集計チップ・①②の分析・年別グラフは、今までどおり横いっぱい */
+  #kb-view #bstat-body > *:not(.bstat-card){grid-column:1 / -1;}
+
+  #kb-view #bstat-body .bstat-card{
+    margin-bottom:0;
+    padding:18px 20px 14px;
+    border-radius:18px;
+  }
+  /* 業者名と件数を大きく */
+  #kb-view #bstat-body .bstat-top{gap:11px;}
+  #kb-view #bstat-body .bstat-name{font-size:17px;}
+  #kb-view #bstat-body .bstat-badge{min-width:64px;padding:8px 12px;}
+  #kb-view #bstat-body .bstat-badge .bnum{font-size:28px;}
+  #kb-view #bstat-body .bstat-badge .blbl{font-size:11px;}
+  /* 申込・キャンセル率・審査落ち率を、数字の見える帯にする */
+  #kb-view #bstat-body .bstat-rate{
+    padding:11px 10px;
+    margin:10px 0 2px;
+    background:#f5f8f6;
+    border:1px solid #e4ebe6;
+    border-radius:12px;
+    font-size:12px;
+    text-align:center;
+  }
+  #kb-view #bstat-body .bstat-rate b{font-size:19px;}
+  /* 1位の黒いカードでは、帯を明るくすると字が読めなくなるので反転させる */
+  #kb-view #bstat-body .bstat-card.rk1 .bstat-rate{
+    background:rgba(255,255,255,.09);
+    border-color:rgba(255,255,255,.16);
+  }
+  /* カードの中では明細を1列に戻す（2〜3段だと狭すぎるため） */
+  #kb-view #bstat-body .bstat-props{
+    grid-template-columns:1fr;
+    padding-left:0;
+  }
+  /* 月別グラフをカードの幅に収める */
+  #kb-view #bstat-body .bm-chart{gap:4px;overflow-x:hidden;}
+  #kb-view #bstat-body .mbar{flex:1 1 0;min-width:0;max-width:none;width:auto;}
+  #kb-view #bstat-body .mbar-x{font-size:10px;}
+  /* 明細を開いたカードは、1行ぶん丸ごと使う */
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)){
+    grid-column:1 / -1;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-props{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    display:grid;
+    gap:5px 20px;
+  }
+}
