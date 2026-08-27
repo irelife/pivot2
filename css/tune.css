@@ -2001,3 +2001,32 @@ body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
     white-space:normal;
   }
 }
+
+
+/* ============================================================
+   pv-settings-fix : 設定メニューが閉じない／モーダルに被る
+     ❶ iPhone では、一度タップした場所の :hover が residue として
+        残り続けます。base.css の
+          .settings-wrap:hover .settings-menu{display:flex;}
+        が効いたままになり、closeSettingsMenu() が .open を外しても
+        メニューが開いたままになっていました。
+        指で操作する端末では :hover で開かないようにします。
+        （PCのマウス操作は今までどおりホバーで開きます）
+     ❷ 直前の pv-settings-sheet で z-index:9999 を指定しましたが、
+        モーダルは z-index:100 です。設定メニューのほうが上に来て
+        被っていました。モーダルより下(90)へ下げます。
+     ❸ 保険として、モーダルを開いている間は必ず隠します。
+   ★HTML・id・class・JS には触れていません。
+   ============================================================ */
+@media (max-width:860px){
+  /* ❷ モーダル(100)より下に置く */
+  .settings-menu{z-index:90;}
+}
+/* ❶ 指で操作する端末では、ホバーで開かない。押したときだけ開く。
+      2行は詳細度が同じ(0,3,0)なので、後に書いた .open が勝ちます */
+@media (hover:none){
+  .settings-wrap:hover .settings-menu{display:none;}
+  .settings-wrap .settings-menu.open{display:flex;}
+}
+/* ❸ モーダルが開いている間は、設定メニューを必ず隠す */
+body:has(.modal-overlay.active) .settings-menu{display:none!important;}
