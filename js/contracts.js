@@ -1407,18 +1407,20 @@ function renderBrokerStats(){
   }
   const period = fyValid ? (fy + '年') : '全期間(2023〜)';
   const modeTabs = '<div class="bstat-mode">' +
-    '<button class="bmode'+(_brokerStatMode==='broker'?' on':'')+'" onclick="KB.setBrokerStatMode(\'broker\')">🏢 業者別</button>' +
-    '<button class="bmode'+(_brokerStatMode==='property'?' on':'')+'" onclick="KB.setBrokerStatMode(\'property\')">🏠 物件別</button>' +
+    '<button class="bmode'+(_brokerStatMode==='broker'?' on':'')+'" onclick="KB.setBrokerStatMode(\'broker\')">業者別</button>' +
+    '<button class="bmode'+(_brokerStatMode==='property'?' on':'')+'" onclick="KB.setBrokerStatMode(\'property\')">物件別</button>' +
     '</div>';
-  let html = modeTabs + '<div class="bstat-summary">' +
-    '<div class="bstat-chip">📅 ' + esc(period) + '</div>' +
+  // 集計は、契約画面の黒い件数バーと同じ見た目にそろえる（モノクロ・絵文字なし）
+  let html = modeTabs + '<div class="stats-bar bstat-bar">' +
+    '<div class="stat-pill bs-period"><span class="num">' + esc(fyValid ? fy : '全期間') + '</span>' +
+      '<span class="lbl">' + (fyValid ? '年' : '2023〜') + '</span></div>' +
     (_brokerStatMode==='broker'
-      ? '<div class="bstat-chip">🏢 業者 <b>' + rows.length + '</b> 社</div>'
-      : '<div class="bstat-chip">🏠 物件 <b>' + propRanking.length + '</b> 件</div>') +
-    '<div class="bstat-chip">✍️ 客付 <b>' + total + '</b> 件</div>' +
-    '<div class="bstat-chip bstat-chip-cx">🚫 キャンセル <b>' + totalCancel + '</b> 件 / <b>' + cancelRate + '</b></div>' +
-    '<div class="bstat-chip bstat-chip-rj">📕 審査落ち <b>' + totalReject + '</b> 件 / <b>' + rejectRate + '</b></div>' +
-    '<div class="bstat-chip">🧮 申込総数 <b>' + totalBase + '</b> 件</div>' +
+      ? '<div class="stat-pill"><span class="num">' + rows.length + '</span><span class="lbl">業者</span></div>'
+      : '<div class="stat-pill"><span class="num">' + propRanking.length + '</span><span class="lbl">物件</span></div>') +
+    '<div class="stat-pill"><span class="num">' + total + '</span><span class="lbl">客付</span></div>' +
+    '<div class="stat-pill warn"><span class="num">' + totalCancel + '</span><span class="lbl">キャンセル ' + cancelRate + '</span></div>' +
+    '<div class="stat-pill"><span class="num">' + totalReject + '</span><span class="lbl">審査落ち ' + rejectRate + '</span></div>' +
+    '<div class="stat-pill success"><span class="num">' + totalBase + '</span><span class="lbl">申込総数</span></div>' +
     '</div>' +
     '<div class="bstat-ratenote">率の母数は「成約＋キャンセル＋審査落ち」＝申込総数です。</div>';
  
