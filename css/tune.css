@@ -1611,3 +1611,31 @@ body{
   }
   .settings-wrap{position:relative;}
 }
+
+/* ============================================================
+   pv-rent-pc : PCの広い画面で、オーナーメールの画面が
+                 横に間延びしないように整える
+     ・中身を 1320px で止めて、中央にそろえる
+     ・取込枠（①②③）の縦の余白を詰める
+     ・空っぽの状態表示が場所を取らないようにする
+   ★HTML・id・class・JS には触れていません。
+   ============================================================ */
+@media (min-width:1200px){
+  #rent-view .wrap{
+    max-width:1320px;
+    margin-left:auto;
+    margin-right:auto;
+  }
+  #rent-view .drop{
+    min-height:0;
+    padding:24px 20px;
+    margin:4px 0 6px;
+  }
+  #rent-view .drop .ico{font-size:1.6rem;margin-bottom:4px;opacity:.65;}
+  /* 「ドロップ / クリック」の途中や、かっこの中で改行しないようにする */
+  #rent-view .drop .big{line-height:1.5;word-break:keep-all;}
+  #rent-view .drop .sub{margin-top:4px;}
+  #rent-view .bar{margin:20px 0 12px;}
+}
+/* 取込前は「1ページを取込…」の表示が空なので、場所を取らせない */
+#rent-view .pdfstat:empty{min-height:0;margin:0;}
