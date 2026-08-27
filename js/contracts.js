@@ -259,13 +259,13 @@ function setStatFilter(k){
 // ====== レンダリング ======
 // CSVで保管済みの年（この年の完了は件数から外す）
 function archivedYears(){
-  try { return JSON.parse(localStorage.getItem('pv_csv_archived_years') || '[]'); }
+  try { return JSON.parse(localStorage.getItem((typeof insPrefix === 'function' ? insPrefix() : 'pivot_') + 'csv_archived_years') || '[]'); }
   catch(e){ return []; }
 }
 function markYearArchived(y){
   const a = archivedYears();
   if(!a.includes(String(y))) a.push(String(y));
-  localStorage.setItem('pv_csv_archived_years', JSON.stringify(a));
+  localStorage.setItem((typeof insPrefix === 'function' ? insPrefix() : 'pivot_') + 'csv_archived_years', JSON.stringify(a));
 }
 // 完了した年（完了タブへ移した日→契約日→申込日の順で判定）
 function doneYearOf(c){
@@ -633,10 +633,10 @@ function updateSortButtons(){
 /* =========================================================
  *  表示の切り替え（カード／一覧）
  * ======================================================= */
-let _viewMode = (function(){ try{ return localStorage.getItem('pv_view_mode') || 'card'; }catch(e){ return 'card'; } })();
+let _viewMode = (function(){ try{ return localStorage.getItem((typeof insPrefix === 'function' ? insPrefix() : 'pivot_') + 'view_mode') || 'card'; }catch(e){ return 'card'; } })();
 function setViewMode(m){
   _viewMode = (m === 'list') ? 'list' : 'card';
-  try{ localStorage.setItem('pv_view_mode', _viewMode); }catch(e){}
+  try{ localStorage.setItem((typeof insPrefix === 'function' ? insPrefix() : 'pivot_') + 'view_mode', _viewMode); }catch(e){}
   const b = document.getElementById('btn-view');
   if(b){ b.textContent = (_viewMode === 'list') ? 'カード表示' : '一覧表示'; b.classList.toggle('on', _viewMode === 'list'); }
   renderBoard();
