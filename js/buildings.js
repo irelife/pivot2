@@ -8,7 +8,7 @@
 // localStorage キー: pivot_blds
 // 構造: { "物件ID": { id, name, addr, spots: [ {no, type, tou, room, user, price, status, note} ] } }
 
-const STORAGE_KEY = 'pivot2_blds';
+const STORAGE_KEY = (typeof insPrefix === 'function' ? insPrefix() : 'pivot_') + 'blds';
 const STATUS_LIST = ['借','空','解','予','退','募停','申'];
 const STATUS_LABELS = {
   '借':'使用中', '空':'空き', '解':'解約中', '予':'予約中',
@@ -3588,7 +3588,7 @@ function downloadBackup(){
   let contracts = {};
 　try{ contracts = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){}
   let owners = [];
-  try{ owners = JSON.parse(localStorage.getItem('pivot2_rent_owner_send_owners_v1') || '[]'); }catch(e){}
+  try{ owners = JSON.parse(localStorage.getItem((typeof insPrefix === 'function' ? insPrefix() : 'pivot_') + 'rent_owner_send_owners_v1') || '[]'); }catch(e){}
   const data = {
     version: '1.1',
     exportedAt: new Date().toISOString(),
@@ -3610,7 +3610,7 @@ function downloadBackup(){
 // 緊急復元：起動時の自動退避（pivot_emergency_backup）から、直前の状態に戻す
 function restoreEmergencyBackup(){
   let snap = null;
-  try{ snap = JSON.parse(localStorage.getItem('pivot2_emergency_backup') || 'null'); }catch(e){ snap = null; }
+  try{ snap = JSON.parse(localStorage.getItem((typeof insPrefix === 'function' ? insPrefix() : 'pivot_') + 'emergency_backup') || 'null'); }catch(e){ snap = null; }
   if(!snap){ alert('緊急バックアップが見つかりませんでした。'); return; }
   let bc=0, cc=0;
   try{ bc = Object.keys(JSON.parse(snap.buildings||'{}')).length; }catch(e){}
