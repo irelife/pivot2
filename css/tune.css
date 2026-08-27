@@ -2030,3 +2030,44 @@ body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
 }
 /* ❸ モーダルが開いている間は、設定メニューを必ず隠す */
 body:has(.modal-overlay.active) .settings-menu{display:none!important;}
+
+
+/* ============================================================
+   pv-ident : インスタンスを見分けるための「印」
+     UI の中身は 2・3・4 とも同じモノクロにそろえます。
+     見分けは、意味を持たない場所だけでつけます。
+       ❶ 画面いちばん上の 4px の帯（PC・スマホとも常に見える）
+       ❷ ロゴの頭の丸（スマホのヘッダー）
+     ★ここで使う色 --pv-ident は、インスタンスごとに違います。
+       すぐ下の「pv-ident-color」ブロックで指定しています。
+     ★警告の赤(#b0362c)・琥珀(#8a6412)とは色相を離してあるので、
+       「注意すべき数字」と「ただの飾り」が混ざりません。
+   ============================================================ */
+body::before{
+  content:"";
+  position:fixed;
+  top:0; left:0; right:0;
+  height:4px;
+  background:var(--pv-ident);
+  z-index:150;
+  pointer-events:none;
+}
+/* ロゴの頭に丸をひとつ。PCではサイドバーがあるので隠れており、
+   スマホのヘッダーでだけ見えます */
+.app-pivot-logo::before{
+  content:"";
+  display:inline-block;
+  width:10px; height:10px;
+  border-radius:50%;
+  background:var(--pv-ident);
+  margin-right:9px;
+  vertical-align:middle;
+  position:relative;
+  top:-2px;
+}
+/* 印刷では帯を出さない */
+@media print{ body::before{display:none;} }
+
+/* ===== pv-ident-color : PIVOT2（福山／広島）＝ 藍 #1B4965 ===== */
+/*   由来：瀬戸内の海。他の2色と色相が90°以上離れています。      */
+:root{ --pv-ident:#1B4965; }
