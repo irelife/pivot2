@@ -1360,5 +1360,10 @@ function activate(){
 }
  
  
+/* 取込モジュール(ownerimport.js)から中の owners を触れるようにする橋渡し */
+try{ window.RENT_CORE = {
+  get owners(){ return owners; },
+  save: saveOwners, render: renderOwners, flash: flashSaved, toast: toast
+}; }catch(e){}
 window.RENT = { activate, unexcludeOwner, setEmail, showView, addOwnerRow, resetOwners, resetTmpl, expandAll, renderPreview, saveTmpl, editOwner, editProps, delOwner, togglePv, copyBody, previewOwnerPdf, downloadOwnerPdf, sendViaGmail, renderOwners, createDraftsForChecked, sendMailsForChecked, updateCheckCount, toggleCheckAll, sendOne, draftOne, unsendOne, removeFromList, renderHistory, clearHistory, checkBounces, accumulateOwnerMonth, accumulateOwnerYear, mergeYearForOwner, deleteExAccum, deleteExYear, saveSophiaGasUrl, viewExAccum };
 })();
