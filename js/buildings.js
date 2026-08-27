@@ -3588,7 +3588,7 @@ function downloadBackup(){
   let kintai = {};
   try{ kintai = JSON.parse(localStorage.getItem('pivot_kintai_v1') || '{}'); }catch(e){}
   let contracts = {};
-  try{ contracts = JSON.parse(localStorage.getItem('contract_kanban_v2') || '{}'); }catch(e){}
+　try{ contracts = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){}
   let owners = [];
   try{ owners = JSON.parse(localStorage.getItem('rent_owner_send_owners_v1') || '[]'); }catch(e){}
   const data = {
@@ -3648,7 +3648,7 @@ function restoreBackup(event){
       }
       if(saveAll(data.buildings)){
         if(data.contracts && typeof data.contracts === 'object'){
-          try{ localStorage.setItem('contract_kanban_v2', JSON.stringify(data.contracts)); }catch(e){}
+          try{ localStorage.setItem(ctKey(), JSON.stringify(data.contracts)); }catch(e){}
           try{ if(window.KB && window.KB.renderAll) window.KB.renderAll(); }catch(e){}
         }
         if(data.kintai && typeof data.kintai === 'object'){
