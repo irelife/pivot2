@@ -26,7 +26,7 @@
     n.id = 'pv-side';
     n.setAttribute('aria-label', '\u753B\u9762\u306E\u5207\u308A\u66FF\u3048');
     n.innerHTML =
-      '<div class="lg" title="PIVOT2\u30C8\u30C3\u30D7\u3078">PIVOT2'
+      '<div class="lg" title="PIVOT2\u30C8\u30C3\u30D7\u3078">PIVOT2 HIROSHIMA'
     +   '<span>IRE\u30E9\u30A4\u30D5\u682A\u5F0F\u4F1A\u793E</span></div>'
     + NAV.map(function (v) {
         if (v.g) return '<div class="grp">' + v.g + '</div>';
