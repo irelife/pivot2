@@ -112,8 +112,11 @@ async function oiImportWorkbook(file){
         mail: oiFindCol(headB, "メール"),
         memo: oiFindCol(headB, "備考"),
         send: oiFindCol(headB, "送信方法"),
-        inv:  oiFindCol(headB, "適格請求書", "登録番号"),
+        tax:  oiFindCol(headB, "適格請求書", "登録番号"),
       };
+      // 「適格請求書…」の列には 課税事業者／免税事業者 が入り、
+      // 登録番号(T…)は そのすぐ右どなりの列（見出しが空欄）に入っている。
+      c.inv = (c.tax >= 0) ? c.tax + 1 : -1;
       if (c.name >= 0){
         for (let i = hB + 1; i < rowsB.length; i++){
           const r = rowsB[i] || [];
@@ -124,7 +127,8 @@ async function oiImportWorkbook(file){
             name: nm.replace(/^\(\d+\)\s*/, "").trim(),
             kana: g(c.kana), kbn: g(c.kbn), zip: g(c.zip), addr: g(c.addr),
             tel: g(c.tel), fax: g(c.fax), mail: g(c.mail),
-            memo: g(c.memo), sendWay: g(c.send), invoiceNo: g(c.inv),
+            memo: g(c.memo), sendWay: g(c.send),
+            taxKbn: g(c.tax), invoiceNo: /^T?\d/.test(g(c.inv)) ? g(c.inv) : "",
           });
         }
       }
@@ -146,13 +150,13 @@ async function oiImportWorkbook(file){
           atena: e.name + " 御中", email: mail,
           zip: b.zip || "", addr: b.addr || "", tel: b.tel || "", fax: b.fax || "",
           kana: b.kana || "", kbn: b.kbn || "", memo: b.memo || "",
-          sendWay: b.sendWay || "", invoiceNo: b.invoiceNo || "",
+          sendWay: b.sendWay || "", taxKbn: b.taxKbn || "", invoiceNo: b.invoiceNo || "",
         });
         added++;
       } else {
         const o = owners[at];
         if (mail) o.email = mail;                 // 連絡先は Excel を正とする
-        ["zip","addr","tel","fax","kana","kbn","memo","sendWay","invoiceNo"].forEach(f => {
+        ["zip","addr","tel","fax","kana","kbn","memo","sendWay","taxKbn","invoiceNo"].forEach(f => {
           if (b[f]) o[f] = b[f];
         });
         const cur = new Set((o.properties && o.properties.length) ? o.properties
