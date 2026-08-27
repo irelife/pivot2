@@ -3613,7 +3613,7 @@ function downloadBackup(){
 // 緊急復元：起動時の自動退避（pivot_emergency_backup）から、直前の状態に戻す
 function restoreEmergencyBackup(){
   let snap = null;
-  try{ snap = JSON.parse(localStorage.getItem('pivot_emergency_backup') || 'null'); }catch(e){ snap = null; }
+  try{ snap = JSON.parse(localStorage.getItem('pivot2_emergency_backup') || 'null'); }catch(e){ snap = null; }
   if(!snap){ alert('緊急バックアップが見つかりませんでした。'); return; }
   let bc=0, cc=0;
   try{ bc = Object.keys(JSON.parse(snap.buildings||'{}')).length; }catch(e){}
@@ -3622,7 +3622,7 @@ function restoreEmergencyBackup(){
   if(!confirm('起動直前の状態に戻します。\n\n退避時刻: '+when+'\n物件: '+bc+'件 ／ 契約: '+cc+'件\n\n現在のデータは、この退避内容で上書きされます。よろしいですか？')) return;
   try{
     if(snap.buildings) localStorage.setItem(STORAGE_KEY, snap.buildings);
-    if(snap.contracts) localStorage.setItem('contract_kanban_v2', snap.contracts);
+    if(snap.contracts) localStorage.setItem(ctKey(), snap.contracts);
     if(snap.kintai)    localStorage.setItem('pivot_kintai_v1', snap.kintai);
     alert('復元しました。ページを再読み込みします。');
     location.reload();
