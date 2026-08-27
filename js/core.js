@@ -6,9 +6,7 @@
 // core から buildings/KB/KT を直接呼ばないための集約点。
 /* ---- buildings.js の保存領域への窓口。core から直接触らないための集約点 ---- */
 function pbKey(){
-  if(window.PB && window.PB.STORAGE_KEY) return window.PB.STORAGE_KEY;
-  if(typeof STORAGE_KEY !== 'undefined') return STORAGE_KEY;
-  return 'pivot_blds';
+  return 'pivot2_blds';
 }
 function pbLoadAll(){
   try{
