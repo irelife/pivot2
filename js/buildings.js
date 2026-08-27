@@ -8,7 +8,7 @@
 // localStorage キー: pivot_blds
 // 構造: { "物件ID": { id, name, addr, spots: [ {no, type, tou, room, user, price, status, note} ] } }
 
-const STORAGE_KEY = 'pivot_blds';
+const STORAGE_KEY = 'pivot2_blds';
 const STATUS_LIST = ['借','空','解','予','退','募停','申'];
 const STATUS_LABELS = {
   '借':'使用中', '空':'空き', '解':'解約中', '予':'予約中',
