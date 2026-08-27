@@ -1104,6 +1104,9 @@ window.addEventListener('DOMContentLoaded', () => {
  * ================================================================== */
  
 function switchApp(which){
+   // 画面を切り替えるときは、開いている客付業者ランキングを必ず閉じる
+  // （閉じないと、契約や物件を押してもランキングが上に残ったままになります）
+  try{ if(window.KB && window.KB.closeBrokerStats){ window.KB.closeBrokerStats(); } }catch(e){}
   document.body.classList.toggle('tab-kanban', which==='kanban');
   document.body.classList.toggle('tab-rent', which==='rent');
   document.getElementById('tab-pivot').classList.toggle('active', which==='pivot');
