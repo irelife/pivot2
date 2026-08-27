@@ -490,7 +490,7 @@ function loadHistory(){
 }
  
 /* 不達(バウンス)アドレスの保存 */
-const LS_BOUNCED = "rent_owner_send_bounced_v1";
+const LS_BOUNCED = (typeof insPrefix === 'function' ? insPrefix() : 'pivot_') + "rent_owner_send_bounced_v1";
 function loadBounced(){
   try{ return new Set(JSON.parse(localStorage.getItem(LS_BOUNCED)||"[]")); }catch(e){ return new Set(); }
 }
