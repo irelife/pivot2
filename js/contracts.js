@@ -786,8 +786,7 @@ function renderCard(c){
   const ddDate = c.dealStatusDate || String(c.updatedAt || '').slice(0, 10) || '';
   const ddDateHtml = ddDate
     ? '<span class="ct-status-date" style="color:' + ddColor + ';cursor:pointer;" title="タップで日付だけ変更" onclick="event.stopPropagation();KB.promptStatusDate(\'' + c.id + '\')">' +
-        '<span class="ct-status-date-label">' + esc(ddLabel) + '</span>' +
-        '<span class="ct-status-date-arrow">→</span>' +
+        '<span class="ct-status-date-arrow">📅</span>' +
         esc(String(ddDate).replace(/^\d{4}-/, '').replace('-', '/')) +
         '<span class="ct-status-date-edit">✎</span>' +
       '</span>'
