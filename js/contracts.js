@@ -3259,7 +3259,7 @@ function deleteCardContract(event, id){
   // クラウドから契約を1件削除
 function deleteFromCloud(id){
   try{
-    const url = (localStorage.getItem('pivot_cloud_url')||'').trim();
+    const url = (typeof getCloudUrl === 'function') ? getCloudUrl() : '';
     if(!url || !id) return;
     fetch(url, { method:'POST', body: JSON.stringify({ action:'deleteContract', id: id }) });
   }catch(e){}
