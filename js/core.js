@@ -36,9 +36,6 @@ function requestRender(target){
   if(target === 'all' || target === 'buildings'){
     try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
   }
-  if(target === 'all' || target === 'kanban'){
-    try{ if(window.KB && window.KB.renderAll) window.KB.renderAll(); }catch(e){}
-  }
   if(target === 'all' || target === 'kintai'){
     try{ if(window.KT && window.KT.reload) window.KT.reload(); }catch(e){}
   }
@@ -106,70 +103,6 @@ function pushNow(){
   doAutoPush();
 }
 try{ window.__pushNow = pushNow; }catch(e){}
- 
-// ===== 勤怠データの安全なマージ(複数端末で打刻が消えないように) =====
-// 勤怠は { "2026-06-11":{in,out,...}, ... } の日付キー構造。
-// クラウドとローカルを日付単位で統合する。同じ日付が両方にある場合は、
-// 情報量が多い方(in/outが揃っている方)を残し、同点なら既存(ローカル=自分の打刻)を優先。
-function mergeKintai(localK, cloudK){
-  // 日付キーを "YYYY-MM-DD" に正規化(「Fri Jun 12 2026」形式や先頭'付きも統一)
-  function pad2(n){ return String(n).padStart(2,"0"); }
-  function normKeys(obj){
-    const MON={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
-    function one(k){
-      let d=String(k).replace(/^'/, "").trim();
-      if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-      const m=d.match(/([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{4})/);
-      if(m && MON[m[1]]){ return m[3]+"-"+pad2(MON[m[1]])+"-"+pad2(parseInt(m[2],10)); }
-      const p=new Date(d);
-      if(!isNaN(p.getTime())){ return p.getFullYear()+"-"+pad2(p.getMonth()+1)+"-"+pad2(p.getDate()); }
-      return d;
-    }
-    const out={};
-    Object.keys(obj||{}).forEach(k=>{
-      const d=one(k);
-      if(out[d]){
-        const sNew=Object.keys(obj[k]||{}).filter(x=>obj[k][x]!==""&&obj[k][x]!=null).length;
-        const sOld=Object.keys(out[d]||{}).filter(x=>out[d][x]!==""&&out[d][x]!=null).length;
-        if(sNew>sOld) out[d]=obj[k];
-      } else { out[d]=obj[k]; }
-    });
-    return out;
-  }
-  const a = normKeys((localK && typeof localK==='object') ? localK : {});
-  const b = normKeys((cloudK && typeof cloudK==='object') ? cloudK : {});
-  const out = {};
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-  function score(rec){
-    if(!rec || typeof rec!=='object') return -1;
-    let s=0; for(const k in rec){ const v=rec[k]; if(v!==''&&v!=null) s++; } return s;
-  }
-  keys.forEach(day=>{
-    const la=a[day], lb=b[day];
-    if(la && !lb){ out[day]=la; }
-    else if(!la && lb){ out[day]=lb; }
-    else { out[day] = (score(lb) > score(la)) ? lb : la; }
-  });
-  return out;
-}
-// クラウド取込時に呼ぶ: ローカルとクラウドをマージして保存。消えない・上書きしない。
-function applyCloudKintai(cloudKintai){
-  let localKintai = {};
-  try{ localKintai = JSON.parse(localStorage.getItem('pivot_kintai_v1')||'{}'); }catch(e){ localKintai = {}; }
-  const merged = mergeKintai(localKintai, cloudKintai);
-  try{
-    localStorage.setItem('pivot_kintai_v1', JSON.stringify(merged));
-    localStorage.setItem('pivot_kintai_v1_bak', JSON.stringify(merged));
-  }catch(e){}
-  try{
-    const cloudKeys = cloudKintai && typeof cloudKintai==='object' ? Object.keys(cloudKintai).length : 0;
-    if(Object.keys(merged).length > cloudKeys && typeof scheduleAutoPush==='function'){ scheduleAutoPush(); }
-  }catch(e){}
-  return merged;
-}
-try{ window.__mergeKintai = mergeKintai; window.__applyCloudKintai = applyCloudKintai; }catch(e){}
- 
- 
 async function doAutoPush(){
   const url = (typeof getCloudUrl === 'function') ? getCloudUrl() : '';
   if(!url) return;
@@ -182,8 +115,6 @@ async function doAutoPush(){
     const all = pbLoadAll();
     let contracts = {};
     try{ contracts = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){ contracts = {}; }
-    let kintai = {};
-    try{ kintai = JSON.parse(localStorage.getItem('pivot_kintai_v1') || '{}'); }catch(e){ kintai = {}; }
     let ownersData = [];
     try{ ownersData = JSON.parse(localStorage.getItem('pivot2_rent_owner_send_owners_v1') || '[]'); }catch(e){ ownersData = []; }
     // ===== 安全装置: 手元の物件が空/極端に少ないのにクラウドに多数ある場合は上書きしない =====
@@ -214,7 +145,7 @@ async function doAutoPush(){
       }
     }catch(e){ /* 確認に失敗しても通常の保存は続行 */ }
     const mtime = getLocalMtime() || touchLocalMtime();
-    const r = await postToGas(url, { action:'save', payload:{ buildings: all, contracts: contracts, kintai: kintai, owners: ownersData, mtime: mtime } });
+    const r = await postToGas(url, { action:'save', payload:{ buildings: all, contracts: contracts, owners: ownersData, mtime: mtime } });
     if(r && r.ok){
       _hasUnsavedChanges = false;
       setSyncStatus('saved', '✅ 同期済み');
@@ -242,7 +173,6 @@ async function autoPullOnStart(){
       at: new Date().toISOString(),
       buildings: localStorage.getItem(pbKey()) || '{}',
       contracts: localStorage.getItem(ctKey()) || '{}',
-      kintai: localStorage.getItem('pivot_kintai_v1') || '{}',
     };
     // 契約か物件が入っているときだけ退避（空を退避して上書きしない）
     const hasC = Object.keys(JSON.parse(snap.contracts)).length > 0;
@@ -671,12 +601,6 @@ async function loginPull(opt){
   }
   pbSaveRaw(buildings);
   localStorage.setItem(ctKey(), JSON.stringify(contracts));
-  // 勤怠: クラウドが勤怠を保持していない(キー無し or 空)場合は、ローカルの勤怠を消さずに守る。
-  // (クラウド側がまだ勤怠フィールドに未対応でも、この端末の打刻を失わないため)
-  {
-    // 勤怠は上書きせず、ローカルとクラウドを日付単位でマージ(複数端末で消えない)
-    applyCloudKintai(payload.kintai);
-  }
   if(typeof window.applyCloudOwners === 'function'){ window.applyCloudOwners(payload.owners); }
   const cloudMtime = parseInt(payload.mtime || '0', 10) || Date.now();
   try{ localStorage.setItem(MTIME_KEY, String(cloudMtime)); }catch(e){}
@@ -713,10 +637,6 @@ async function forcePullLatest(){
       const contracts = payload.contracts || {};
       pbSaveRaw(buildings);
       localStorage.setItem(ctKey(), JSON.stringify(contracts || {}));
-      {
-        // 勤怠は上書きせず、ローカルとクラウドを日付単位でマージ(複数端末で消えない)
-        applyCloudKintai(payload.kintai);
-      }
       if(typeof window.applyCloudOwners === 'function'){ window.applyCloudOwners(payload.owners); }
       const cloudMtime = parseInt(payload.mtime || '0', 10) || Date.now();
       try{ localStorage.setItem(MTIME_KEY, String(cloudMtime)); }catch(e){}
