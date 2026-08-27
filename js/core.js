@@ -4,6 +4,23 @@
  
 // 画面の再描画を依頼する唯一の窓口。
 // core から buildings/KB/KT を直接呼ばないための集約点。
+/* ---- buildings.js の保存領域への窓口。core から直接触らないための集約点 ---- */
+function pbKey(){
+  if(window.PB && window.PB.STORAGE_KEY) return window.PB.STORAGE_KEY;
+  if(typeof STORAGE_KEY !== 'undefined') return STORAGE_KEY;
+  return 'pivot_blds';
+}
+function pbLoadAll(){
+  try{
+    if(window.PB && typeof window.PB.loadAll === 'function') return window.PB.loadAll() || {};
+    if(typeof loadAll === 'function') return loadAll() || {};
+    return JSON.parse(localStorage.getItem(pbKey()) || '{}');
+  }catch(e){ return {}; }
+}
+function pbSaveRaw(obj){
+  try{ localStorage.setItem(pbKey(), JSON.stringify(obj || {})); }catch(e){}
+}
+try{ window.pbKey = pbKey; window.pbLoadAll = pbLoadAll; window.pbSaveRaw = pbSaveRaw; }catch(e){}
 function requestRender(target){
   target = target || 'all';
   if(target === 'all' || target === 'buildings'){
@@ -152,7 +169,7 @@ async function doAutoPush(){
   _autoPushStartedAt = Date.now();
   setSyncStatus('saving', '☁️ 同期中…');
   try{
-    const all = loadAll();
+    const all = pbLoadAll();
     let contracts = {};
     try{ contracts = JSON.parse(localStorage.getItem('contract_kanban_v2') || '{}'); }catch(e){ contracts = {}; }
     let kintai = {};
