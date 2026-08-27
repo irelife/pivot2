@@ -3585,18 +3585,15 @@ function deleteBld(){
 // ==============================
 function downloadBackup(){
   const all = loadAll();
-  let kintai = {};
-  try{ kintai = JSON.parse(localStorage.getItem('pivot_kintai_v1') || '{}'); }catch(e){}
   let contracts = {};
 　try{ contracts = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){}
   let owners = [];
-  try{ owners = JSON.parse(localStorage.getItem('rent_owner_send_owners_v1') || '[]'); }catch(e){}
+  try{ owners = JSON.parse(localStorage.getItem('pivot2_rent_owner_send_owners_v1') || '[]'); }catch(e){}
   const data = {
     version: '1.1',
     exportedAt: new Date().toISOString(),
     buildings: all,
     contracts: contracts,   // ★契約も含める（Contractタブのカード）
-    kintai: kintai,
     owners: owners
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
@@ -3607,7 +3604,7 @@ function downloadBackup(){
   a.download = 'PIVOT_backup_' + dt + '.json';
   a.click();
   URL.revokeObjectURL(url);
-  showToast('💾 バックアップをダウンロードしました（物件・契約・勤怠）');
+  showToast('💾 バックアップをダウンロードしました（物件・契約）');
 }
 
 // 緊急復元：起動時の自動退避（pivot_emergency_backup）から、直前の状態に戻す
