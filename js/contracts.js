@@ -5,7 +5,7 @@
 /* ===== KANBAN (namespaced) ===== */
 (function(){
  
-const STORAGE_KEY = 'contract_kanban_v4';
+const STORAGE_KEY = 'pivot2_contract_kanban_v2';
 function loadAll(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e){ return {}; } }
 function saveAll(d){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
