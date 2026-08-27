@@ -3620,7 +3620,6 @@ function restoreEmergencyBackup(){
   try{
     if(snap.buildings) localStorage.setItem(STORAGE_KEY, snap.buildings);
     if(snap.contracts) localStorage.setItem(ctKey(), snap.contracts);
-    if(snap.kintai)    localStorage.setItem('pivot_kintai_v1', snap.kintai);
     alert('復元しました。ページを再読み込みします。');
     location.reload();
   }catch(e){ alert('復元中にエラーが発生しました: '+e); }
@@ -3647,10 +3646,6 @@ function restoreBackup(event){
         if(data.contracts && typeof data.contracts === 'object'){
           try{ localStorage.setItem(ctKey(), JSON.stringify(data.contracts)); }catch(e){}
           try{ if(window.KB && window.KB.renderAll) window.KB.renderAll(); }catch(e){}
-        }
-        if(data.kintai && typeof data.kintai === 'object'){
-          try{ localStorage.setItem('pivot_kintai_v1', JSON.stringify(data.kintai)); }catch(e){}
-          try{ if(window.KT && window.KT.reload) window.KT.reload(); }catch(e){}
         }
         if(data.owners && typeof window.applyCloudOwners === 'function'){ try{ window.applyCloudOwners(data.owners); }catch(e){} }
         showToast('✅ 物件' + count + '件' + (ccount?('・契約'+ccount+'件'):'') + 'を復元しました');
