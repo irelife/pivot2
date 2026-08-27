@@ -1003,9 +1003,10 @@ async function cloudLoadAll(){
 // 初期化
 // ==============================
 window.addEventListener('DOMContentLoaded', () => {
-  // GAS URL の初期値(未設定時のみ)
+// GAS URL は自動設定しない。新しいインスタンスを作ったら設定画面で入力すること。
   if(!getCloudUrl()){
-  setCloudUrl('https://script.google.com/macros/s/AKfycbxJQZwtUy1gMVBxszZjkgSQVg-yy6xbDrAct1fRzvglDoEC1_1qMN27jL394XvOVnXdZQ/exec');
+    console.warn('[PIVOT] GAS URL が未設定です。設定画面から入力してください。');
+    try{ setSyncStatus('error', '⚠️ GAS URL 未設定'); }catch(e){}
   }
   requestRender('buildings');
   console.log('[PIVOT Simple v8.5] 起動完了');
