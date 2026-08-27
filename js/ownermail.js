@@ -94,7 +94,7 @@ function bldAddrMap(){
   if(_bldAddrMap && (Date.now() - _bldAddrAt) < 3000) return _bldAddrMap;
   const m = {};
   try{
-    const all = JSON.parse(localStorage.getItem("pivot_blds") || "{}");
+    const all = JSON.parse(localStorage.getItem((typeof insPrefix === 'function' ? insPrefix() : 'pivot_') + "blds") || "{}");
     Object.keys(all).forEach(k=>{
       const b = all[k] || {};
       const nm = norm(b.name || k);
