@@ -1756,3 +1756,42 @@ body{
     left:238px;
   }
 }
+
+/* ============================================================
+   pv-rank-gap : ランキングと左メニューの間合いをそろえる
+     左メニューは left:16px / 幅224px で、右端が240px。
+     本文は body{padding-left:256px} なので、他の画面は
+     メニューとのすき間が16pxあります。ランキングも同じにします。
+   ★HTML・id・class・JS には触れていません。
+   ============================================================ */
+@media (min-width:861px){
+  /* 他の画面と同じ 256px から始める（16px のすき間ができる） */
+  #kb-view #bstat-modal.done-modal,
+  #kb-view #bstat-modal.done-modal.active{
+    left:256px;
+  }
+  /* すき間には、黒い幕ではなく body と同じ下地を敷く。
+     左端にやわらかい影を入れて、メニューが浮いて見えるようにする */
+  #kb-view #bstat-backdrop,
+  #kb-view #bstat-backdrop.active{
+    left:240px;
+    background:
+      linear-gradient(90deg,
+        #9b9ba7 0%,
+        #a4a4b1 17%,
+        #afacba 28%,
+        #b2afbd 38%,
+        #c2bfcb 49%,
+        #cecbd3 59%,
+        #d7d5dd 69%,
+        #e1e1e6 80%,
+        #eaeaee 90%,
+        #f0f0f2 100%);
+    background-attachment:fixed;
+    background-size:cover;
+    background-repeat:no-repeat;
+    -webkit-backdrop-filter:none;
+    backdrop-filter:none;
+    box-shadow:inset 24px 0 44px -24px rgba(0,0,0,.20);
+  }
+}
