@@ -1908,3 +1908,27 @@ body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
   color:#fff;
   font-weight:600;
 }
+
+/* ============================================================
+   pv-pref-split : 都道府県フォルダを、独立したカードに分ける
+     いままで外側の .bld-list が白い箱で、その上に
+     HIROSHIMA と OKAYAMA が乗っていました。
+     すき間から外側の白が見えて、1枚の板に切れ目が入ったように
+     見えていたので、外側の白をやめて、それぞれを浮かせます。
+   ★HTML・id・class・JS には触れていません。
+   ============================================================ */
+.bld-list:has(.pref-grid){
+  background:transparent!important;
+  box-shadow:none!important;
+  border-radius:0!important;
+  overflow:visible!important;
+}
+.pref-grid{gap:24px!important;}
+.pref-folder{
+  border-radius:18px;
+  overflow:hidden;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 16px 38px rgba(0,0,0,.12);
+}
+/* 見出しの帯も、カードの角に合わせる */
+.pref-folder .pref-header{border-radius:18px 18px 0 0;}
