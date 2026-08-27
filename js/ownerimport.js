@@ -63,6 +63,9 @@ function oiHeaderRow(rows){
  
 /* ===== 取り込み本体 ===== */
 async function oiImportWorkbook(file){
+  const C = window.RENT_CORE;
+  if (!C){ alert("オーナー一覧の準備ができていません。ページを再読み込みしてください。"); return; }
+  const owners = C.owners;
   const stat = document.getElementById("oiStat");
   const say = (t) => { if (stat) stat.innerHTML = t; };
   say("読み込み中…");
@@ -171,10 +174,10 @@ async function oiImportWorkbook(file){
     // 名前が同じで中身が違うものを、そのまま2件持たない
     const noMail = owners.filter(o => !String(o.email || "").trim()).length;
  
-    saveOwners(); renderOwners(); flashSaved();
+    C.save(); C.render(); C.flash();
     say('取り込みました　<b>新規 ' + added + '件</b>／更新 ' + updated + '件'
       + (noMail ? '　<span style="color:#c0392b;font-weight:700;">メール未入力 ' + noMail + '件</span>' : ''));
-    toast("オーナー情報を取り込みました（新規 " + added + " / 更新 " + updated + "）");
+    C.toast("オーナー情報を取り込みました（新規 " + added + " / 更新 " + updated + "）");
   } catch (err){
     say('<span style="color:#c00">読み込めませんでした：' + (err && err.message ? err.message : err) + '</span>');
   }
