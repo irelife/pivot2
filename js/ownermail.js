@@ -1,29 +1,29 @@
 /* ==================================================================
  * OWNER MAIL / 家賃明細送信 (IIFE / window.RENT)
  * ================================================================== */
-
+ 
 /* ===== OWNER MAIL (家賃明細送信 / namespaced) ===== */
 (function(){
 const OWNER_SEED = [{"name": "株式会社成徳", "email": "", "atena": "株式会社成徳 御中", "properties": ["フェリックス", "ヒラリアス"], "property": "フェリックス、ヒラリアス"}, {"name": "株式会社第八白兎", "email": "yamakawashuichi@icloud.com", "atena": "株式会社第八白兎 御中", "properties": ["マースフル"], "property": "マースフル"}, {"name": "株式会社FIFTY", "email": "", "atena": "株式会社FIFTY 御中", "properties": ["S place bld."], "property": "S place bld."}, {"name": "株式会社ヤマノ", "email": "", "atena": "株式会社ヤマノ 御中", "properties": ["タリスヴィータ A棟", "タリスヴィータ B棟"], "property": "タリスヴィータ A棟、タリスヴィータ B棟"}, {"name": "ケーエステート合同会社", "email": "kbshoken@eagle.ocn.ne.jp", "atena": "ケーエステート合同会社 御中", "properties": ["アルヴィータA棟", "アルヴィータB棟", "手城町3丁目戸建"], "property": "アルヴィータA棟、アルヴィータB棟、手城町3丁目戸建"}, {"name": "佐々木 康成", "email": "kangchengzuomu371@gmail.com", "atena": "佐々木 康成 様", "properties": ["瀬戸町戸建て"], "property": "瀬戸町戸建て"}, {"name": "ＳＡＭＡ ＳＡＭＡ合同会社", "email": "okada@okaebi.co.jp", "atena": "ＳＡＭＡ ＳＡＭＡ合同会社 御中", "properties": ["カルコーサ"], "property": "カルコーサ"}, {"name": "合同会社Ｓｔａｎｄ Ｕｐ", "email": "standup.kasaoka@gmail.com", "atena": "合同会社Ｓｔａｎｄ Ｕｐ 角田 大助 様", "properties": ["マルヴィナ", "ミルドレッド"], "property": "マルヴィナ、ミルドレッド"}, {"name": "合同会社ONE", "email": "syu.14769@gmail.com", "atena": "合同会社ONE 御中", "properties": ["スピネルデュオ"], "property": "スピネルデュオ"}, {"name": "FOMIL株式会社", "email": "info@fomil.jp", "atena": "FOMIL株式会社 御中", "properties": ["福山市東町戸建て"], "property": "福山市東町戸建て"}, {"name": "有限会社リカーショップ岡本", "email": "", "atena": "有限会社リカーショップ岡本 御中", "properties": ["スピネル"], "property": "スピネル"}, {"name": "Ａｓｓｅｔ Ｏｎｅ合同会社", "email": "", "atena": "Ａｓｓｅｔ Ｏｎｅ合同会社 御中", "properties": ["アロモントA棟", "アロモントB棟"], "property": "アロモントA棟、アロモントB棟"}, {"name": "アルファプラス株式会社", "email": "", "atena": "アルファプラス株式会社 御中", "properties": ["ナディア A", "ナディア B"], "property": "ナディア A、ナディア B"}, {"name": "アンプラグド合同会社", "email": "", "atena": "アンプラグド合同会社 御中", "properties": ["メゾンドリヴァージュA棟", "メゾンドリヴァージュB棟", "アメリア", "クラリス", "カルムコート西棟", "カルムコート東棟"], "property": "メゾンドリヴァージュA棟、メゾンドリヴァージュB棟、アメリア、クラリス、カルムコート西棟、カルムコート東棟"}, {"name": "Ｎ・Ｋアセット株式会社", "email": "", "atena": "Ｎ・Ｋアセット株式会社 御中", "properties": ["ソルトグラス"], "property": "ソルトグラス"}, {"name": "岡田 秀司", "email": "", "atena": "岡田 秀司 様", "properties": ["岡田駐車場"], "property": "岡田駐車場"}, {"name": "オスカ有限会社", "email": "osk.kouge@gmail.com", "atena": "オスカ有限会社 御中", "properties": ["ミラヴィルタス西棟", "ミラヴィルタス東棟"], "property": "ミラヴィルタス西棟、ミラヴィルタス東棟"}, {"name": "株式会社IRE", "email": "asano@i-r-e.jp", "atena": "株式会社IRE 御中 淺野充弘様", "properties": ["グロリオサ", "アルカンシェルA棟", "アルカンシェルB棟", "アシンプトートA棟", "アシンプトートB棟", "エルキュールA棟", "エルキュールB棟", "エルキュールC棟", "ラコリーヌA", "ラコリーヌB", "シティハイツ暁の星", "フレンディア常光 A棟", "フレンディア常光 B棟", "曙町戸建", "アンティカベラカーサ", "ベラカーサフェリーチェ", "モデルノ", "ペルシュ城山", "seto house East", "引野町2丁目貸家", "ガーデンヒルズ長者町", "ベラカーササウス", "ベラカーサノース", "アルファステイツ福山駅前Ⅱ", "メリッサ", "ミステール", "手城町戸建て事務所", "ビラ芳翠 A", "ビラ芳翠 Ｂ", "KUSADO HOUSE"], "property": "グロリオサ、アルカンシェルA棟、アルカンシェルB棟、アシンプトートA棟、アシンプトートB棟、エルキュールA棟、エルキュールB棟、エルキュールC棟、ラコリーヌA、ラコリーヌB、シティハイツ暁の星、フレンディア常光 A棟、フレンディア常光 B棟、曙町戸建、アンティカベラカーサ、ベラカーサフェリーチェ、モデルノ、ペルシュ城山、seto house East、引野町2丁目貸家、ガーデンヒルズ長者町、ベラカーササウス、ベラカーサノース、アルファステイツ福山駅前Ⅱ、メリッサ、ミステール、手城町戸建て事務所、ビラ芳翠 A、ビラ芳翠 Ｂ、KUSADO HOUSE"}, {"name": "株式会社Ｍ．ｓｔｙｌｅ", "email": "", "atena": "株式会社Ｍ．ｓｔｙｌｅ 御中", "properties": ["アイディール", "ハルモニア"], "property": "アイディール、ハルモニア"}, {"name": "株式会社香苞", "email": "", "atena": "株式会社香苞 御中", "properties": ["アプリシティ", "サントーシャ", "シャンティ", "タラッサ"], "property": "アプリシティ、サントーシャ、シャンティ、タラッサ"}, {"name": "株式会社グリッター", "email": "", "atena": "株式会社グリッター 御中", "properties": ["ディアレスト", "ノブリスA棟", "ノブリスB棟", "ミーティアA棟", "ミーティアB棟", "ソアヴィータ"], "property": "ディアレスト、ノブリスA棟、ノブリスB棟、ミーティアA棟、ミーティアB棟、ソアヴィータ"}, {"name": "株式会社ＮＥＷＳＴＹＬＥ", "email": "", "atena": "株式会社ＮＥＷＳＴＹＬＥ 御中", "properties": ["アルカディアA棟", "アルカディアB棟", "アルカディアC棟", "アルカディアD棟", "プティメゾン", "プレジール高橋"], "property": "アルカディアA棟、アルカディアB棟、アルカディアC棟、アルカディアD棟、プティメゾン、プレジール高橋"}, {"name": "家族資産CMC合同会社", "email": "", "atena": "家族資産CMC合同会社  石井 俊光 様", "properties": ["春日町ユニキューブ Ａ棟", "春日町ユニキューブ B棟", "マジェステ Ｂ棟", "マジェステ Ａ棟"], "property": "春日町ユニキューブ Ａ棟、春日町ユニキューブ B棟、マジェステ Ｂ棟、マジェステ Ａ棟"}, {"name": "ケービーエス株式会社", "email": "kbshoken@eagle.con.ne.jp", "atena": "ケービーエス株式会社 御中", "properties": ["テタンジェ", "アルデバランＢ棟", "アルデバランＡ棟"], "property": "テタンジェ、アルデバランＢ棟、アルデバランＡ棟"}, {"name": "合同会社CKS", "email": "", "atena": "合同会社CKS 御中", "properties": ["一宮賃貸戸建Ｂ", "上富井戸建 西棟", "上富井戸建 東棟"], "property": "一宮賃貸戸建Ｂ、上富井戸建 西棟、上富井戸建 東棟"}, {"name": "篠原 滋男", "email": "", "atena": "篠原 滋男 様", "properties": ["篠原貸工場"], "property": "篠原貸工場"}, {"name": "Turnkey合同会社", "email": "", "atena": "Turnkey合同会社 御中", "properties": ["マーベラスA棟", "マーベラスB棟", "ルミエール静A棟", "ルミエール静B棟", "ハイサニー B", "ハイサニー A"], "property": "マーベラスA棟、マーベラスB棟、ルミエール静A棟、ルミエール静B棟、ハイサニー B、ハイサニー A"}, {"name": "田川 彰子", "email": "", "atena": "田川 彰子 様", "properties": ["ローレルコート霞町"], "property": "ローレルコート霞町"}, {"name": "段 燕鈴", "email": "kikik-81@163.com", "atena": "段 燕鈴 様", "properties": ["エバーグリーン福山西町"], "property": "エバーグリーン福山西町"}, {"name": "鶴丸汽船株式会社", "email": "", "atena": "鶴丸汽船株式会社 御中", "properties": ["ガーデンヒルズ長者町"], "property": "ガーデンヒルズ長者町"}, {"name": "合同会社内海商会", "email": "baramatsuri.22@gmail.com", "atena": "合同会社内海商会 御中", "properties": ["アルバ北棟", "アルバ南棟", "西谷ユニキューブ", "KASUGAエコパティオ", "ユニキューブ浦上", "シティハイツみどり", "テラストリア"], "property": "アルバ北棟、アルバ南棟、西谷ユニキューブ、KASUGAエコパティオ、ユニキューブ浦上、シティハイツみどり、テラストリア"}, {"name": "合同会社サンエボ", "email": "", "atena": "合同会社サンエボ 御中", "properties": ["スパーブコート"], "property": "スパーブコート"}, {"name": "羽原 淳介", "email": "", "atena": "羽原 淳介 様", "properties": ["フローレンス南蔵王"], "property": "フローレンス南蔵王"}, {"name": "メンソーラ株式会社", "email": "", "atena": "メンソーラ株式会社 尾前 伸幸 様", "properties": ["セラータ"], "property": "セラータ"}, {"name": "森本将行", "email": "", "atena": "森本将行 様", "properties": ["ソフィア"], "property": "ソフィア"}, {"name": "田中 太郎", "email": "", "atena": "", "properties": [], "property": ""}, {"name": "山河満男", "email": "", "atena": "山河満男 様", "properties": ["グランエール"], "property": "グランエール"}];
-
+ 
 const FROM_GMAIL = "infoirelife@gmail.com";
 const LS_OWNERS = "rent_owner_send_owners_v1";
 const LS_TMPL   = "rent_owner_send_tmpl_v1";
 const TMPL_VER = 3;
 const DEFAULT_SUBJECT = "【{{対象月}}分】収支報告書のご送付（{{オーナー名}}様）";
 const DEFAULT_BODY = `{{宛名}}
-
+ 
 いつも大変お世話になっております。
 IREライフ株式会社でございます。
-
+ 
 {{対象月}}分の収支報告書（家賃明細）を添付にてお送りいたします。
 お振込みにつきましても、明細記載のとおり手続きを進めております。
 ご査収のほど、よろしくお願い申し上げます。
 {{空き予定}}
 ご不明な点やお気づきの点がございましたら、お気軽に当社担当までお問い合わせくださいませ。
-
+ 
 今後ともどうぞよろしくお願い申し上げます。
-
+ 
 ─────────────────
 IREライフ株式会社
 infoirelife@gmail.com
@@ -35,7 +35,7 @@ let pdfDoc = null;    // pdf-lib document(分割用)
 let yearPdfDoc = null;   // 年間収支表の pdf-lib document
 let yearMap = {};        // オーナー名(norm) -> { pages:[ページ番号配列] }  年間収支表の仕分け結果
 let sentSet = new Set();   // 送信済みオーナーのindex(帯を青く表示)
-
+ 
 function loadOwners(){
   try{ const s=JSON.parse(localStorage.getItem(LS_OWNERS)); if(Array.isArray(s)&&s.length) return s; }catch(e){}
   return JSON.parse(JSON.stringify(OWNER_SEED));
@@ -73,7 +73,7 @@ function resetTmpl(){
 }
 function saveTmpl(){ tmpl={subject:document.getElementById("tmplSubject").value, body:document.getElementById("tmplBody").value, ver:TMPL_VER};
   localStorage.setItem(LS_TMPL, JSON.stringify(tmpl)); }
-
+ 
 function showView(v){
   document.querySelectorAll("#rent-view .tab").forEach(t=>t.classList.toggle("active", t.dataset.v===v));
   document.querySelectorAll("#rent-view .view").forEach(x=>x.classList.remove("active"));
@@ -84,7 +84,7 @@ function showView(v){
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1800); }
 function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function norm(s){ return (s||"").replace(/[\s\u3000]/g,"").replace(/御中|様/g,""); }
-
+ 
 /* ===== オーナー一覧表 ===== */
 function renderOwners(){
   const t=document.getElementById("ownerTable");
@@ -92,10 +92,21 @@ function renderOwners(){
     <td style="width:20%;min-width:150px;"><input value="${esc(o.name)}" oninput="RENT.editOwner(${i},'name',this.value)" placeholder="オーナー名"></td>
     <td style="width:28%"><textarea rows="${Math.min(8,Math.max(1,(o.properties&&o.properties.length)||1))}" oninput="RENT.editProps(${i},this.value)" placeholder="物件名（複数は改行で）" style="font-family:inherit;font-size:.8rem;border:1px solid transparent;background:transparent;border-radius:5px;padding:5px 6px;width:100%;resize:vertical;line-height:1.5;">${esc((o.properties&&o.properties.length?o.properties:[o.property||'']).join('\n'))}</textarea>${(o.properties&&o.properties.length>1)?`<div style="font-size:.66rem;color:var(--gold);font-weight:800;margin-top:2px;">${o.properties.length}物件</div>`:''}</td>
     <td style="width:20%"><input value="${esc(o.atena)}" oninput="RENT.editOwner(${i},'atena',this.value)" placeholder="宛名（〇〇 御中）"></td>
-    <td style="width:24%"><input value="${esc(o.email)}" oninput="RENT.editOwner(${i},'email',this.value)" placeholder="メールアドレス"></td>
+    <td style="width:24%"><input value="${esc(o.email)}" oninput="RENT.editOwner(${i},'email',this.value)" placeholder="メールアドレス"${String(o.email||'').trim()?'':' style="background:#fdecea;border:1px solid #f0b6ae;border-radius:5px;"'}></td>
     <td style="width:8%;text-align:center;"><input type="checkbox" ${o.exclude?'checked':''} onclick="RENT.editOwner(${i},'exclude',this.checked)" style="cursor:pointer;width:18px;height:18px;accent-color:#c0392b;" title="チェックすると送信対象から除外"></td>
     <td style="width:4%;text-align:center;"><button class="delrow" onclick="RENT.delOwner(${i})" title="削除">×</button></td>
-  </tr>`).join("");
+  </tr>
+  <tr><td colspan="6" style="padding:0 6px 8px;border-top:none;">
+    <details${(o.zip||o.addr||o.tel)?'':' data-empty="1"'}>
+      <summary style="cursor:pointer;font-size:.7rem;color:var(--rt-muted);">連絡先（郵便番号・住所・TEL）</summary>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px;">
+        <input value="${esc(o.zip)}"  oninput="RENT.editOwner(${i},'zip',this.value)"  placeholder="郵便番号" style="width:110px;">
+        <input value="${esc(o.addr)}" oninput="RENT.editOwner(${i},'addr',this.value)" placeholder="住所" style="flex:1;min-width:220px;">
+        <input value="${esc(o.tel)}"  oninput="RENT.editOwner(${i},'tel',this.value)"  placeholder="TEL" style="width:140px;">
+        <input value="${esc(o.fax)}"  oninput="RENT.editOwner(${i},'fax',this.value)"  placeholder="FAX" style="width:140px;">
+      </div>
+    </details>
+  </td></tr>`).join("");
   t.innerHTML=`<thead><tr><th>オーナー名</th><th>物件名</th><th>宛名</th><th>メールアドレス</th><th>除外</th><th></th></tr></thead><tbody>${rows}</tbody>`;
 }
 let _saveTimer=null;
@@ -111,14 +122,14 @@ function delOwner(i){ if(!confirm("この行を削除しますか?"))return; con
     if(detail.length!==before){ sentSet=new Set(); saveDetailState(); renderPreview(); }
   }
 }
-
+ 
 /* ===== PDF取込 ===== */
 const drop=document.getElementById("drop"), pdfInput=document.getElementById("pdfInput");
 ["dragover","dragenter"].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add("over");}));
 ["dragleave","drop"].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove("over");}));
 drop.addEventListener("drop",ev=>{ const f=ev.dataTransfer.files[0]; if(f) handlePdf(f); });
 pdfInput.addEventListener("change",ev=>{ const f=ev.target.files[0]; if(f) handlePdf(f); });
-
+ 
 // 年間収支表のドロップ処理
 const dropYear=document.getElementById("dropYear"), pdfInputYear=document.getElementById("pdfInputYear");
 if(dropYear){
@@ -127,7 +138,7 @@ if(dropYear){
   dropYear.addEventListener("drop",ev=>{ const f=ev.dataTransfer.files[0]; if(f) handleYearPdf(f); });
   pdfInputYear.addEventListener("change",ev=>{ const f=ev.target.files[0]; if(f) handleYearPdf(f); });
 }
-
+ 
 // 振込明細のドロップ処理(IRE宛のみ添付。仕分け不要=PDF全体をそのまま保持)
 let payPdfBase64 = null;
 let payPdfName = "";
@@ -150,7 +161,7 @@ async function handlePayPdf(file){
     if(typeof RENT!=="undefined" && RENT.renderPreview) { try{ RENT.renderPreview(); }catch(e){} }
   }catch(e){ if(stat) stat.textContent="⚠ 振込明細の読み込みに失敗しました: "+e.message; }
 }
-
+ 
 // 年間収支表PDFを取り込み、「オーナー名 ： ◯◯」で各オーナーに仕分け
 async function handleYearPdf(file){
   if(file.type!=="application/pdf"){ toast("PDFファイルを選んでください"); return; }
@@ -192,7 +203,7 @@ async function handleYearPdf(file){
     showView("send");
   }catch(e){ console.error(e); stat.textContent="⚠ 年間収支表の読み込みに失敗しました: "+e.message; }
 }
-
+ 
 // あるオーナーに対応する年間収支表PDFを切り出して Base64 で返す(なければ null)
 async function makeYearPdfBase64(ownerName){
   if(!yearPdfDoc) return null;
@@ -210,7 +221,7 @@ async function makeYearPdfBase64(ownerName){
     return btoa(bin);
   }catch(e){ console.error("年間PDF切出し失敗:",e); return null; }
 }
-
+ 
 async function handlePdf(file){
   if(file.type!=="application/pdf"){ toast("PDFファイルを選んでください"); return; }
   const stat=document.getElementById("pdfStat");
@@ -239,7 +250,7 @@ async function handlePdf(file){
     showView("send");
   }catch(e){ console.error(e); stat.textContent="⚠ 読み込みに失敗しました: "+e.message; }
 }
-
+ 
 // pdf.jsのテキスト片を、Y座標(行)→X座標(左から)の順に並べ直して紙面通りの文字列にする
 function itemsToText(items){
   const rows=[];
@@ -293,7 +304,7 @@ function extractVac(body){
   while((m=re3.exec(body))){ const room=roomBefore(body.slice(0,m.index)); const k="退:"+room+m[1]; if(!seen.has(k)){seen.add(k);vac.push({room,type:"解約予定",date:m[1]});} }
   return vac;
 }
-
+ 
 /* 新規契約を抽出: 備考欄「新規契約 契約開始日:YYYY年MM月DD日」+ その前の部屋番号 */
 function extractNew(body){
   const out=[], seen=new Set();
@@ -316,7 +327,7 @@ function extractNew(body){
   }
   return out;
 }
-
+ 
 function buildDetail(pages){
   // 物件単位(継続ページをまとめる)
   const groups=[]; let cur=null;
@@ -364,7 +375,7 @@ function buildDetail(pages){
     (noMail?` <span style="color:var(--warn)">メール未登録 ${noMail} 件</span>（オーナー一覧で登録してください）`:` 全オーナーにメール登録あり。`)+newcMsg;
   mergeYearIntoDetail();   // 年間収支表が既に取り込まれていれば、年間だけのオーナーも統合
 }
-
+ 
 /* 年間収支表のオーナーを detail に統合する。
    - detail に既にいるオーナー → そのまま(添付は照合で付く)
    - detail にいないオーナー → 「年間のみ」のカードを追加 */
@@ -386,11 +397,11 @@ function mergeYearIntoDetail(){
   });
   saveDetailState();
 }
-
+ 
 /* ===== 仕分け結果の保存・復元(PDF本体は保存しない=軽量) ===== */
 const LS_DETAIL = "rent_owner_send_detail_v1";
 const LS_HISTORY = "rent_owner_send_history_v1";   // 月をまたいで残す送信履歴
-
+ 
 /* 送信/下書きの履歴を1件追記(月をまたいで永続) */
 function appendHistory(entries){
   // entries = [{month, owner, to, kind}] kind:'send'|'draft'
@@ -405,7 +416,7 @@ function appendHistory(entries){
 function loadHistory(){
   try{ return JSON.parse(localStorage.getItem(LS_HISTORY)||"[]"); }catch(e){ return []; }
 }
-
+ 
 /* 不達(バウンス)アドレスの保存 */
 const LS_BOUNCED = "rent_owner_send_bounced_v1";
 function loadBounced(){
@@ -414,7 +425,7 @@ function loadBounced(){
 function saveBounced(set){
   try{ localStorage.setItem(LS_BOUNCED, JSON.stringify([...set])); }catch(e){}
 }
-
+ 
 /* GAS経由: 配信失敗(バウンス)を確認し、不達アドレスを記録 */
 async function checkBounces(){
   const url=(typeof window.getCloudUrl==='function')?window.getCloudUrl():'';
@@ -439,7 +450,7 @@ async function checkBounces(){
     }
   }catch(e){ setS("⚠ エラー: "+e.message); }
 }
-
+ 
 /* 送信履歴を月別にまとめて描画 */
 function renderHistory(){
   const box=document.getElementById("rent-history-body");
@@ -480,7 +491,7 @@ function clearHistory(){
   renderHistory();
   toast("送信履歴を消去しました");
 }
-
+ 
 function saveDetailState(){
   try{
     // PDFは保存しない。文面編集・送信済みも一緒に保存。
@@ -505,7 +516,7 @@ function restoreDetailState(){
   }catch(e){}
   return false;
 }
-
+ 
 /* ===== 本文生成 ===== */
 function buildSubject(d){ return fill(tmpl.subject, d); }
 function buildBody(d){ return fill(tmpl.body, d); }
@@ -576,7 +587,7 @@ function fill(s,d){
   }
   return out;
 }
-
+ 
 // 明細PDF未取込でも、除外オーナー登録があれば「閲覧専用」カードを表示（スマホ等）
 function renderExcludedViewOnly(){
   const exSec=document.getElementById("rent-excluded-section");
@@ -606,7 +617,7 @@ function renderExcludedViewOnly(){
   }).join("");
   (async()=>{ for(let k=0;k<exOwners.length;k++){ try{ await renderExAccumInto("exaccumV-"+k, exOwners[k].name); }catch(e){} } })();
 }
-
+ 
 function renderPreview(){
   const box=document.getElementById("preview");
   if(!detail.length){ box.innerHTML='<div class="empty">まず上の「明細PDFをここにドロップ」から収支報告書PDFを取り込んでください。<br>取り込むと、オーナーごとに「宛先・件名・本文（空き予定の一言入り）・添付される明細PDF」がここに一覧表示され、送信前に確認できます。</div>'; renderExcludedViewOnly(); return; }
@@ -768,7 +779,7 @@ function setEmail(i,v){
 function togglePv(i){ document.getElementById("pvb-"+i).classList.toggle("open"); }
 function expandAll(open){ document.querySelectorAll(".pv-body").forEach(b=>b.classList.toggle("open",open)); }
 function copyBody(i){ const ta=document.getElementById("body-"+i); ta.select(); document.execCommand("copy"); toast("本文をコピーしました"); }
-
+ 
 /* オーナーの該当ページだけ抜いた個別PDFを生成して返す(添付の実体) */
 async function makeOwnerPdfBlob(i){
   if(!pdfDoc){ toast("先にPDFを取り込んでください"); return null; }
@@ -780,7 +791,7 @@ async function makeOwnerPdfBlob(i){
   const bytes=await out.save();
   return new Blob([bytes],{type:"application/pdf"});
 }
-
+ 
 // PDFドキュメント全体を丸ごとBlob化(IRE宛プレビュー用・全オーナー分)
 async function makeFullPdfBlob(srcDoc){
   if(!srcDoc){ return null; }
@@ -789,7 +800,7 @@ async function makeFullPdfBlob(srcDoc){
     return new Blob([bytes],{type:"application/pdf"});
   }catch(e){ console.error("makeFullPdfBlob:", e); return null; }
 }
-
+ 
 /* オーナーiのPDFをBase64文字列で取得(GAS送信用) */
 // PDFドキュメント全体を丸ごとBase64化(IRE宛の「全オーナー分」添付用)
 async function makeFullPdfBase64(srcDoc){
@@ -809,12 +820,12 @@ async function makeOwnerPdfBase64(i){
   const b64=await out.saveAsBase64();   // pdf-libのBase64出力
   return b64;
 }
-
+ 
 /* チェックされたオーナーのindex配列 */
 function checkedIndexes(){
   return Array.from(document.querySelectorAll('#preview .rent-check:checked')).map(c=>+c.value);
 }
-
+ 
 /* 選択数をボタンに反映 */
 function updateCheckCount(){
   const n=checkedIndexes().length;
@@ -823,13 +834,13 @@ function updateCheckCount(){
   if(db) db.textContent = n? `📝 選択 ${n} 件の下書きを作成` : "📝 下書きを作成";
   if(sb) sb.textContent = n? `📤 選択 ${n} 件を一斉送信` : "📤 一斉送信";
 }
-
+ 
 /* 全選択トグル(メール登録済み=有効なものだけ) */
 function toggleCheckAll(on){
   document.querySelectorAll('#preview .rent-check').forEach(c=>{ if(!c.disabled) c.checked=on; });
   updateCheckCount();
 }
-
+ 
 /* 選択オーナーの下書き or 送信データを組み立てる */
 async function buildMailPayload(indexes, statusFn){
   // 月額PDFも年間PDFも両方ない場合だけ止める(どちらかあれば進める)
@@ -866,7 +877,7 @@ async function buildMailPayload(indexes, statusFn){
   }
   return arr;
 }
-
+ 
 /* GAS経由: 選択オーナーのGmail下書きを作成 */
 async function createDraftsForChecked(){
   const idx=checkedIndexes();
@@ -893,7 +904,7 @@ async function createDraftsForChecked(){
     }
   }catch(e){ setS("⚠ エラー: "+e.message); }
 }
-
+ 
 /* GAS経由: 選択オーナーへ一斉送信(確認あり) */
 async function sendMailsForChecked(){
   const idx=checkedIndexes();
@@ -931,7 +942,7 @@ async function sendMailsForChecked(){
     }
   }catch(e){ setS("⚠ エラー: "+e.message); }
 }
-
+ 
 /* 個別: 送信済みを未送信に戻す(画面上の印を外すだけ。送ったメール自体は取り消せない) */
 function unsendOne(i){
   if(!sentSet.has(i)) return;
@@ -941,7 +952,7 @@ function unsendOne(i){
   renderPreview();
   toast("未送信に戻しました");
 }
-
+ 
 /* 送信一覧(取込結果)から、このオーナーのカードだけを外す。オーナー登録は消さない */
 function removeFromList(i){
   if(!detail || !detail[i]) return;
@@ -980,7 +991,7 @@ async function sendOne(i){
     }
   }catch(e){ setS("⚠ エラー: "+e.message); }
 }
-
+ 
 /* 個別: 1オーナーだけ下書き作成 */
 async function draftOne(i){
   if(!(detail[i].email||"").trim()){ toast("メール未登録です"); return; }
@@ -1003,9 +1014,9 @@ async function draftOne(i){
     }
   }catch(e){ setS("⚠ エラー: "+e.message); }
 }
-
-
-
+ 
+ 
+ 
 /* 添付される明細PDFをその場で埋め込みプレビュー(送信前の目視確認用) */
 async function previewOwnerPdf(i){
   const box=document.getElementById("pdfprev-"+i);
@@ -1046,7 +1057,7 @@ async function previewOwnerPdf(i){
   box.innerHTML=html;
   box.dataset.open="1";
 }
-
+ 
 /* Gmailの作成画面を開く(宛先・件名・本文入り)。添付PDFは自動ダウンロードし手動でドラッグ添付 */
 async function sendViaGmail(i){
   const d=detail[i];
@@ -1061,7 +1072,7 @@ async function sendViaGmail(i){
   window.open(url,"_blank");
   toast("Gmail作成画面を開きました。ダウンロードした明細PDFを添付してください");
 }
-
+ 
 /* オーナーの該当ページだけ抜いた個別PDFをダウンロード */
 async function downloadOwnerPdf(i){
   const blob=await makeOwnerPdfBlob(i);
@@ -1073,7 +1084,7 @@ async function downloadOwnerPdf(i){
   a.click();
   toast(d.owner+" の明細PDFを書き出しました");
 }
-
+ 
 /* =========================================================
    除外オーナー(ソフィア等)専用: PIVOT内(端末IndexedDB)への明細蓄積
    - Firebaseとは完全に別。物件データには一切影響しない。
@@ -1312,7 +1323,7 @@ async function autoYearEndMergeIfDue(){
   }
   if(did){ localStorage.setItem(flagKey,'1'); }
 }
-
+ 
 /* タブ表示時に初期化(初回のみ実体化) */
 let _rentBooted=false;
 function activate(){
@@ -1326,7 +1337,7 @@ function activate(){
   renderPreview();
   _rentBooted=true;
 }
-
-
+ 
+ 
 window.RENT = { activate, unexcludeOwner, setEmail, showView, addOwnerRow, resetOwners, resetTmpl, expandAll, renderPreview, saveTmpl, editOwner, editProps, delOwner, togglePv, copyBody, previewOwnerPdf, downloadOwnerPdf, sendViaGmail, renderOwners, createDraftsForChecked, sendMailsForChecked, updateCheckCount, toggleCheckAll, sendOne, draftOne, unsendOne, removeFromList, renderHistory, clearHistory, checkBounces, accumulateOwnerMonth, accumulateOwnerYear, mergeYearForOwner, deleteExAccum, deleteExYear, saveSophiaGasUrl, viewExAccum };
 })();
