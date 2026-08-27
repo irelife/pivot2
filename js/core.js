@@ -17,9 +17,7 @@ try{ window.insPrefix = insPrefix; }catch(e){}
 // 画面の再描画を依頼する唯一の窓口。
 // core から buildings/KB/KT を直接呼ばないための集約点。
 /* ---- buildings.js の保存領域への窓口。core から直接触らないための集約点 ---- */
-function pbKey(){
-  return 'pivot2_blds';
-}
+function pbKey(){ return insPrefix() + 'blds'; }
 function pbLoadAll(){
   try{
     if(window.PB && typeof window.PB.loadAll === 'function') return window.PB.loadAll() || {};
@@ -32,7 +30,7 @@ function pbSaveRaw(obj){
 }
 try{ window.pbKey = pbKey; window.pbLoadAll = pbLoadAll; window.pbSaveRaw = pbSaveRaw; }catch(e){}
 /* ---- 契約データの保存キー。1(本番)と2(検証)を分けるための窓口 ---- */
-function ctKey(){ return 'pivot2_contract_kanban_v2'; }
+function ctKey(){ return insPrefix() + 'contract_kanban_v2'; }
 try{ window.ctKey = ctKey; }catch(e){}
 /* ---- buildings.js の機能への窓口。未読込でも落ちないようにする ---- */
 function pbCall(name, arg){
@@ -47,9 +45,6 @@ function requestRender(target){
   target = target || 'all';
   if(target === 'all' || target === 'buildings'){
     try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
-  }
-  if(target === 'all' || target === 'kintai'){
-    try{ if(window.KT && window.KT.reload) window.KT.reload(); }catch(e){}
   }
 }
 try{ window.requestRender = requestRender; }catch(e){}
@@ -199,14 +194,12 @@ async function autoPullOnStart(){
       const payload = r.payload || {};
       const buildings = payload.buildings || {};
       const contracts = payload.contracts || {};
-      const kintai = payload.kintai || {};
       const cloudMtime = parseInt(payload.mtime || '0', 10) || 0;
       const localMtime = getLocalMtime();
       // 判定: クラウドの方が新しい(または、ローカルにまだ時刻記録がない初回)なら取り込む。
       // 自分のローカルの方が新しい場合は取り込まない(自分の削除・編集を守る)。
       const localHasData = (Object.keys(pbLoadAll()).length > 0) ||
-        (Object.keys((function(){try{return JSON.parse(localStorage.getItem(ctKey())||'{}');}catch(e){return {};}})()).length > 0) ||
-        (Object.keys((function(){try{return JSON.parse(localStorage.getItem('pivot_kintai_v1')||'{}');}catch(e){return {};}})()).length > 0);
+　　　   (Object.keys((function(){try{return JSON.parse(localStorage.getItem(ctKey())||'{}');}catch(e){return {};}})()).length > 0);
       const shouldPull = (!localHasData) || (cloudMtime > localMtime);
       if(shouldPull){
         // ===== 物件データ保護ガード（取り込み時）=====
@@ -235,10 +228,6 @@ async function autoPullOnStart(){
           scheduleAutoPush();
         } else {
           localStorage.setItem(ctKey(), JSON.stringify(contracts || {}));
-        }
-        {
-          // 勤怠は上書きせず、ローカルとクラウドを日付単位でマージ(複数端末で消えない)
-          applyCloudKintai(kintai);
         }
         if(typeof window.applyCloudOwners === 'function'){ window.applyCloudOwners(payload.owners); }
         if(cloudMtime) { try{ localStorage.setItem(MTIME_KEY, String(cloudMtime)); }catch(e){} }
