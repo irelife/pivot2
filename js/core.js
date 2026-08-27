@@ -1,3 +1,15 @@
+/* ---- インスタンス識別子。URLのパス名から自動決定する。
+       /pivot2/ → "pivot2_"、/pivot3/ → "pivot3_"。
+       コピーして別フォルダに置くだけでデータ領域が分かれる。 ---- */
+function insPrefix(){
+  try{
+    var seg = (location.pathname || '').split('/').filter(function(s){ return s; });
+    var name = seg.length ? seg[seg.length - 1] : '';
+    if(/\.html?$/i.test(name)) name = seg.length > 1 ? seg[seg.length - 2] : '';
+    return name ? (name + '_') : 'pivot_';
+  }catch(e){ return 'pivot_'; }
+}
+try{ window.insPrefix = insPrefix; }catch(e){}
 /* ==================================================================
  * CORE 1 / クラウド同期エンジン (mtime ベースの push / pull)
  * ================================================================== */
