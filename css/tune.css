@@ -1870,3 +1870,41 @@ body{
     min-height:190px;
   }
 }
+
+/* ============================================================
+   pv-rank-bar : ランキング上部の集計を、契約画面と同じ黒いバーにする
+     ・色つきの丸チップ（と絵文字）をやめ、モノクロにそろえる
+     ・ランキングを開いている間は、左メニューの選択を
+       「契約」から「客付業者ランキング」に移す
+   ★CSS だけです。数字の中身は変えていません。
+   ============================================================ */
+#kb-view #bstat-body .stats-bar{
+  margin:2px 0 12px;
+  padding:20px 8px;
+}
+/* 期間は数字ではないので、少し小さく */
+#kb-view #bstat-body .stat-pill.bs-period .num{
+  font-size:22px!important;
+  letter-spacing:-.01em!important;
+  line-height:1.5;
+}
+/* ランキングの集計は押せないので、指のかたちにしない */
+#kb-view #bstat-body .stat-pill{cursor:default;}
+#kb-view #bstat-body .stat-pill:hover .num{opacity:1;}
+#kb-view #bstat-body .bstat-ratenote{
+  color:rgba(0,0,0,.45);
+  padding:0 4px 14px;
+}
+#kb-view #bstat-body .bstat-mode{padding:2px 0 12px;}
+
+/* ---- 開いている間は「契約」ではなく「ランキング」を選択中にする ---- */
+body:has(#bstat-modal.active) #pv-side a[data-k="kanban"]{
+  background:transparent!important;
+  color:var(--pv-ink-2)!important;
+  font-weight:500!important;
+}
+body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
+  background:var(--pv-ink);
+  color:#fff;
+  font-weight:600;
+}
