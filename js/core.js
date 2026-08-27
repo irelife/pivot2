@@ -21,6 +21,15 @@ function pbSaveRaw(obj){
   try{ localStorage.setItem(pbKey(), JSON.stringify(obj || {})); }catch(e){}
 }
 try{ window.pbKey = pbKey; window.pbLoadAll = pbLoadAll; window.pbSaveRaw = pbSaveRaw; }catch(e){}
+/* ---- buildings.js の機能への窓口。未読込でも落ちないようにする ---- */
+function pbCall(name, arg){
+  try{
+    if(window.PB && typeof window.PB[name] === 'function') return window.PB[name](arg);
+    if(typeof window[name] === 'function') return window[name](arg);
+  }catch(e){}
+  return undefined;
+}
+try{ window.pbCall = pbCall; }catch(e){}
 function requestRender(target){
   target = target || 'all';
   if(target === 'all' || target === 'buildings'){
@@ -292,7 +301,7 @@ async function autoPullOnStart(){
         if(cloudMtime) { try{ localStorage.setItem(MTIME_KEY, String(cloudMtime)); }catch(e){} }
         requestRender();
         // クラウド取り込み後に自動切替をチェック（起動時の1秒後では間に合わないため）
-        try{ if(typeof runAutoSwitch === 'function') runAutoSwitch(false); }catch(e){}
+        try{ pbCall('runAutoSwitch', false); }catch(e){}
         setSyncStatus('saved', '✅ 最新です');
       } else {
         // ローカルが新しい → 取り込まず、こちらをクラウドへ送って揃える
@@ -673,7 +682,7 @@ async function loginPull(opt){
   _hasUnsavedChanges = false;
   requestRender();
   // クラウド取り込み後に自動切替をチェック（起動時の1秒後では間に合わないため）
-  try{ if(typeof runAutoSwitch === 'function') runAutoSwitch(false); }catch(e){}
+  try{ pbCall('runAutoSwitch', false); }catch(e){}
   setSyncStatus('saved', '✅ ログイン済み(最新)');
   setTimeout(() => { const e=document.getElementById('sync-status'); if(e && e.dataset.state==='saved') setSyncStatus('idle',''); }, 2500);
 }
@@ -1076,16 +1085,16 @@ window.addEventListener('DOMContentLoaded', () => {
     });
     el.addEventListener('drop', (e) => { dropFn(e); });
   };
-  bindDrop(document.getElementById('layout-area'), onLayoutDrop);
-  bindDrop(document.getElementById('photos-area'), onPhotosDrop);
+  bindDrop(document.getElementById('layout-area'), (e)=>pbCall('onLayoutDrop', e));
+  bindDrop(document.getElementById('photos-area'), (e)=>pbCall('onPhotosDrop', e));
  
   // 起動から少し遅らせて自動切替チェック(画面表示が落ち着いてから)
   setTimeout(() => {
-    runAutoSwitch(false);
+    pbCall('runAutoSwitch', false);
   }, 1000);
   // 一覧の全画像を裏で先読み(端末キャッシュを温めておく)
   setTimeout(() => {
-    prefetchAllImages();
+    pbCall('prefetchAllImages');
   }, 1500);
 });
  
