@@ -1703,3 +1703,56 @@ body{
     gap:5px 20px;
   }
 }
+
+/* ============================================================
+   pv-rank-side : ランキング画面でも左メニューを出し、
+                   背景を他の画面と同じにする
+     ・左メニュー(238px)ぶんを空けて、その右側にランキングを出す
+     ・黒い幕も左メニューにはかけない（押して画面を移動できる）
+     ・緑の下地をやめ、body と同じグラデーションにそろえる
+       （カードの緑はそのままです）
+   ★HTML・id・class・JS には触れていません。
+   ============================================================ */
+/* 背景を body と同じにする（画面の広さに関係なく） */
+#kb-view #bstat-modal.done-modal,
+#kb-view #bstat-modal.done-modal.active{
+  background:
+    linear-gradient(90deg,
+      #9b9ba7 0%,
+      #a4a4b1 17%,
+      #afacba 28%,
+      #b2afbd 38%,
+      #c2bfcb 49%,
+      #cecbd3 59%,
+      #d7d5dd 69%,
+      #e1e1e6 80%,
+      #eaeaee 90%,
+      #f0f0f2 100%);
+  background-attachment:fixed;
+  background-size:cover;
+  background-repeat:no-repeat;
+}
+#kb-view #bstat-modal #bstat-body{background:transparent;}
+/* 上の見出し帯は、下地の上で浮くように半透明の白にする */
+#kb-view #bstat-modal .done-head{
+  background:rgba(255,255,255,.86);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  border-bottom:1px solid rgba(0,0,0,.08);
+}
+
+/* 左メニューが出ている画面幅のときだけ、その右側に表示する */
+@media (min-width:861px){
+  #kb-view #bstat-modal.done-modal,
+  #kb-view #bstat-modal.done-modal.active{
+    left:238px;
+    right:0;
+    width:auto;
+    max-width:none;
+  }
+  /* 黒い幕は左メニューにかけない＝メニューが押せる */
+  #kb-view #bstat-backdrop,
+  #kb-view #bstat-backdrop.active{
+    left:238px;
+  }
+}
