@@ -451,6 +451,25 @@ function closeLoginHistory(){
 }
 try{ window.openLoginHistory = openLoginHistory; window.closeLoginHistory = closeLoginHistory; }catch(e){}
  
+// ===== ログイン画面に出す「インスタンスの名前と印の色」 =====
+// index.html の <title> から取ります。
+//   <title>PIVOT3 OKAYAMA</title> → 名前「PIVOT3」／エリア「OKAYAMA」
+// こうしておくと、2・3・4 で core.js を作り分けずに済みます。
+// ★localStorage の保存先を決める insPrefix() とは無関係です。触っていません。
+function _pvBrand(){
+  try{
+    var t = (document.title || 'PIVOT').trim().split(/\s+/);
+    return { name: t[0] || 'PIVOT', area: t[1] || '' };
+  }catch(e){ return { name:'PIVOT', area:'' }; }
+}
+// 見分けの色。css/tune.css の --pv-ident を読みます。
+function _pvIdent(){
+  try{
+    var c = getComputedStyle(document.documentElement).getPropertyValue('--pv-ident').trim();
+    return c || '#111';
+  }catch(e){ return '#111'; }
+}
+
 // ===== ログイン画面(=クラウドから最新を読み込ませる強制ステップ) =====
 function showLoginScreen(){
   const url = (typeof getCloudUrl === 'function') ? getCloudUrl() : '';
@@ -460,10 +479,18 @@ function showLoginScreen(){
   const ov = document.createElement('div');
   ov.id = 'pivot-login';
   ov.style.cssText = 'position:fixed;inset:0;z-index:200000;display:flex;align-items:center;justify-content:center;background:#f5f5f7;';
+  const _B = _pvBrand();
+  const _IC = _pvIdent();
   ov.innerHTML =
     '<div style="text-align:center;padding:40px 32px;max-width:340px;width:90%;">' +
-      '<div style="font-size:46px;font-weight:900;letter-spacing:2px;color:#111;margin-bottom:6px;">PIVOT2</div>' +
-      '<div style="font-size:13px;color:#888;margin-bottom:28px;">物件・契約 管理</div>' +
+      '<div style="position:absolute;top:0;left:0;right:0;height:4px;background:' + _IC + ';"></div>' +
+    '<div style="font-size:46px;font-weight:900;letter-spacing:2px;color:#111;margin-bottom:6px;">' +
+      '<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:' + _IC + ';margin-right:12px;vertical-align:middle;position:relative;top:-4px;"></span>' +
+      _B.name +
+    '</div>' +
+      '<div style="font-size:13px;color:#888;margin-bottom:28px;">' +
+        (_B.area ? '<span style="color:' + _IC + ';font-weight:700;letter-spacing:.10em;">' + _B.area + '</span>' + '<span style="margin:0 7px;color:#ccc;">·</span>' : '') +
+        '物件・契約 管理</div>' +
       '<form id="pivot-login-form" autocomplete="on" style="margin:0;">' +
         '<input id="pivot-login-id" name="username" type="email" autocomplete="username" placeholder="メールアドレス" style="width:100%;padding:13px 14px;border:1.5px solid #d8d8dc;border-radius:12px;font-size:15px;margin-bottom:10px;font-family:inherit;box-sizing:border-box;">' +
         '<input id="pivot-login-pass" name="current-password" type="password" autocomplete="current-password" placeholder="パスワード" style="width:100%;padding:13px 14px;border:1.5px solid #d8d8dc;border-radius:12px;font-size:15px;margin-bottom:18px;font-family:inherit;box-sizing:border-box;">' +
