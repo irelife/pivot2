@@ -1795,3 +1795,78 @@ body{
     box-shadow:inset 24px 0 44px -24px rgba(0,0,0,.20);
   }
 }
+
+/* ============================================================
+   pv-rank-big : ランキングを目で見て分かりやすくする
+     ・上の白い帯をなくして、下地に溶け込ませる
+     ・月別グラフの棒を太く、数字を大きく
+     ・「明細」を開いたカードは、縦にゆったり大きく
+   ★HTML・id・class・JS には触れていません。
+   ============================================================ */
+/* 上の帯の白い下地をやめる */
+#kb-view #bstat-modal .done-head{
+  background:transparent;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+  border-bottom:0;
+}
+
+@media (min-width:900px){
+  /* ---- 月別グラフを大きく ---- */
+  #kb-view #bstat-body .bm-chart{
+    gap:5px;
+    min-height:118px;
+    align-items:flex-end;
+  }
+  #kb-view #bstat-body .mbar-col{height:84px;}
+  #kb-view #bstat-body .mbar-col i{
+    width:70%;
+    max-width:30px;
+    border-radius:5px 5px 0 0;
+  }
+  #kb-view #bstat-body .mbar-v{font-size:13px;margin-bottom:3px;}
+  #kb-view #bstat-body .mbar-x{font-size:11.5px;font-weight:700;}
+  #kb-view #bstat-body .bm-h{font-size:13px;}
+
+  /* ---- 「明細」を開いたカードは、さらにゆったり ---- */
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)){
+    min-height:440px;
+    padding:26px 30px 24px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-name{
+    font-size:21px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-medal{
+    width:50px;height:50px;font-size:21px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-badge .bnum{
+    font-size:34px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-rate{
+    padding:16px 12px;
+    font-size:14px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-rate b{
+    font-size:24px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-prop-row{
+    font-size:14.5px;
+    padding:11px 15px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bt3-item{
+    font-size:14.5px;
+    padding:6px 14px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .mbar-col{
+    height:150px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .mbar-col i{
+    max-width:52px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .mbar-v{
+    font-size:18px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bm-chart{
+    min-height:190px;
+  }
+}
