@@ -266,29 +266,27 @@ select:focus-visible,textarea:focus-visible{
   --k-gray:#8b8b90; --k-gray-bg:#f0f0f2;
 }
 
-/* ---- 左メニュー：臙脂（PIVOT3の目印）・見出しで区切る・選択中は明るく ----
-   ★この色が PIVOT3 と PIVOT2 を見分ける印です。
-     背景色の指定は、このファイルの中の3か所（ここ・「端から浮かせます」・
-     「影を強めます」）にあります。変えるときは3か所ともそろえてください。 */
+/* ---- 左メニュー：白地・見出しで区切る・選択中は黒 ---- */
 #pv-side{
-  background:#8C1235;color:#fff;
+  background:#fff;color:var(--pv-ink);
+  border-right:1px solid var(--pv-line);
   padding:20px 12px 18px;
 }
-#pv-side .lg{color:#fff;padding:0 12px 16px;font-size:21px;}
-#pv-side .lg span{color:rgba(255,255,255,.75);}
+#pv-side .lg{color:var(--pv-ink);padding:0 12px 16px;font-size:21px;}
+#pv-side .lg span{color:var(--pv-ink-3);}
 #pv-side .grp{
-  padding:16px 12px 6px;color:rgba(255,255,255,.72);
+  padding:16px 12px 6px;color:var(--pv-ink-3);
   font-size:11px;font-weight:600;letter-spacing:.06em;
 }
 #pv-side a{
   border-radius:11px;margin-bottom:2px;padding:10px 12px;
-  color:rgba(255,255,255,.85);font-size:14px;font-weight:500;
+  color:var(--pv-ink-2);font-size:14px;font-weight:500;
 }
-#pv-side a:hover{background:rgba(255,255,255,.1);color:#fff;}
+#pv-side a:hover{background:rgba(0,0,0,.045);color:var(--pv-ink);}
 body:not(.tab-kanban):not(.tab-rent) #pv-side a[data-k="pivot"],
 body.tab-kanban #pv-side a[data-k="kanban"],
 body.tab-rent   #pv-side a[data-k="rent"]{
-  background:rgba(255,255,255,.18);color:#fff;font-weight:600;box-shadow:none;
+  background:var(--pv-ink);color:#fff;font-weight:600;box-shadow:none;
 }
 /* 画面内のランキングのボタンは、左メニューに移したので出しません */
 .broker-stat-btn{display:none!important;}
@@ -360,12 +358,15 @@ body{
 body{padding-left:256px;}
 #pv-side{
   left:16px;top:16px;bottom:16px;width:224px;
-  border:1px solid rgba(255,255,255,.16);
-  border-right:1px solid rgba(255,255,255,.16);
+  border:1px solid rgba(255,255,255,.85);
+  border-right:1px solid rgba(255,255,255,.85);
   border-radius:22px;
-  background:#8C1235;
+  background:rgba(255,255,255,.90);
+  -webkit-backdrop-filter:saturate(180%) blur(14px);
+  backdrop-filter:saturate(180%) blur(14px);
   box-shadow:0 1px 2px rgba(0,0,0,.04),0 18px 46px rgba(0,0,0,.10);
 }
+
 /* ---- 上の帯と各画面は、地をそのまま見せます ----
    ★#kb-view と #rent-view に灰色の下地が敷かれていて、body の
      ぼかしを覆い隠していました。透かして地を見せます。 */
@@ -483,7 +484,7 @@ body{
 
 /* 地が濃くなったぶん、浮いているものの影も強めます */
 #pv-side{
-  background:#8C1235;
+  background:rgba(255,255,255,.96);
   box-shadow:0 1px 2px rgba(0,0,0,.05),0 22px 54px rgba(0,0,0,.13);
 }
 #kb-view .ct-card.status-progress,
@@ -623,7 +624,7 @@ body{
 /* 左メニューも同じ考え方で */
 #pv-side{
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 1px 0 rgba(255,255,255,.9),
     0 1px 2px rgba(0,0,0,.06),
     0 10px 24px rgba(0,0,0,.07),
     0 30px 60px rgba(0,0,0,.13);
@@ -967,16 +968,16 @@ body{
   box-shadow:0 2px 8px rgba(0,0,0,.08),0 40px 90px rgba(0,0,0,.30);
 }
 #bstat-modal .done-head{
-  background:#fff;border-bottom:1px solid #f1e2e7;padding:18px 22px;
+  background:#fff;border-bottom:1px solid #eaeaee;padding:18px 22px;
 }
 #bstat-modal .done-head h2{
   font-size:19px;font-weight:600;letter-spacing:-.02em;color:var(--pv-ink);
 }
-#bstat-body{background:#faf2f5;padding-top:14px;}
+#bstat-body{background:#f4f4f6;padding-top:14px;}
 
 /* ---- 上の要約チップ ---- */
 #bstat-body .bstat-chip{
-  background:#fff;border:1px solid #efdde4;border-radius:999px;padding:8px 16px;
+  background:#fff;border:1px solid #e6e6ea;border-radius:999px;padding:8px 16px;
   font-size:13px;font-weight:500;color:var(--pv-ink-2);
   box-shadow:0 1px 2px rgba(0,0,0,.04);
 }
@@ -988,20 +989,20 @@ body{
 
 /* ---- 会社ごとのカード ---- */
 #bstat-body .bstat-card{
-  background:#fff;border:1px solid #f0dfe5;border-radius:18px;
+  background:#fff;border:1px solid #e8e8ec;border-radius:18px;
   padding:16px 18px;margin-bottom:14px;
   box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px rgba(0,0,0,.06);
   transition:transform .22s cubic-bezier(.22,.61,.36,1),box-shadow .22s;
 }
 #bstat-body .bstat-card:hover{
-  transform:translateY(-4px);border-color:#e7cfd8;
+  transform:translateY(-4px);border-color:#d4d4da;
   box-shadow:0 2px 6px rgba(0,0,0,.06),0 20px 44px rgba(0,0,0,.13);
 }
 #bstat-body .bstat-name{
   font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--pv-ink);
 }
 #bstat-body .bstat-medal{
-  background:#f7ebef;color:var(--pv-ink-2);border:1px solid #eedce3;
+  background:#f0f0f2;color:var(--pv-ink-2);border:1px solid #e4e4e8;
   border-radius:14px;font-size:17px;font-weight:600;
 }
 #bstat-body .bstat-card:hover .bstat-medal{
@@ -1010,11 +1011,11 @@ body{
 
 /* ══ 1位だけ、黒いカード（見本の Total Balance にあたるもの） ══ */
 #bstat-body .bstat-card.rk1{
-  background:#4b0d1f;border-color:#4b0d1f;
+  background:#17171a;border-color:#17171a;
   box-shadow:0 1px 2px rgba(0,0,0,.16),0 16px 38px rgba(0,0,0,.26);
 }
 #bstat-body .bstat-card.rk1:hover{
-  border-color:#4b0d1f;
+  border-color:#17171a;
   box-shadow:0 2px 6px rgba(0,0,0,.20),0 28px 60px rgba(0,0,0,.34);
 }
 #bstat-body .bstat-card.rk1 .bstat-name{color:#fff;}
@@ -1046,7 +1047,7 @@ body{
 
 /* ---- 件数のまとまり ---- */
 #bstat-body .bstat-badge{
-  border-radius:14px;background:#4b0d1f;border:0;min-width:66px;padding:9px 14px;
+  border-radius:14px;background:#17171a;border:0;min-width:66px;padding:9px 14px;
 }
 #bstat-body .bstat-badge .bnum{font-size:24px;font-weight:600;letter-spacing:-.03em;color:#fff;}
 #bstat-body .bstat-badge .blbl{font-size:10.5px;font-weight:500;color:rgba(255,255,255,.6);opacity:1;}
@@ -1062,19 +1063,19 @@ body{
 
 /* ---- 棒グラフ。緑と黒の2色に絞ります ---- */
 #bstat-body .mbar-col i{
-  background:linear-gradient(180deg,#e7cdd6,#f3e2e8)!important;border-radius:5px 5px 0 0;width:17px;
+  background:linear-gradient(180deg,#d6d6dc,#e8e8ec)!important;border-radius:5px 5px 0 0;width:17px;
 }
 #bstat-body .mbar-v{font-size:11px;font-weight:600;color:var(--pv-ink-2);}
 #bstat-body .mbar-x{font-size:9.5px;color:var(--pv-ink-3);font-weight:500;}
 /* いちばん多かった月 */
 #bstat-body .mbar-peak .mbar-col i{
-  background:linear-gradient(180deg,#4b0d1f,#7a2340)!important;
+  background:linear-gradient(180deg,#17171a,#3c3c42)!important;
 }
 #bstat-body .mbar-peak .mbar-v{color:var(--pv-ink);font-weight:700;}
 #bstat-body .mbar-peak .mbar-x{color:var(--pv-ink);font-weight:600;}
 /* 今月 */
 #bstat-body .mbar-now .mbar-col i{
-  background:linear-gradient(180deg,#a8375a,#c2648a)!important;
+  background:linear-gradient(180deg,#3a3a40,#8a8a92)!important;
 }
 #bstat-body .mbar-now .mbar-v{color:var(--pv-accent);font-weight:700;}
 #bstat-body .mbar-now .mbar-x{
@@ -1082,58 +1083,58 @@ body{
 }
 #bstat-body .bstat-card.rk1 .mbar-now .mbar-col i,
 #bstat-body .bstat-card.rk1 .mbar-peak .mbar-col i{
-  background:linear-gradient(180deg,#d2789a,#f0a9c0)!important;
+  background:linear-gradient(180deg,#9a9aa2,#c9c9d0)!important;
 }
 #bstat-body .bstat-card.rk1 .mbar-now .mbar-v,
-#bstat-body .bstat-card.rk1 .mbar-peak .mbar-v{color:#f0a9c0;}
-#bstat-body .bstat-card.rk1 .mbar-now .mbar-x{background:#a8375a;color:#fff;}
+#bstat-body .bstat-card.rk1 .mbar-peak .mbar-v{color:#c9c9d0;}
+#bstat-body .bstat-card.rk1 .mbar-now .mbar-x{background:#3a3a40;color:#fff;}
 
 /* ---- 年別推移 ---- */
 #bstat-body .bstat-years{
-  background:#fff;border:1px solid #f0dfe5;border-radius:18px;
+  background:#fff;border:1px solid #e8e8ec;border-radius:18px;
   box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px rgba(0,0,0,.06);
 }
 #bstat-body .bstat-years-h{font-size:14px;font-weight:600;color:var(--pv-ink);}
-#bstat-body .byr-bar{background:#f7ebef;height:12px;}
-#bstat-body .byr-bar i{background:linear-gradient(90deg,#a8375a,#d2789a);}
+#bstat-body .byr-bar{background:#f0f0f2;height:12px;}
+#bstat-body .byr-bar i{background:linear-gradient(90deg,#3a3a40,#9a9aa2);}
 #bstat-body .byr-yr{
-  background:#f9f0f3;border:1px solid #efdde4;border-radius:10px;
+  background:#f4f4f6;border:1px solid #e6e6ea;border-radius:10px;
   font-size:12px;font-weight:600;color:var(--pv-ink-2);
 }
 #bstat-body .byr-yr:hover{background:var(--pv-accent);border-color:var(--pv-accent);color:#fff;}
 
 /* ---- よく客付けする物件 ---- */
 #bstat-body .bstat-prop-row{
-  background:#fbf3f6;border-radius:12px;
+  background:#f6f6f8;border-radius:12px;
 }
 #bstat-body .bstat-prop-row .pname{font-weight:600;color:var(--pv-ink);}
 #bstat-body .bstat-prop-row .pstaff{
-  background:#f4e3e9;color:#8a2247;font-weight:600;
+  background:#eaeaee;color:#3a3a40;font-weight:600;
 }
 #bstat-body .bstat-prop-row .pwhen{color:var(--pv-ink-3);font-weight:500;}
 #bstat-body .cxtag{background:#fbeceb;color:#b0362c;font-weight:600;border-radius:7px;}
 #bstat-body .cxtag.rjtag{background:#fdf6e8;color:#8a6412;}
-#bstat-body .bstat-months,#bstat-body .bstat-top3{border-top:1px solid #f7ebef;}
+#bstat-body .bstat-months,#bstat-body .bstat-top3{border-top:1px solid #f0f0f2;}
 
 /* ---- 上の2つのグラフ（年ごと・月ごと）も同じ2色に ----
    ★ここだけ .ovb という別の名前で、青のままでした */
 #bstat-body .ov-chart{
-  background:#fff;border:1px solid #f0dfe5;border-radius:18px;
+  background:#fff;border:1px solid #e8e8ec;border-radius:18px;
   box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px rgba(0,0,0,.06);
 }
 #bstat-body .ov-h{font-size:14px;font-weight:600;color:var(--pv-ink);}
 #bstat-body .ovb-col i{
-  background:linear-gradient(180deg,#a8375a,#ce7594)!important;border-radius:5px 5px 0 0;
+  background:linear-gradient(180deg,#3a3a40,#9a9aa2)!important;border-radius:5px 5px 0 0;
 }
 #bstat-body .ov-year .ovb-col i{
-  background:linear-gradient(180deg,#4b0d1f,#8e2f4a)!important;
+  background:linear-gradient(180deg,#17171a,#48484f)!important;
 }
 #bstat-body .ovb-v{font-size:11px;font-weight:600;color:var(--pv-ink);}
 #bstat-body .ovb-x{
   font-size:10px;color:var(--pv-ink-3);font-weight:500;
 }
 #bstat-body .ov-year .ovb-x{
-  background:#f9f0f3;border:1px solid #efdde4;border-radius:8px;
+  background:#f4f4f6;border:1px solid #e6e6ea;border-radius:8px;
   color:var(--pv-ink-2);font-weight:600;
 }
 #bstat-body .ov-year .ovb-x:hover{background:var(--pv-accent);border-color:var(--pv-accent);color:#fff;}
@@ -1146,44 +1147,44 @@ body{
    段階9で緑にそろえたとき、こちらのクラス名（pb- / bt3-）を
    見落としていました。同じ緑に合わせます。 */
 #bstat-body .pb-strong-badge{
-  background:linear-gradient(120deg,#f8edf1,#fff);
-  border:1px solid #e9d2da;color:#8a2247;font-weight:600;border-radius:12px;
+  background:linear-gradient(120deg,#f0f0f2,#fff);
+  border:1px solid #d8d8de;color:#3a3a40;font-weight:600;border-radius:12px;
 }
 #bstat-body .pb-strong-badge b{color:var(--pv-accent);font-weight:700;}
 #bstat-body .pb-share{color:var(--pv-accent);font-weight:600;}
 #bstat-body .pb-ct{color:var(--pv-accent);font-weight:700;}
-#bstat-body .pb-row.pb-strong{background:#faeff3;}
-#bstat-body .pb-row.pb-strong .pb-nm{color:#8a2247;}
+#bstat-body .pb-row.pb-strong{background:#f2f2f4;}
+#bstat-body .pb-row.pb-strong .pb-nm{color:#3a3a40;}
 #bstat-body .pb-nm{font-weight:600;color:var(--pv-ink);}
-#bstat-body .pb-row{border-bottom:1px solid #f7ebef;}
+#bstat-body .pb-row{border-bottom:1px solid #f0f0f2;}
 #bstat-body .bt3-ct{color:var(--pv-accent);font-weight:700;}
-#bstat-body .bt3-item{background:#fbf3f6;border:1px solid #f0dfe5;}
+#bstat-body .bt3-item{background:#f6f6f8;border:1px solid #e8e8ec;}
 #bstat-body .bt3-nm{font-weight:600;}
 /* 1位（黒いカード）の中では、白ぬきにします */
 #bstat-body .bstat-card.rk1 .pb-strong-badge{
   background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:rgba(255,255,255,.82);
 }
-#bstat-body .bstat-card.rk1 .pb-strong-badge b{color:#f0a9c0;}
-#bstat-body .bstat-card.rk1 .pb-share{color:#f0a9c0;}
+#bstat-body .bstat-card.rk1 .pb-strong-badge b{color:#c9c9d0;}
+#bstat-body .bstat-card.rk1 .pb-share{color:#c9c9d0;}
 #bstat-body .bstat-card.rk1 .pb-nm{color:#fff;}
 #bstat-body .bstat-card.rk1 .pb-row{border-bottom-color:rgba(255,255,255,.10);}
-#bstat-body .bstat-card.rk1 .pb-ct{color:#f0a9c0;}
+#bstat-body .bstat-card.rk1 .pb-ct{color:#c9c9d0;}
 #bstat-body .bstat-card.rk1 .bt3-item{
   background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#fff;
 }
 #bstat-body .bstat-card.rk1 .bt3-nm{color:#fff;}
-#bstat-body .bstat-card.rk1 .bt3-ct{color:#f0a9c0;}
+#bstat-body .bstat-card.rk1 .bt3-ct{color:#c9c9d0;}
 
 /* ---- 6. 切替タブ（業者別／物件別） ---- */
 #bstat-body .bmode{
-  border:1px solid #efdde4;border-radius:12px;background:#fff;
+  border:1px solid #e6e6ea;border-radius:12px;background:#fff;
   color:var(--pv-ink-2);font-size:14px;font-weight:600;padding:10px 12px;
 }
-#bstat-body .bmode.on{background:#4b0d1f;border-color:#4b0d1f;color:#fff;}
+#bstat-body .bmode.on{background:#17171a;border-color:#17171a;color:#fff;}
 
 /* 「今月」の棒だけ、ひときわ明るい黄緑でした。落ち着いた緑にします */
 #bstat-body .ovb-now .ovb-col i{
-  background:linear-gradient(180deg,#a8375a,#d2789a)!important;
+  background:linear-gradient(180deg,#3a3a40,#9a9aa2)!important;
 }
 #bstat-body .ovb-now .ovb-v{color:var(--pv-accent);}
 #bstat-body .ovb-now .ovb-x{background:var(--pv-accent);color:#fff;font-weight:600;}
@@ -1355,7 +1356,7 @@ body{
   #bstat-body .bstat-insight{grid-template-columns:1.15fr 1fr;}
 }
 #bstat-body .bi-card{
-  background:#fff;border:1px solid #f0dfe5;border-radius:18px;
+  background:#fff;border:1px solid #e8e8ec;border-radius:18px;
   padding:16px 18px;
   box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px rgba(0,0,0,.06);
 }
@@ -1367,12 +1368,12 @@ body{
 #bstat-body .bi-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 #bstat-body .bi-table{width:100%;border-collapse:collapse;font-size:14px;}
 #bstat-body .bi-table th{
-  background:#f9f0f3;color:#5a6b62;font-size:12px;font-weight:700;
+  background:#f4f4f6;color:#5a6b62;font-size:12px;font-weight:700;
   padding:9px 10px;text-align:left;white-space:nowrap;
-  border-bottom:1px solid #efdde4;
+  border-bottom:1px solid #e6e6ea;
 }
 #bstat-body .bi-table td{
-  padding:10px;border-bottom:1px solid #f8eef1;vertical-align:middle;
+  padding:10px;border-bottom:1px solid #f2f2f4;vertical-align:middle;
 }
 #bstat-body .bi-table tr:last-child td{border-bottom:0;}
 #bstat-body .bi-c{text-align:center;white-space:nowrap;}
@@ -1380,7 +1381,7 @@ body{
 #bstat-body .bi-b3{font-size:12.5px;color:var(--pv-ink-2);}
 #bstat-body .bi-table td b{font-size:17px;font-weight:700;}
 /* 上位3社 */
-#bstat-body .bi-top3 td{background:#fcf2f6;}
+#bstat-body .bi-top3 td{background:#f6f6f8;}
 #bstat-body .bi-rank{font-weight:800;color:var(--pv-accent);}
 /* 掘り起こしの緊急度：6〜11ヶ月=黄 / 12〜23ヶ月=橙 / 24ヶ月〜=赤 */
 #bstat-body .bi-warn td{background:#fffbf0;}
@@ -1395,7 +1396,7 @@ body{
 
 /* ---- 月別グラフを年ごとに改行したときの1行分 ---- */
 #bstat-body .ovy-row{
-  border-top:1px solid #f7ebef;padding-top:10px;margin-top:12px;
+  border-top:1px solid #f0f0f2;padding-top:10px;margin-top:12px;
 }
 #bstat-body .ovy-row:first-of-type{border-top:0;padding-top:0;margin-top:0;}
 #bstat-body .ovy-h{
@@ -1406,10 +1407,10 @@ body{
 #bstat-body .ovy-row .ov-month .ovb{flex:1 1 0;min-width:0;max-width:none;}
 
 /* 記録が無い月・これから来る月の見え方（年ごとに12か月そろえたため） */
-#bstat-body .ovb-zero .ovb-col i{background:#eddce2!important;}
+#bstat-body .ovb-zero .ovb-col i{background:#e4e4e8!important;}
 #bstat-body .ovb-zero .ovb-x{color:var(--pv-ink-3);opacity:.7;}
 #bstat-body .ovb-future .ovb-x{color:var(--pv-ink-3);opacity:.35;}
-#bstat-body .ovb-future .ovb-col{border-bottom:1px dashed #efdde4;}
+#bstat-body .ovb-future .ovb-col{border-bottom:1px dashed #e6e6ea;}
 
 
 /* ============================================================
@@ -1423,9 +1424,9 @@ body{
 
 /* ---- ① 色を緑にそろえる ---- */
 #rent-view{
-  --rt-accent:#a8375a;
-  --rt-accent-d:#8c1235;
-  --rt-soft:#f8e9ee;
+  --rt-accent:#3a3a40;
+  --rt-accent-d:#222226;
+  --rt-soft:#f0f0f2;
 }
 
 /* ---- ② 文字を読める大きさに ---- */
@@ -1671,8 +1672,8 @@ body{
   #kb-view #bstat-body .bstat-rate{
     padding:11px 10px;
     margin:10px 0 2px;
-    background:#fbf3f6;
-    border:1px solid #f1e0e6;
+    background:#f6f6f8;
+    border:1px solid #e6e6ea;
     border-radius:12px;
     font-size:12px;
     text-align:center;
@@ -1934,23 +1935,31 @@ body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
 
 
 /* ============================================================
-   pv3-pink : ランキングとオーナーメールの基調色を、うすいピンクに
-     ★左メニューの色（臙脂）は変えていません。
-     ★この2画面の中だけで使う色を差し替えています。
-       他の画面（物件・契約）のボタンは今までどおり緑です。
+   pv2-mono : PIVOT2 全体をモノクロにそろえる
+     ★緑（#1f7a4d）をやめ、黒〜グレーひとつにします。
+       ボタン・タブ・リンク・グラフ、すべてが灰の濃淡になります。
+     ★赤（不備あり・キャンセル）と琥珀（審査落ち）は残しています。
+       ここまで灰にすると「気づいてほしい所」が沈んで、
+       見落としの原因になるためです。
+       完全に灰だけにしたい場合はお知らせください。
      ★緑に戻したいときは、このブロックを消したうえで
        tune.css の pv-rank-green / pv-insight の色を戻してください。
    ============================================================ */
 :root{
-  --pv-accent:#a8375a;
-  --pv-accent-d:#8c1235;
-  --pv-accent-soft:#f8e9ee;
-  --rt-accent:#a8375a; --rt-accent-d:#8c1235; --rt-soft:#f8e9ee;
+  --pv-accent:#2b2b30;
+  --pv-accent-d:#141417;
+  --pv-accent-soft:#eeeef0;
+  --rt-accent:#2b2b30; --rt-accent-d:#141417; --rt-soft:#f0f0f2;
+}
+#rent-view{
+  --rt-accent:#2b2b30;
+  --rt-accent-d:#141417;
+  --rt-soft:#f0f0f2;
 }
 #bstat-modal,#bstat-body{
-  --pv-accent:#a8375a;
-  --pv-accent-d:#8c1235;
-  --pv-accent-soft:#f8e9ee;
+  --pv-accent:#3a3a40;
+  --pv-accent-d:#17171a;
+  --pv-accent-soft:#f0f0f2;
 }
-/* 一覧の「不備なし」の緑も、ピンク側にそろえる */
-#kb-view .lv-miss-ok{color:#a8375a;}
+/* 一覧の「不備なし」の緑も灰に */
+#kb-view .lv-miss-ok{color:#3a3a40;}
