@@ -230,7 +230,7 @@ async function autoPullOnStart(){
   try{
     const snap = {
       at: new Date().toISOString(),
-      buildings: localStorage.getItem(STORAGE_KEY) || '{}',
+      buildings: localStorage.getItem(pbKey()) || '{}',
       contracts: localStorage.getItem('contract_kanban_v2') || '{}',
       kintai: localStorage.getItem('pivot_kintai_v1') || '{}',
     };
@@ -252,14 +252,14 @@ async function autoPullOnStart(){
       const localMtime = getLocalMtime();
       // 判定: クラウドの方が新しい(または、ローカルにまだ時刻記録がない初回)なら取り込む。
       // 自分のローカルの方が新しい場合は取り込まない(自分の削除・編集を守る)。
-      const localHasData = (Object.keys(loadAll()).length > 0) ||
+      const localHasData = (Object.keys(pbLoadAll()).length > 0) ||
         (Object.keys((function(){try{return JSON.parse(localStorage.getItem('contract_kanban_v2')||'{}');}catch(e){return {};}})()).length > 0) ||
         (Object.keys((function(){try{return JSON.parse(localStorage.getItem('pivot_kintai_v1')||'{}');}catch(e){return {};}})()).length > 0);
       const shouldPull = (!localHasData) || (cloudMtime > localMtime);
       if(shouldPull){
         // ===== 物件データ保護ガード（取り込み時）=====
         let localBuildings = {};
-        try{ localBuildings = loadAll() || {}; }catch(e){ localBuildings = {}; }
+        try{ localBuildings = pbLoadAll() || {}; }catch(e){ localBuildings = {}; }
         const localBC = Object.keys(localBuildings).length;
         const cloudBC = Object.keys(buildings || {}).length;
         if(localBC >= 3 && cloudBC < localBC * 0.5){
@@ -267,7 +267,7 @@ async function autoPullOnStart(){
           setSyncStatus('error', '⚠️ 物件データを保護しました');
           scheduleAutoPush();
         } else if(buildings && Object.keys(buildings).length >= 0){
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(buildings));
+        pbSaveRaw(buildings);
         }
         // ===== 契約データ保護ガード（取り込み時）=====
         // クラウドの契約がローカルより大幅に少ない/空なら、ローカルの契約を消さない。
@@ -659,7 +659,7 @@ async function loginPull(opt){
     try{ if(typeof pushNow === 'function') pushNow(); }catch(e){}
     return;
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(buildings));
+  pbSaveRaw(buildings);
   localStorage.setItem('contract_kanban_v2', JSON.stringify(contracts));
   // 勤怠: クラウドが勤怠を保持していない(キー無し or 空)場合は、ローカルの勤怠を消さずに守る。
   // (クラウド側がまだ勤怠フィールドに未対応でも、この端末の打刻を失わないため)
@@ -701,7 +701,7 @@ async function forcePullLatest(){
       const payload = r.payload || {};
       const buildings = payload.buildings || {};
       const contracts = payload.contracts || {};
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(buildings));
+      pbSaveRaw(buildings);
       localStorage.setItem('contract_kanban_v2', JSON.stringify(contracts || {}));
       {
         // 勤怠は上書きせず、ローカルとクラウドを日付単位でマージ(複数端末で消えない)
@@ -915,7 +915,7 @@ async function pushFeatureToCloud(feature){
     let action = '', payload = {};
     if(feature === 'buildings'){
       let blds = {};
-      try{ blds = JSON.parse(localStorage.getItem('pivot_blds') || '{}'); }catch(e){ blds = {}; }
+      try{ blds = JSON.parse(localStorage.getItem(pbKey()) || '{}'); }catch(e){ blds = {}; }
       // 物件0件は送らない(誤って空で上書きしないため。GAS側にも安全装置あり)
       if(!blds || Object.keys(blds).length === 0) return;
       action = 'saveBuildings';
@@ -974,7 +974,7 @@ async function cloudSaveAll(){
   }
   setCloudUrl(url);
  
-  const all = loadAll();
+  const all = pbLoadAll();
   const bldCount = Object.keys(all).length;
   if(bldCount === 0){
     if(!confirm('現在ローカルに物件データがありません。\n空のデータをクラウドに送信しますか?\n(クラウドのデータが上書きされます)')){
