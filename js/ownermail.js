@@ -84,6 +84,44 @@ function showView(v){
 function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1800); }
 function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function norm(s){ return (s||"").replace(/[\s\u3000]/g,"").replace(/御中|様/g,""); }
+
+// ===== 住所でも検索できるようにする =====
+// 物件画面に登録された住所を「物件名 → 住所」の表にして持っておく。
+// 3秒だけ使い回すので、続けて文字を打っても重くならず、
+// 物件を足したあともすぐ新しい住所を拾います。
+let _bldAddrMap = null, _bldAddrAt = 0;
+function bldAddrMap(){
+  if(_bldAddrMap && (Date.now() - _bldAddrAt) < 3000) return _bldAddrMap;
+  const m = {};
+  try{
+    const all = JSON.parse(localStorage.getItem("pivot_blds") || "{}");
+    Object.keys(all).forEach(k=>{
+      const b = all[k] || {};
+      const nm = norm(b.name || k);
+      if(nm) m[nm] = (b.addr||"") + " " + (b.zip||"");
+    });
+  }catch(e){}
+  _bldAddrMap = m; _bldAddrAt = Date.now();
+  return m;
+}
+// 1オーナー分の「住所として検索に引っかけたい文字」を集める
+//   ・オーナー自身の住所（オーナー一覧の住所・郵便番号）
+//   ・そのオーナーが持つ物件の住所（物件画面の住所・郵便番号）
+function addrHay(d){
+  let s = "";
+  try{
+    const o = owners.find(o => norm(o.name) === norm(d.owner));
+    if(o) s += " " + (o.addr||"") + " " + (o.zip||"");
+  }catch(e){}
+  try{
+    const m = bldAddrMap();
+    (d.props||[]).forEach(p=>{
+      const k = norm(p.property || p.bldNo || "");
+      if(k && m[k]) s += " " + m[k];
+    });
+  }catch(e){}
+  return s;
+}
  
 /* ===== オーナー一覧表 ===== */
 let _ownerQ = "";
@@ -677,7 +715,7 @@ function renderPreview(){
     // 除外オーナーは送信欄に出さず、専用区画へ回す
     if(excludeSet.has(norm(d.owner))){ excludedCount++; excludedIdx.push(i); return ""; }
     if(q){
-      const hay=(d.owner+" "+d.atena+" "+d.props.map(p=>p.property||p.bldNo).join(" ")).replace(/[\s\u3000]/g,"").toLowerCase();
+      const hay=(d.owner+" "+d.atena+" "+d.props.map(p=>p.property||p.bldNo).join(" ")+" "+addrHay(d)).replace(/[\s\u3000]/g,"").toLowerCase();
       if(!hay.includes(q)) return "";
     }
     shown++;
