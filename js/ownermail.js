@@ -86,9 +86,21 @@ function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">
 function norm(s){ return (s||"").replace(/[\s\u3000]/g,"").replace(/御中|様/g,""); }
  
 /* ===== オーナー一覧表 ===== */
+let _ownerQ = "";
+function filterOwners(v){ _ownerQ = String(v||"").trim(); renderOwners(); }
+function _ownerHit(o){
+  if(!_ownerQ) return true;
+  const q = _ownerQ.normalize("NFKC").toLowerCase();
+  const hay = [o.name, o.atena, o.email, o.property, o.addr, o.tel, o.memo,
+               (o.properties||[]).join(" ")].join(" ").normalize("NFKC").toLowerCase();
+  return q.split(/[\s\u3000]+/).filter(Boolean).every(w => hay.indexOf(w) >= 0);
+}
 function renderOwners(){
   const t=document.getElementById("ownerTable");
-  let rows=owners.map((o,i)=>`<tr${o.exclude?' style="background:#f3f0ee;opacity:.7;"':''}>
+  const hits = owners.map((o,i)=>({o,i})).filter(x=>_ownerHit(x.o));
+  const cnt=document.getElementById("ownerCount");
+  if(cnt) cnt.textContent = _ownerQ ? (hits.length + " / " + owners.length + " 件") : (owners.length + " 件");
+  let rows=hits.map(({o,i})=>`<tr${o.exclude?' style="background:#f3f0ee;opacity:.7;"':''}>
     <td style="width:20%;min-width:150px;"><input value="${esc(o.name)}" oninput="RENT.editOwner(${i},'name',this.value)" placeholder="オーナー名"></td>
     <td style="width:28%"><textarea rows="${Math.min(8,Math.max(1,(o.properties&&o.properties.length)||1))}" oninput="RENT.editProps(${i},this.value)" placeholder="物件名（複数は改行で）" style="font-family:inherit;font-size:.8rem;border:1px solid transparent;background:transparent;border-radius:5px;padding:5px 6px;width:100%;resize:vertical;line-height:1.5;">${esc((o.properties&&o.properties.length?o.properties:[o.property||'']).join('\n'))}</textarea>${(o.properties&&o.properties.length>1)?`<div style="font-size:.66rem;color:var(--gold);font-weight:800;margin-top:2px;">${o.properties.length}物件</div>`:''}</td>
     <td style="width:20%"><input value="${esc(o.atena)}" oninput="RENT.editOwner(${i},'atena',this.value)" placeholder="宛名（〇〇 御中）"></td>
@@ -128,6 +140,7 @@ function renderOwners(){
       </div>
     </details>
   </td></tr>`).join("");
+  if(!rows) rows = `<tr><td colspan="6" style="padding:26px;text-align:center;color:var(--rt-muted);">「${esc(_ownerQ)}」に一致するオーナーはありません</td></tr>`;
   t.innerHTML=`<thead><tr><th>オーナー名</th><th>物件名</th><th>宛名</th><th>メールアドレス</th><th>除外</th><th></th></tr></thead><tbody>${rows}</tbody>`;
 }
 let _saveTimer=null;
@@ -1365,5 +1378,5 @@ try{ window.RENT_CORE = {
   get owners(){ return owners; },
   save: saveOwners, render: renderOwners, flash: flashSaved, toast: toast
 }; }catch(e){}
-window.RENT = { activate, unexcludeOwner, setEmail, showView, addOwnerRow, resetOwners, resetTmpl, expandAll, renderPreview, saveTmpl, editOwner, editProps, delOwner, togglePv, copyBody, previewOwnerPdf, downloadOwnerPdf, sendViaGmail, renderOwners, createDraftsForChecked, sendMailsForChecked, updateCheckCount, toggleCheckAll, sendOne, draftOne, unsendOne, removeFromList, renderHistory, clearHistory, checkBounces, accumulateOwnerMonth, accumulateOwnerYear, mergeYearForOwner, deleteExAccum, deleteExYear, saveSophiaGasUrl, viewExAccum };
+window.RENT = { activate, filterOwners, unexcludeOwner, setEmail, showView, addOwnerRow, resetOwners, resetTmpl, expandAll, renderPreview, saveTmpl, editOwner, editProps, delOwner, togglePv, copyBody, previewOwnerPdf, downloadOwnerPdf, sendViaGmail, renderOwners, createDraftsForChecked, sendMailsForChecked, updateCheckCount, toggleCheckAll, sendOne, draftOne, unsendOne, removeFromList, renderHistory, clearHistory, checkBounces, accumulateOwnerMonth, accumulateOwnerYear, mergeYearForOwner, deleteExAccum, deleteExYear, saveSophiaGasUrl, viewExAccum };
 })();
