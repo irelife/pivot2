@@ -2443,3 +2443,33 @@ body::before{
 @media (max-width:860px){
   #ownerCards .ow-card{padding:13px 26px;}
 }
+
+
+/* ============================================================
+   pv2-black : PIVOT2 を黒にする（PIVOT3 と入れ替え）
+     ・上の帯（--pv-ident）を黒に
+     ・左メニューの地を黒に、文字を白に
+   このブロックを消せば、元の「白い左メニュー＋藍の帯」に戻ります。
+   ============================================================ */
+:root{ --pv-ident:#17171a; }
+#pv-side{
+  background:#17171a;
+  border:1px solid rgba(255,255,255,.12);
+  border-right:1px solid rgba(255,255,255,.12);
+}
+#pv-side .lg{color:#fff;}
+#pv-side .lg span{color:rgba(255,255,255,.72);}
+#pv-side .grp{color:rgba(255,255,255,.68);}
+#pv-side a{color:rgba(255,255,255,.84);}
+#pv-side a:hover{background:rgba(255,255,255,.10);color:#fff;}
+body:not(.tab-kanban):not(.tab-rent) #pv-side a[data-k="pivot"],
+body.tab-kanban #pv-side a[data-k="kanban"],
+body.tab-rent   #pv-side a[data-k="rent"]{
+  background:rgba(255,255,255,.16);color:#fff;font-weight:600;box-shadow:none;
+}
+body:has(#bstat-modal.active) #pv-side a[data-k="kanban"]{
+  background:transparent!important;color:rgba(255,255,255,.84)!important;font-weight:500!important;
+}
+body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
+  background:rgba(255,255,255,.16);color:#fff;font-weight:600;
+}
