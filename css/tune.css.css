@@ -1,0 +1,1965 @@
+/* ==================================================================
+ * TUNE / 仕上げ層  pv-tune-2026-08-25a
+ * 本番 index.html 末尾の 8 ブロックを、順序どおり1枚にまとめたもの。
+ * HTML・id・class・JS には触れていない。CSSだけ。
+ * 必ず他のCSSより後に読み込むこと（上書きで効かせる層のため）。
+ * ================================================================== */
+
+/* ===== pv-tune-1 : 段階1／土台（線の色・角の丸み） ===== */
+:root{
+  /* 線の色。本体では #ddd / #eee / #f0f0f0 / #ececef が混在していました。
+     変数を使っている箇所は、ここで1色にそろいます */
+  --pv-line:#e3e3e6;
+  --pv-line-soft:#eeeef0;
+  /* 角丸の段階を3つに固定します */
+  --pv-r-sm:10px; --pv-r:12px; --pv-r-lg:18px;
+  /* オーナーメール画面は別の変数（--rt-*）で動いているので、
+     同じ値を入れて画面ごとの色ちがいを無くします */
+  --rt-paper:#f5f5f7; --rt-card:#ffffff; --rt-line:#e3e3e6;
+  --rt-ink:#1d1d1f;   --rt-muted:#6e6e73;
+  --rt-accent:#007aff; --rt-accent-d:#0060d0; --rt-soft:#e8f2ff;
+}
+/* 文字の出かたを3画面でそろえます（大きさは変えていません） */
+body,#pivot-view,#kb-view,#rent-view{
+  font-family:var(--pv-font);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;
+}
+/* 数字は等幅にして、桁をそろえます */
+.ct-cdate,.ct-stage-count,.lv-badge,.bstat-chip,.num{
+  font-variant-numeric:tabular-nums;
+}
+/* 選んだ文字の色 */
+::selection{background:var(--pv-accent-soft);color:var(--pv-ink);}
+/* キーボードで移動したときの枠。いままで見えていませんでした */
+a:focus-visible,button:focus-visible,input:focus-visible,
+select:focus-visible,textarea:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(0,122,255,.30);
+  border-radius:var(--pv-r-sm);
+}
+
+/* ===== pv-tune-2 : 段階2 ===== */
+.btn,.btn-primary,.btn-outline,.btn-warn{
+  font-family:var(--pv-font);
+  border-radius:999px;
+  font-weight:600;
+  letter-spacing:0;
+  padding:9px 18px;
+  font-size:13.5px;
+  cursor:pointer;
+  transition:background .16s,border-color .16s,color .16s,box-shadow .16s;
+}
+.btn-sm{padding:7px 14px;font-size:12.5px;}
+
+.btn,.btn-primary{
+  background:var(--pv-accent);
+  color:#fff;
+  border:1px solid transparent;
+}
+.btn:hover,.btn-primary:hover{background:var(--pv-accent-d);}
+
+.btn-outline{
+  background:#fff;
+  color:var(--pv-ink);
+  border:1px solid var(--pv-line);
+}
+.btn-outline:hover{background:var(--pv-surface-2);border-color:#d2d2d8;}
+
+.btn:disabled,.btn-primary:disabled,.btn-outline:disabled{
+  opacity:.42;cursor:default;
+}
+
+/* 検索欄。3画面で背景も角丸もばらばらでした */
+.search,.search-input{
+  border:1px solid transparent;
+  background:rgba(0,0,0,.05);
+  border-radius:999px;
+  padding:9px 16px;
+  font-size:14px;
+  font-family:inherit;
+  color:var(--pv-ink);
+}
+.search::placeholder,.search-input::placeholder{color:var(--pv-ink-3);}
+.search:focus,.search-input:focus{
+  background:#fff;border-color:var(--pv-accent);
+}
+
+/* 入力欄。枠の太さと角丸をそろえます */
+.form-field input,.form-field select,.form-field textarea{
+  border:1px solid var(--pv-line);
+  background:#fff;
+  border-radius:var(--pv-r-sm);
+  padding:9px 12px;
+  font-size:14px;
+  font-family:inherit;
+  color:var(--pv-ink);
+}
+.form-field input:focus,.form-field select:focus,.form-field textarea:focus{
+  border-color:var(--pv-accent);
+}
+.form-field label{
+  font-size:12px;font-weight:600;color:var(--pv-ink-2);letter-spacing:0;
+}
+
+/* ===== pv-tune-3 : 段階3（色） ===== */
+:root{
+  --k-red:#e5484d;  --k-red-bg:#fff5f4;
+  --k-blue:#007aff; --k-blue-bg:#f4f9ff;
+  --k-gray:#8b8b90; --k-gray-bg:#f1f1f3;
+}
+
+/* ---- カードの土台。太い枠をやめ、左の帯で状態を示します ---- */
+.ct-card{
+  border:1px solid var(--pv-line)!important;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.05);
+}
+.ct-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.07),0 14px 36px rgba(0,0,0,.09);}
+
+/* 赤：いま手を打つもの */
+.ct-card.status-defect{
+  background:var(--k-red-bg);
+  box-shadow:inset 4px 0 0 var(--k-red),0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(229,72,77,.10);
+}
+/* 青：進んでいるもの */
+.ct-card.status-progress{
+  background:#fff;
+  box-shadow:inset 4px 0 0 var(--k-blue),0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.05);
+}
+.ct-card.status-almost{
+  background:var(--k-blue-bg);
+  box-shadow:inset 4px 0 0 var(--k-blue),0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.05);
+}
+/* 灰：もう見なくてよいもの */
+.ct-card.status-complete,
+.ct-card.done,
+.ct-card.status-cancel{
+  background:var(--k-gray-bg)!important;
+  border-color:var(--pv-line)!important;
+  box-shadow:inset 4px 0 0 rgba(0,0,0,.22)!important;
+  filter:none;opacity:1;
+}
+/* 完了カードが揺れ続けるのをやめます（目が休まらないため） */
+.ct-card.done{animation:none!important;}
+
+/* ---- 左上の四角い絵。JS が背景色を書き込むので上書きします ---- */
+.ct-badge{
+  background:var(--pv-line-soft)!important;
+  border-radius:13px;width:46px;height:46px;
+}
+.ct-badge img{filter:grayscale(1) opacity(.55);}
+.ct-card.status-defect .ct-badge{background:#fadedd!important;}
+.ct-card.status-defect .ct-badge img{filter:none;}
+.ct-card.status-progress .ct-badge,
+.ct-card.status-almost .ct-badge{background:var(--pv-accent-soft)!important;}
+.ct-card.status-progress .ct-badge img,
+.ct-card.status-almost .ct-badge img{filter:none;}
+
+/* ---- 進捗バー。JS が塗り色を書き込むので上書きします ---- */
+.prog-seg{height:5px;border-radius:999px;background:#e6e6ea;}
+.prog-seg.on{background:var(--k-gray)!important;}
+.ct-card.status-defect .prog-seg.on{background:var(--k-red)!important;}
+.ct-card.status-progress .prog-seg.on,
+.ct-card.status-almost .prog-seg.on{background:var(--k-blue)!important;}
+
+/* ---- 状況のプルダウン。7色に塗り分けられていたのをやめます ---- */
+.ct-status-select{
+  color:var(--pv-ink)!important;
+  background-color:#fff!important;
+  border:1px solid var(--pv-line)!important;
+  border-radius:999px;
+  font-weight:600;
+  font-size:13px;
+}
+.ct-status-date{color:var(--pv-ink-2)!important;font-weight:500;}
+.ct-status-date-label{font-weight:600;}
+
+/* ---- 個人／法人。急ぎとは関係ないので、色を持たせません ---- */
+.ct-type-label,.ct-type-badge{
+  border:1px solid var(--pv-line)!important;
+  background:#fff!important;
+  color:var(--pv-ink-2)!important;
+  font-weight:600;letter-spacing:0;
+  box-shadow:none;
+  font-size:12.5px;padding:3px 12px;
+}
+
+/* ---- AD。ふつうの100%は静かに。例外だけ色を出します ---- */
+.ct-ad-label{
+  border:1px solid var(--pv-line)!important;
+  background:#fff!important;color:var(--pv-ink-2)!important;
+  font-weight:600;letter-spacing:0;font-size:12.5px;padding:3px 12px;
+  box-shadow:none;
+}
+.ct-ad-label.ad-zero{
+  border-color:#f0b8b6!important;background:var(--k-red-bg)!important;color:#b02a26!important;
+}
+.ct-ad-label.ad-200,.ct-ad-label.ad-300{
+  border-color:#d9d9df!important;background:#f7f7f9!important;color:var(--pv-ink)!important;
+}
+
+/* ---- 「駐車場 未紐づけ」は手を打つものなので赤のまま。枠だけ細く ---- */
+.ct-notlinked{
+  border:1px solid #f0b8b6!important;background:var(--k-red-bg)!important;
+  color:#b02a26!important;font-weight:600;letter-spacing:0;font-size:12.5px;
+  border-radius:999px;padding:3px 12px;
+}
+
+/* ---- マンスリーは分類なので、色を持たせません ---- */
+.ct-monthly-badge{
+  background:#fff!important;color:var(--pv-ink-2)!important;
+  border:1px solid var(--pv-line);
+  font-size:12.5px;font-weight:600;letter-spacing:0;padding:3px 12px;
+}
+
+/* ---- 状態の文字 ---- */
+.ct-stage-name{font-size:13px;font-weight:600;letter-spacing:0;}
+.ct-stage-name.done-label{font-size:16px;font-weight:600;letter-spacing:0;}
+.ct-card.status-complete .ct-stage-name,
+.ct-card.done .ct-stage-name,
+.ct-card.status-cancel .ct-stage-name{color:var(--k-gray)!important;}
+
+/* ============================================================
+   段階3・追記：効いていなかった箇所を、同じ強さで上書きします
+   ★#kb-view .ct-card.status-progress のように id 付きで書かれた
+     規則があり、こちらの規則が負けていました。同じ形にそろえます。
+   ============================================================ */
+#kb-view .ct-card.status-progress{background:#fff;}
+#kb-view .ct-card.status-almost{background:var(--k-blue-bg);}
+#kb-view .ct-card.status-defect{background:var(--k-red-bg);}
+#kb-view .ct-card.status-complete,
+#kb-view .ct-card.done,
+#kb-view .ct-card.status-cancel{background:var(--k-gray-bg);}
+
+/* 状態の文字。JS が style="color:…" を書き込むので上書きします */
+#kb-view .ct-stage-name{color:var(--pv-ink-2)!important;}
+#kb-view .ct-card.status-defect .ct-stage-name{color:#b02a26!important;}
+#kb-view .ct-card.status-progress .ct-stage-name,
+#kb-view .ct-card.status-almost .ct-stage-name{color:var(--k-blue)!important;}
+
+/* 上の件数。4色で塗り分けていたのを、同じ3色にそろえます */
+#kb-view .stat-pill{
+  border:1px solid var(--pv-line);background:#fff;border-radius:14px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
+}
+#kb-view .stat-pill .num{font-weight:600;letter-spacing:-.03em;color:var(--pv-ink);}
+#kb-view .stat-pill .lbl{color:var(--pv-ink-3);font-weight:500;}
+#kb-view .stat-pill.warn .num{color:var(--k-red);}
+#kb-view .stat-pill.warn{border-color:#f0b8b6;background:var(--k-red-bg);}
+#kb-view .stat-pill.accent .num,
+#kb-view .stat-pill.almost .num{color:var(--k-blue);}
+#kb-view .stat-pill.success .num{color:var(--k-gray);}
+
+/* ===== pv-tune-4 : 段階4 ===== */
+:root{
+  /* 青をやめ、落ち着いた緑ひとつに。どの色とも喧嘩しない濃さです */
+  --pv-accent:#1f7a4d;
+  --pv-accent-d:#186139;
+  --pv-accent-soft:#eaf4ee;
+  --rt-accent:#1f7a4d; --rt-accent-d:#186139; --rt-soft:#eaf4ee;
+  /* 合図の色。3つとも彩度を落として、隣り合っても濁らないようにします */
+  --k-red:#c2352a;  --k-red-bg:#fdf3f2;
+  --k-blue:#1d1d1f; --k-blue-bg:#f7f7f8;   /* 進行中＝黒 */
+  --k-gray:#8b8b90; --k-gray-bg:#f0f0f2;
+}
+
+/* ---- 左メニュー：白地・見出しで区切る・選択中は黒 ---- */
+#pv-side{
+  background:#fff;color:var(--pv-ink);
+  border-right:1px solid var(--pv-line);
+  padding:20px 12px 18px;
+}
+#pv-side .lg{color:var(--pv-ink);padding:0 12px 16px;font-size:21px;}
+#pv-side .lg span{color:var(--pv-ink-3);}
+#pv-side .grp{
+  padding:16px 12px 6px;color:var(--pv-ink-3);
+  font-size:11px;font-weight:600;letter-spacing:.06em;
+}
+#pv-side a{
+  border-radius:11px;margin-bottom:2px;padding:10px 12px;
+  color:var(--pv-ink-2);font-size:14px;font-weight:500;
+}
+#pv-side a:hover{background:rgba(0,0,0,.045);color:var(--pv-ink);}
+body:not(.tab-kanban):not(.tab-rent) #pv-side a[data-k="pivot"],
+body.tab-kanban #pv-side a[data-k="kanban"],
+body.tab-rent   #pv-side a[data-k="rent"]{
+  background:var(--pv-ink);color:#fff;font-weight:600;box-shadow:none;
+}
+/* 画面内のランキングのボタンは、左メニューに移したので出しません */
+.broker-stat-btn{display:none!important;}
+
+/* ---- 押すボタンは、見本と同じく緑ひとつ ----
+   ★はじめ黒にしましたが、.kb-toolbar .btn-primary が緑のままで
+     「＋新規」だけ色が違って見えました。全部を緑にそろえます。
+     選んでいるメニューの黒とは役割が違うので、ぶつかりません。 */
+.btn,.btn-primary,
+.kb-toolbar .btn-primary,#kb-view .btn-primary{
+  background:var(--pv-accent);color:#fff;border-color:transparent;
+}
+.btn:hover,.btn-primary:hover,
+.kb-toolbar .btn-primary:hover,#kb-view .btn-primary:hover{
+  background:var(--pv-accent-d);color:#fff;transform:none;box-shadow:none;
+}
+.btn-outline{background:#fff;color:var(--pv-ink);border-color:var(--pv-line);}
+
+/* ---- カード：モノクロ基調。合図だけ色を持たせます ---- */
+#kb-view .ct-card.status-progress{
+  background:#fff;
+  box-shadow:inset 4px 0 0 var(--pv-ink),0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.05);
+}
+#kb-view .ct-card.status-almost{
+  background:var(--k-blue-bg);
+  box-shadow:inset 4px 0 0 var(--pv-ink),0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.05);
+}
+#kb-view .ct-card.status-defect{
+  background:var(--k-red-bg);
+  box-shadow:inset 4px 0 0 var(--k-red),0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(194,53,42,.09);
+}
+#kb-view .ct-card.status-progress .ct-badge,
+#kb-view .ct-card.status-almost .ct-badge{background:#ececee!important;}
+#kb-view .ct-card.status-defect .ct-badge{background:#f6dedb!important;}
+#kb-view .ct-card.status-progress .prog-seg.on,
+#kb-view .ct-card.status-almost .prog-seg.on{background:var(--pv-ink)!important;}
+#kb-view .ct-card.status-defect .prog-seg.on{background:var(--k-red)!important;}
+#kb-view .ct-card.status-progress .ct-stage-name,
+#kb-view .ct-card.status-almost .ct-stage-name{color:var(--pv-ink)!important;}
+#kb-view .ct-card.status-defect .ct-stage-name{color:var(--k-red)!important;}
+
+/* 上の件数も同じ3色に */
+#kb-view .stat-pill.accent .num,
+#kb-view .stat-pill.almost .num{color:var(--pv-ink);}
+#kb-view .stat-pill.warn .num{color:var(--k-red);}
+#kb-view .stat-pill.warn{border-color:#e8c4c0;background:var(--k-red-bg);}
+
+/* 未紐づけ・ADなしの赤も、同じ濃さにそろえます */
+.ct-notlinked,.ct-ad-label.ad-zero{
+  border-color:#e8c4c0!important;background:var(--k-red-bg)!important;color:var(--k-red)!important;
+}
+
+/* ---- 物件一覧の帯も黒に ---- */
+.lv-badge{background:var(--pv-line-soft);color:var(--pv-ink-2);}
+
+/* ===== pv-tune-5 : 段階5 ===== */
+/* ---- 地。うすい光を数か所に置いて奥行きを出します ---- */
+body{
+  background:
+    radial-gradient(46% 34% at 14% 6%,  rgba(255,255,255,.95), rgba(255,255,255,0) 70%),
+    radial-gradient(40% 32% at 88% 12%, rgba(255,255,255,.80), rgba(255,255,255,0) 72%),
+    radial-gradient(56% 44% at 62% 96%, rgba(255,255,255,.70), rgba(255,255,255,0) 70%),
+    radial-gradient(38% 30% at 30% 62%, rgba(31,122,77,.045), rgba(31,122,77,0) 72%),
+    #e4e4e8;
+  background-attachment:fixed;
+}
+
+/* ---- 左メニューを、端から浮かせます ---- */
+body{padding-left:256px;}
+#pv-side{
+  left:16px;top:16px;bottom:16px;width:224px;
+  border:1px solid rgba(255,255,255,.85);
+  border-right:1px solid rgba(255,255,255,.85);
+  border-radius:22px;
+  background:rgba(255,255,255,.90);
+  -webkit-backdrop-filter:saturate(180%) blur(14px);
+  backdrop-filter:saturate(180%) blur(14px);
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 18px 46px rgba(0,0,0,.10);
+}
+
+/* ---- 上の帯と各画面は、地をそのまま見せます ----
+   ★#kb-view と #rent-view に灰色の下地が敷かれていて、body の
+     ぼかしを覆い隠していました。透かして地を見せます。 */
+.app-tabs{background:transparent;}
+#pivot-view,#kb-view,#rent-view{background:transparent!important;}
+
+/* ---- 浮かせるもの：カード・件数・パネル ---- */
+#kb-view .ct-card{
+  border-radius:20px;
+  transition:transform .18s cubic-bezier(.22,.61,.36,1),box-shadow .18s;
+}
+#kb-view .ct-card:hover{transform:translateY(-3px);}
+
+#kb-view .ct-card.status-progress{
+  box-shadow:inset 4px 0 0 var(--pv-ink),
+             0 1px 2px rgba(0,0,0,.05),0 16px 38px rgba(0,0,0,.10);
+}
+#kb-view .ct-card.status-progress:hover{
+  box-shadow:inset 4px 0 0 var(--pv-ink),
+             0 2px 6px rgba(0,0,0,.07),0 26px 56px rgba(0,0,0,.15);
+}
+#kb-view .ct-card.status-almost{
+  box-shadow:inset 4px 0 0 var(--pv-ink),
+             0 1px 2px rgba(0,0,0,.05),0 16px 38px rgba(0,0,0,.10);
+}
+#kb-view .ct-card.status-defect{
+  box-shadow:inset 4px 0 0 var(--k-red),
+             0 1px 2px rgba(0,0,0,.05),0 16px 38px rgba(194,53,42,.14);
+}
+#kb-view .ct-card.status-defect:hover{
+  box-shadow:inset 4px 0 0 var(--k-red),
+             0 2px 6px rgba(0,0,0,.07),0 26px 56px rgba(194,53,42,.20);
+}
+#kb-view .ct-card.status-complete,
+#kb-view .ct-card.done,
+#kb-view .ct-card.status-cancel{
+  box-shadow:inset 4px 0 0 rgba(0,0,0,.22),
+             0 1px 2px rgba(0,0,0,.04),0 10px 26px rgba(0,0,0,.07)!important;
+}
+
+/* 上の件数 */
+#kb-view .stat-pill{
+  border:1px solid rgba(255,255,255,.9);
+  background:rgba(255,255,255,.92);
+  border-radius:16px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px rgba(0,0,0,.07);
+}
+#kb-view .stat-pill.warn{border-color:#eec9c5;}
+
+/* 物件の一覧・オーナーメールの箱 */
+.lv-wrap,.card,.panel,.rt-card,.owner-card,.bld-list{
+  border-radius:18px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 12px 30px rgba(0,0,0,.08);
+}
+
+/* 編集画面（モーダル）も、しっかり浮かせます */
+.modal{
+  border-radius:22px;
+  box-shadow:0 2px 8px rgba(0,0,0,.06),0 34px 80px rgba(0,0,0,.26);
+}
+.modal-overlay{
+  background:rgba(20,20,24,.34);
+  -webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(6px);
+}
+
+/* 押すボタンにも、わずかな高さを持たせます */
+.btn,.btn-primary{
+  box-shadow:0 1px 2px rgba(0,0,0,.10),0 4px 12px rgba(31,122,77,.22);
+}
+.btn:hover,.btn-primary:hover{
+  box-shadow:0 2px 4px rgba(0,0,0,.12),0 8px 20px rgba(31,122,77,.30);
+}
+.btn-outline{
+  background:rgba(255,255,255,.94);
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 3px 10px rgba(0,0,0,.05);
+}
+
+/* ---- 狭い画面。左の柱をたたむので、余白も戻します ---- */
+@media (max-width:860px){
+  body{padding-left:0;}
+  #pv-side{display:none;}
+}
+@media print{ body{background:#fff;padding-left:0;} }
+
+/* ===== pv-tune-6 : 段階6（背景） ===== */
+body{
+  /* 渦を画面の真ん中寄りに移し、濃さを落としました。
+     ★渦の芯（とがって見える点）は、その位置に白い光を重ねて消しています。
+       中央に寄せたぶん芯が目に入りやすいので、白を前より強くしています。 */
+  background:
+    /* 主となる渦。中央やや上に置きます */
+    radial-gradient(34% 28% at 52% 44%, rgba(255,255,255,1), rgba(255,255,255,0) 74%),
+    conic-gradient(from -14deg at 52% 44%,
+      rgba(255,255,255,0), rgba(198,201,216,.34) 13%, rgba(255,255,255,0) 28%,
+      rgba(255,255,255,0) 41%, rgba(198,201,216,.34) 55%, rgba(255,255,255,0) 69%,
+      rgba(255,255,255,0) 81%, rgba(198,201,216,.34) 92%, rgba(255,255,255,0) 100%),
+    radial-gradient(78% 62% at 52% 44%, rgba(255,255,255,.56), rgba(255,255,255,0) 76%),
+    /* 添えの渦。左下と右上に、ごく薄く */
+    radial-gradient(40% 32% at 16% 90%, rgba(255,255,255,.92), rgba(255,255,255,0) 74%),
+    conic-gradient(from 190deg at 16% 90%,
+      rgba(255,255,255,0), rgba(192,196,214,.20) 14%, rgba(255,255,255,0) 30%,
+      rgba(255,255,255,0) 44%, rgba(192,196,214,.20) 58%, rgba(255,255,255,0) 72%,
+      rgba(255,255,255,0) 100%),
+    radial-gradient(38% 30% at 88% 10%, rgba(255,255,255,.92), rgba(255,255,255,0) 74%),
+    conic-gradient(from 60deg at 88% 10%,
+      rgba(255,255,255,0), rgba(192,196,214,.18) 14%, rgba(255,255,255,0) 30%,
+      rgba(255,255,255,0) 44%, rgba(192,196,214,.18) 58%, rgba(255,255,255,0) 72%,
+      rgba(255,255,255,0) 100%),
+    /* 土台。明るさはここで決まります */
+    linear-gradient(146deg, #ffffff 0%, #f8f8fb 28%, #edeef4 58%, #fcfcfd 100%),
+    #f4f5f9;
+  background-attachment:fixed;
+}
+
+/* 地が濃くなったぶん、浮いているものの影も強めます */
+#pv-side{
+  background:rgba(255,255,255,.96);
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 22px 54px rgba(0,0,0,.13);
+}
+#kb-view .ct-card.status-progress,
+#kb-view .ct-card.status-almost{
+  box-shadow:inset 4px 0 0 var(--pv-ink),
+             0 1px 2px rgba(0,0,0,.06),0 20px 46px rgba(0,0,0,.15);
+}
+#kb-view .ct-card.status-progress:hover,
+#kb-view .ct-card.status-almost:hover{
+  box-shadow:inset 4px 0 0 var(--pv-ink),
+             0 2px 6px rgba(0,0,0,.08),0 30px 64px rgba(0,0,0,.21);
+}
+#kb-view .ct-card.status-defect{
+  box-shadow:inset 4px 0 0 var(--k-red),
+             0 1px 2px rgba(0,0,0,.06),0 20px 46px rgba(194,53,42,.20);
+}
+#kb-view .stat-pill{
+  background:rgba(255,255,255,.95);
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 12px 28px rgba(0,0,0,.11);
+}
+.lv-wrap,.card,.panel,.rt-card,.owner-card,.bld-list{
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 16px 38px rgba(0,0,0,.12);
+}
+.btn-outline{box-shadow:0 1px 2px rgba(0,0,0,.06),0 5px 14px rgba(0,0,0,.08);}
+@media print{ body{background:#fff;} }
+
+/* ===== pv-tune-7 : 段階7 ===== */
+/* ══ 件数を、黒いカードに ══════════════════════════════════════ */
+#kb-view .stats-bar{
+  display:flex;gap:0;margin:6px 24px 18px;padding:22px 8px;
+  background:#17171a;border-radius:22px;overflow:visible;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,.14),
+    0 10px 24px rgba(0,0,0,.16),
+    0 30px 64px rgba(0,0,0,.24);
+}
+#kb-view .stat-pill{
+  flex:1;background:transparent!important;border:0!important;border-radius:0;
+  box-shadow:none!important;padding:2px 18px;position:relative;
+  display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+  transform:none!important;
+}
+#kb-view .stat-pill + .stat-pill::before{
+  content:"";position:absolute;left:0;top:6px;bottom:6px;width:1px;
+  background:rgba(255,255,255,.14);
+}
+#kb-view .stat-pill:hover{background:transparent!important;}
+#kb-view .stat-pill .num{
+  font-size:38px!important;font-weight:600!important;letter-spacing:-.04em!important;
+  line-height:1.05;color:#fff!important;font-variant-numeric:tabular-nums;
+}
+#kb-view .stat-pill .lbl{
+  font-size:12px!important;font-weight:500!important;
+  color:rgba(255,255,255,.52)!important;letter-spacing:.01em;
+}
+#kb-view .stat-pill.warn .num{color:#ff6f61!important;}
+#kb-view .stat-pill.accent .num,
+#kb-view .stat-pill.almost .num{color:#fff!important;}
+#kb-view .stat-pill.success .num{color:rgba(255,255,255,.50)!important;}
+#kb-view .stat-pill.clickable{cursor:pointer;}
+#kb-view .stat-pill.clickable:hover .num{opacity:.72;}
+
+/* ══ 浮遊感 ══════════════════════════════════════════════════
+   影は1枚だと板に見えます。3枚重ねます。
+     1枚目 … 接地。輪郭をはっきりさせる
+     2枚目 … 中間。厚みを出す
+     3枚目 … 遠く。地に落ちる大きな影
+   ============================================================ */
+#kb-view .ct-card{
+  border-radius:22px;
+  transition:transform .26s cubic-bezier(.22,.61,.36,1),
+             box-shadow .26s cubic-bezier(.22,.61,.36,1);
+}
+#kb-view .ct-card.status-progress,
+#kb-view .ct-card.status-almost{
+  box-shadow:
+    inset 4px 0 0 var(--pv-ink),
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 1px 2px rgba(0,0,0,.06),
+    0 8px 18px rgba(0,0,0,.07),
+    0 24px 48px rgba(0,0,0,.11);
+}
+#kb-view .ct-card.status-defect{
+  box-shadow:
+    inset 4px 0 0 var(--k-red),
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 1px 2px rgba(194,53,42,.10),
+    0 8px 18px rgba(194,53,42,.10),
+    0 24px 48px rgba(194,53,42,.16);
+}
+#kb-view .ct-card.status-complete,
+#kb-view .ct-card.done,
+#kb-view .ct-card.status-cancel{
+  box-shadow:
+    inset 4px 0 0 rgba(0,0,0,.22),
+    0 1px 2px rgba(0,0,0,.05),
+    0 6px 14px rgba(0,0,0,.06)!important;
+}
+
+/* 触れると持ち上がる。少しだけ大きくすると、近づいた感じが出ます */
+#kb-view .ct-card:hover{
+  transform:translateY(-7px) scale(1.012);
+  z-index:5;
+}
+#kb-view .ct-card.status-progress:hover,
+#kb-view .ct-card.status-almost:hover{
+  box-shadow:
+    inset 4px 0 0 var(--pv-ink),
+    inset 0 1px 0 rgba(255,255,255,.95),
+    0 2px 4px rgba(0,0,0,.07),
+    0 16px 30px rgba(0,0,0,.10),
+    0 44px 80px rgba(0,0,0,.18);
+}
+#kb-view .ct-card.status-defect:hover{
+  box-shadow:
+    inset 4px 0 0 var(--k-red),
+    inset 0 1px 0 rgba(255,255,255,.95),
+    0 2px 4px rgba(194,53,42,.12),
+    0 16px 30px rgba(194,53,42,.14),
+    0 44px 80px rgba(194,53,42,.22);
+}
+/* 押すと沈む。押した手ごたえが出ます */
+#kb-view .ct-card:active{
+  transform:translateY(-2px) scale(.998);
+  transition-duration:.08s;
+}
+/* 完了・キャンセルは持ち上げません（もう触らないもののため） */
+#kb-view .ct-card.status-complete:hover,
+#kb-view .ct-card.done:hover,
+#kb-view .ct-card.status-cancel:hover{
+  transform:translateY(-2px);
+}
+
+/* カード同士の間を広げます。詰まっていると浮いて見えません */
+#kb-view .board{gap:22px;}
+
+/* 左メニューも同じ考え方で */
+#pv-side{
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.9),
+    0 1px 2px rgba(0,0,0,.06),
+    0 10px 24px rgba(0,0,0,.07),
+    0 30px 60px rgba(0,0,0,.13);
+}
+#pv-side a{transition:background .16s,color .16s,transform .16s;}
+#pv-side a:hover{transform:translateX(2px);}
+
+/* ボタンも、押した手ごたえを出します */
+.btn,.btn-primary,.btn-outline,.btn-sort{
+  transition:transform .14s cubic-bezier(.22,.61,.36,1),
+             box-shadow .14s,background .16s;
+}
+.btn:active,.btn-primary:active,.btn-outline:active,.btn-sort:active{
+  transform:translateY(1px) scale(.985);
+}
+
+/* 動きを控える設定の端末では、動かしません */
+@media (prefers-reduced-motion:reduce){
+  #kb-view .ct-card,#pv-side a,.btn,.btn-primary,.btn-outline,.btn-sort{
+    transition:none;
+  }
+  #kb-view .ct-card:hover{transform:none;}
+}
+
+/* ===== pv-texture : 質感 ===== */
+body{
+  background:
+    url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAG4AAABuCAYAAADGWyb7AAAjtklEQVR42oXda7EqS7YF4OzGQOGAaAUloSQgAQlIQAISkIAEJCABCUi4P3aMOh+jc/fdER29zlpQj8z5HHPMmf/atu0/Y4yxbdt4PB5j27bxer3G7XYbn89nnE6n8Xq9xul0Gp/PZ4wxfn53Op3GGGN8Pp9xuVzG6/Xav5fPjzH2v+Vf7jfGGLfbbVwul/1627aN2+328xy5b/59Pp+xbdv+c+45xtifLe+S7+Y6r9drPB6P8Xq9xuv1GpfL5ece/X63223/OWvkvR+Px369/Hs8Hvvz3G63/Rr9HnmG2+32s7b9c9Ys73S43W7HZVnGGGPk/1+v1/h+v+Pz+Yx1XX9eKL87n8/j/X6PdV3H+/0er9drLMsyXq/XWNd1X8jn87kv/vv9Hu/3e7/OsixjWZZxvV7HsizjfD6P7/e7b2g+dz6f9/t+v9/9Xtu2jefzOd7v9/7dfD4L936/f36fTX6/32PbtrGu63g8HuN2u43n87kL3rqu+/2/3+8YY+zvm3/P5/NnA3Lt3KuFPevy/X7H9/sdy7LsApb1yO9dJzct3z8sy3Jc13W/SG6ajcyOPx6P/YXywFmU0+m0v9z9ft///v1+dwnJxueh3+/3z0OdTqd9I7/f77her/vLRLsiUOu6/jyHz5trZkMiFLlPFkZhjbDkZ5+x3zPXeT6f+/XyntGQbJpCG2GLEEUIFOBsyvl83jcp65h3yrodlmU5Lssyns/nfoE8YBbpfD7/LOCyLONyuewvls9lASIt+dvlctlvrknzXvlsniMLEmnN77dt+7l+NCCmxpeNeY51eL/fY1mWH8mPhlwulx/L4mJls7M5voN/jxBlXdx0NTjvnfWOYGcz2+zm+3m3ZVn+mEp3//l8/qhoL2BePg/Uknw6nXaJyUacz+fdDOVeeRHNbR5Qbcj3I/HZNDdCDcl75JrZvHz/drv9l6nKIuZ62RhNVr4fzYng5pmzbl43G5vNinnOhuZ6uVbuH0XJPX3GCNthXddjm402W0pUfvblYjby8M/nczwejx8tzEtFg2PmvEe0SV+bTcvv1nUd9/v9vxZWE5bPKvH5WZOfBY6PjvY+n8/9XfLOea/7/b4vnu+mqc6aqDG5xrqu+3t5j6xD1kzNjxI9n8/dzB7GGEdV0J81C3nZqPXz+RzX6/XHSSdwyAJE63K9aFqkK/dS61o41BgXI9fShGcTffncK+Zap2/gouOPVuhP8x4xx8uyjPv9vt9Xgc/f9YHZoPhSLZjWTesV63C9XneBO5/P43w+j8Plcjl29KgG+jCPx2Ocz+fxer3G/X7fIzEDDE2d0hbNMaCIIFwul3G9Xn9MRO4ZwTFybK3MwurD8rekGdkENz6fzXPFzxmyR3u0LprsmN/Wnryb2p5Njpvwurn3/X7fg624lmxg1mCMMQ6fz+d4vV5/1D8OM6Yoi5eFzYZG5fMg9/v9x9yqcVmMBA33+31fvNj1LLxSm0V+Pp8/ptb0IC+1bdt+ndfrtZtONSrPoK/O33KPLHAEVLMebdUCdYyg4LtRRrP5fdarUxpNdJvR9/s9Dtfr9eiCuQjeXLXOZ7IpmsN8LyYlGpHkNQvbgU4n0NkcHf79ft/vO8utNEumHC5YpFzTnE3uawkaqP1ZxNbo9/u9b3KnCwpwrm/gk9+ZH+e/BTLy879FK/KQM0TCsD2bMPtvnbX5VyMd+VwjA/Frubf/LpfLuFwuu1nO72boybZt+2ezuPl87quQ+Y6iJ6Iw+d3fkBrXzjURsfG/81mRKdMaQY/el8OyLEdDaRNPcw61LRdNTmc+oyNv7dXmB/IyqoymPR6PH39j/qgzNxqL38zimKBH8/Meap7vGwm/3W67RuY7Agkd/BiMxHfpr10bc88Iet7Nzxon+NmY5H89Ho//KPWtGZFSNaA1Jb8PvqgE+pm+thI+u2/jnX5n9rlIbDYqmGcLwQzTzHfU/LYoWQdxVjVxZq1yrdn7+bnL5fJjxbyuliHPcbher8c4ZRGSaIAwVRylD+mFO5TOg8Uf5GEiyR2JCgWZ2yVQUptPp9PugwyYIvEJgOIjGo8VXjJy9fu94J3nNgKU67gBJt/x6Qq2CbvvIExmOpbvHcYYR81f44GGvTryPJyhb17UaKqxNlOORG4d4IgQxOxoksyJxPCyKGpcQuw2izGtMVW5VsJtN01hNjfMggaiEsMUokrqJEJkpSEwl3lrr3dSkQR7h2VZjgYTkThzmff7Pa7X6w90ZHibRUtakWtEa7TtRlfZhPg6ERkRkSygOaV+2UVMJDfLS1+v1w9okPfoULz9WuOb4pp5rwiXliaClmu7Hpp5/VusTn4f4Yr1yX0Ot9vtmIzcsDnSGjOmebvf7/vOR2KEf0QqkvUncHARNQWtbWqGwU00LRsg4hNt8xq5psiNQUaeNRtpcKSQ6jYi/X/DSBvh6dplY8AKdfYi2qWAm24clmU5xh9EYvNCJpgm0PqZ/N2kvO2y+GCXeK7X644/RkD0RR0ya1Y1IzFzRq0KiTCX5SLNrn49QtB5Vy+woEWuHcsj1GUSL4yoG4jmW2/UhVjyOXy/32MDuJE2tc0L6SgtVfhPG325XKZpQjbPtCD3sIQSsxX/kc0VrhJUvl6vO4IR5L1Bc02TCHzeRVNrjS/V6ufzua+BZR/vket3YJHNEwQwwo7vMyr1WjtyIlqtRC3LspsNSzBZqEBCIgkuspsY5xxfaW6jhgq+duVdtMVQucs7kfDz+bwn4QYXBhyNQTbYrMnOd+73++4CoiVqTSf0ojea86yZQZxrYxCVZ89mHk6n014B19TkIppOEfV8NpXqrhlZeonWaVKsBBsAGM2aJOez+kQj0tagCGFLqilAvuemSr8wAY8/913z/eCumjZxW/FJ+Te5RxeH42v7GknAl2X5px7XuGM+HCRB7TEAaE5GFjZov3hkh8O5VrQwC96UBlMS88iEz12RiLYpcLEOCfeTnOsLNad5ZlEc/XSw0/wtlijCEuEwyLO2qb9NoBTzng02B9XX3e/3/y6kmijqVLXH+iOJMCLbBjzZyEiMJB4rAUpdkARfpOtpAgYGEdu27cKQjercr4uV8ZUCAtHOBs01daYNoh2JsIUJs44C1fHJsVDNr9Gi+J6HdV2PHTpH8psAE4nVeTeJxhpWNiDmJOouVuniufmaxq7pGSgoxdEEQ2nfK2mJv7cmdr1ed8gs76gF0EIoPOa9mlrNvH5cHkzjnEb0rnPSlp+Nm0U7M1KPgYXIhACuCWQWScRBjVND1LqYCTVZ6oTRm1GXv7tcLj/wVhZbk9NVevO7+Knr9boHICbi5n8y0iLwBlBNbMoz55pqlRGzwmgU+nq9/uRxmpmYk/v9vudfM3JNwz5yPppKlsV3g3wx8z2DjBkby8AimpWo199r7pV6A51sanInUwc3V0HTRCoYCoKWwtigYT5riyIkaq0BmFjpYdu2o/BKJKkJO5GWxgFlcumjlCbTBzdDMDd+wQq2JjFBiLUtzYgwVWumHJHOt6JxMrCjJa6BgUtXAiLE1h4FI4wfcm9JUDHJuoIEKqZLY4xduw/n8/lozmYIbRirtMrcFUPsqri22kXtnDHEmPiXmLqWsmyWGy5MJ8tZU9M4ptplVVvfFOFq4CC+XpgspaO8s5Ry8U8jUvHSrH1MegIWNVX+6Ofz+YdXaeTSnEpfSnsvfGWO0eTQJnfmfkJDJqS+yCxVCb+lefaaMAuzmjSBc4VTLkwkXIhOENwyVNMRsvF+V8uR7wRvtUKhq5EEHHQp/vT7/f5JwGVHNcXMiEcKQSLM2+22q35+F0lK1Gctret7Dfk0s6zRkwZ1Jd9m0RvnE3c1wksAZR0wbqBp4x0gWLoxMY8m6Z86//Wdgig13dzvCPAH3D68Xq9jzEaDmkpS0xe6dqV50iarAUJnQkkdHHUInQhPFCfhuxGtfmnm0LOhTW/QHDZ+KfTVNT3BYs1ug8xGy22CxUmjYd1sEvP50zvweDyO1pB0yPI8brfbjuTL+2iSayQinwm8I7W9wWQReREMTZYvZeChdbAyoG+1GtCLN3MLBjz6zWZIG3FrkuWGJOhQGdRGc8y8UxOuxFT3qHJd12MeRJLq9Xr9yU/ysz7JoCEPFITEBg2LlPIn1Kw2kQ14dxJuVSGmKgl0zJUC8n6/d3qf1e84/VzXfC1rILlHTe7IT0qeXFQ3RR9pniZUZytbBEva3rZtf5jMNjv4EA3/xKdoBvLw0sll6Woq5C66+GmF6s3VpEjNNphqauC6rj9cFC2D7xipNnAxv4sQSxmXfqjGNz09mioZV7hO65OYQEGfFZPzzvHTPyCzi68DbZ5EU9Sk4YmudCQYyZtRHXJdJcsykUVHgxPLO92ulMUXg81m6C+b+5LQ3tYzo1c3SFNn2hHXYsAl21tXZP6Wvbjdbj8QXfLQPMNhjHFszn+3BhkJ5kEtaqqp1ue626eDhFAgbMXVBEm0iVCYOFsGagBazkcQCTtSRWb0pUq3qY+aFbOclCVCZcesSb6IiWuc+89IxKIoEQTb0w6Px+PYbFtN098aDA3LpQqYaIuyGEDE7ie1cIO7Ai1qnoqB0JzPJlAriNu9eCb8nePlGeLnreNZULWXTXKSPeUNfZk+2DOhQCSx93mS8Ctsh9PpdLxer//F+c8LWY4x/LWn2U3ROada7OY1tdzmEkP9XNPO15biZlKnQUNTnWtlgbQI+kejNvPA7l+LOTcqjZ/qFMaGSP2kuWMibq1Gt6rZ+pb/HcYYR8PnGbjbDX7d8WJ12Oq2DyrtIZozYy6LgmRBIhAGQv0s0RAXO47cyFRBiCSHgS194Xw+7z5Kcq4FVnmT+U5X1RUAa3AqQO7TgIPlMfdnWZY/GmdoHNqcOY8RnQVDHap1Nhcp5RSrwPIxNDOalPA59C9ZoCAOFkvzeX21FfIuFBux5n2zgE3iabqFdL80GuZekpwUnu7HMMq2YKuJbpKR+ePhcrkcfSHR/eZ2SAQS6O2HUDKVlGiPAtDEUh14rt/k20hpNsVFbu6GwYG+U66iRJyYKv2Tz+PGC2zL/tZvR3hFftRKe+U7inTd3bxd43pkg6G3X7BOpqb4AAYNqXMZlUo0Ney3ou3nZ+1TSVTFOoObKu15eUlHMrf0dR1YzVCb/L/NnI3oGGHnmayizMZm5G/+3SEH+v4I32Fd16OzTSwGSomLH5slnD3GwggrDyVwK4oQMk4S3a6+m9NoFXr0Re7bQUWH/QkEmhbRqIxUdtvKZiCC/somfYu0+jCnSVjWSSNLdyPlmWPO9wS8fU9C8CyE5JVG2nW23cBh5GYTheYnkeOs9CKxx3xNv2bSbgFSwevmjb6mVQyjt2Cv7SMNKOTkWCVvGrwC3RUL65JxKYLMalrW8rCu6zGl/nxJ5nFobVYQ7BoVlFYyLWmYZwnaqtGzWqB957KdDYz8rNGc5t7oNRuWhvgsorPLutZoQJH/T6XDqE+U38pD1/7EMRWipGU97aLfddu2P0xmF7gb52OrrRobsOgbhaTE55TYlqKYQRdAX2HjfpJTOZ/JFaU4BE5TiEzCret1V5J9Dk1qajRGsyadTpbcLMw3EvcagvYKetMX3u/3P1ilu+wGdG6mbbYOZQLvWIvul2toqiEunbBYoX8TYzSHdMJPBzrdiNLzXLrSrVkUrxTpEHS28yfRo4PpUlNr8k+3RjczQFPt2hy2bTt2N0ukVN6Hah0H2QVQN8eyfXeTzvygoXf8bMowvfFNN+iG9za72cSE5DH1BiheW/KODS9uXk9aEsHJ9/I5qwU2kyhAEmO1WM1KiPU7bNt2dHqPKIcU624Tkpvhoin1UXcTWcPn7vDpNqvecHFEo0zD6XymAx5HeZjDGW63WctGB5ToUU6zgqw1tdQA83ya+gDJf0uthO7sjci9D9u2HbsLUmBZGExU3kVMMKNpcOF09pZxOsE1B7JxwjbhRHNGuzFRdm72dJ+YVHv6pFGYymiCm+FtPipLy0Te5o4OqGKxjHrzbs3Wzj0U2t3HjTGOAZN1qG5kczOsePekHFH8aJh9Akp2IjsZYkJEsfVJGUwFHIbaCLyboybrkx2G5kgsQQgXzKp152xtCk3O89+NQPVokjyHaVYifBsdowC7xhkJtZnqoZg2hugvlNwe+Su1L4BsNCQ+qpsC1eJcN1KYz0bqo51Gb80cyyYEVDZqndXBOgLW5Io/NuaqlWp6uRtkXmeOq4D2wIAo2Z6AdydOT3Mz3JUPYQXYRgcxN6GiVHH1a4GqIqHZaLt9HF+h6e3xuPJBZsNT5XY2s6xHa/TYQYu0WgIDIE2jLkaTKoIUSuNs8qCpTKcxh3Vdj93krqp2p0mH0hI4dfiOX2oT0wPGRB5ut9seWQXrE/RtGMvRTUlT7L7xHTSvFiazUFnEZqP11L2UpGbN+zOSU3NkpDZ2M4xcGJPvuIr4zV3jDBSa6mZw0IRQR2HIJbH42jOHBZCjTVa6BWEtEVnDa1Oj+Zo1UPYIqcZcrRcabJiK2GWrGbXDRtphs8Nm8FYjShZpzXcbNz0sy3LU+XVZPqiEvqoZUY6ondnoxv/0F84C8W/RNJNfGwAtOXXp33ynXUD+rmD0iPsEBBGSLqh2Um7lRNaWszx1PTLHZuTfHk9sarVDXimk9sh0JaJB3UYEomGNWnTS3FPNbb2Kz8qiWUjVD9nd87eunGi7g29mOaImqwfMaPpn1X+1yLFSzkgx8HA2tdwbm1S8v5MXhAeDs+4TYnuB7Ey1tKDTDvuou10ae5P42RLvBssBMTHuBLVHFfbsyyxQUxm6MCznpc2WkV8n8kZ4IiAKjz7XiNVquddvH9jpgs+9ruufPC7Saag9I41GM7vUEWntxLIbRZKzJSVwyHbPKbG+F1grmt1ojBuqWZtN2zMt6TamxkzlV/ZBDgpPMwBmzfqzmTD9PVOoHmJuerau6588zgqAyIFgcdeZTCGyUOZS2mZ7sp2T4hTU5E+iBTG9+Zv37W7NbEYoDZabZtP8JAapeY3kmFP2ZIdubnSod/NJeg19rtlEW6c1tOv6fr9/Jgs5ocfUYDZra4bpGeLHFPiw5lnR1n4Q7bwPKsLSg2psIRZVUEMsAocqmOf0cAYJqloTTZb5W0e6PYRUYenOW+kVRpEtnA3umxMezufz0eqy/Efbqdr+WqW2stADNO0Z8+gRg4FZnmcQI/rflPYsRKJNZ0M3hbDxRMc6idB0V46gckd8TX3odWguSY8PlpIuJ6cpD12NOZzP56Mvo2PtqMYLOA5DUlA3Qc6mCCTZ7ZKImtcHSeTaUvK6htYD14Tu3DQjOZ/bAEiafFAMn0cevzwUYT35J22qo+2WfiS/OjxnNuflsG3bcZYkikcK9Sh5gsg9yU6nnJ/D/Zcq4Akh5oAm4TEzOWlDKCjPIRLSJCDnoTQIrvWIie1+OVMaBcB7SQ30GgqoptIgS9ejwPXsMc3xXkjNYtq26uJ5ylQfZNAP31GRw1X6cCSxQEf/9Rl0PcjFl43gWDLxmQwC2pd0UKL5nqUCnXCLh7bp7f687pFvDorlrjARgrlmXTO5bx/C5sNFu4z+skDCPpEazWYePrifUuXPTfq0K8Y5WWqwYb65llWDnkgX7ZL6ZtjeZraHh/cRLT3pTlMdZkAWurmjPR3CVjJdlEPoujc/ZnMfCdX2tEfX94h1E3Qv2s0KklAbielecvmD5ozxJXbPdAToqHqBg/wtEFoEYtYU4kLPDmkQnjM6NmWx7KOP1U9aee8ItPsi3LyfWV7n8/lot6MkTe22E3wSCfVpHFLGu9xupJX6naZQAVDru2cvCboaobnuarURsufimD8Gk/XYMjFYaRnRBKfmWcbyuWPuklsGFuwBbkbQDey7uaYOh8vlcuwTAaUVRFPcUH2HjQp54T4oKRJvw6A5jqQfAdkOgvIiCVDyEuKDXT9sn2azhh2sRpwNnisI3Vrt53rUhcm5eaE0uxYgrVLPdBYdOny/36MzHBO5xZdlQbPAFkwd+d7tRT15vI90MW/Tabsx3W7U0+yskUV6w4u0j83ItKc1mOK0K+jxxT2q0WlHjvPvjljrc3kPAfAEemEgSNYVAEhM8ZMONMexw2mbLoy61JpMm1O1DWhMDXqEk35ECMjp6vlf7qFPbDPrMM9OxmNuLZf0ZD+v0yN6zeWsR0ZYBJ4VcP2c5KW4nwiMeWuGG9jpup/00UTVma/ocevZKKPBcEma9JkQXfMSIZH63SV+JxPMehN6nr++1vfpyXbCdNLU/0YM6mNGG3KLwHbNrSmAfXyNpR4jd8ELh8flXvvYQxNp62Tdv2btyk3rEb/COuZGmqkuTMqq6mi2EXO1XiHzcEFxvRm9PtretMTO1ZpP0p05fQCiPRhqVs+ybs7MbHR/9iWneMXUn8/nf6JKw9g+O07T4ZjDDjTyT/ytfVnnQK1tNvb32D9peoGcug/Pc0SbMtGnCcfsdNG3iUJCZskttQqiSaJP+W+PI1O7upXKCDqWKhG0kfw+y8v6W/P+ZoNrejFmjQl9Pqjn13TkNTtc1j5sj0pJvqRWe56OL6fvkxphxJmNDrFIP6hGzLj+3enagECnNCL9+k+/YwO/k5ni97Ieh8vlcmzpS1jaY/fS0CCNvCkFtmIZUYnR9bnYRm89XqPRlqbPCeZ2X7pkUs2fqIqzmR0H5Qh+/Zwohse6tAXoY6X71Eg7fvsAp7gp50MbqW7b9s+hSF44Ec5sNEb3GMzGvtsmmzDWslGfmuVsSucO95zjLFCqBAl6ui14Rkj622mT3bXT5yA0NcHmkT5EqWkbsxpeN7y0WZUC6AmVUuSfz+cfjZuNDexcpSee92lMvVg65j6kof1lV5x78TN5yKFrPQnWqLUnF7TGOpjA/uzOM5v30Qc8OJJQn+wslaYlND/GjbHJxq4pLV/W6rBt29GKsXO5LKpaJXdIpzSFbsKPI+/N1h92z3SPXZL70ufrdM0r93eCrZvhs3WS7MgN6YezSoeHBnoffWNjqeaRmn9nsVg+swwkp2cfwrZt27EPtzMHaudrmJzKtAGJiWzseTOm9JvyNNOdGkl2QWZlEOkDPamhz+sx8LHEZGpgou5JHT3TWYvi6SFqt2yzNtdioVqPHnBgKcipFvvG9ZxlORSe6NFThxIJSQPXT/XxWV17s9TSvdY9iUct0R+YeogjdjIrIzibY+2xmWlukMPbnEWSMD0UxT7coREfTwSxCtNn9JnMi5/ar3DYtu2oyZPX2Isgt73HaljScEqRIO7sOM0Z/mfzvRFXpyh9UmOXoLoco//qXrjZeI0e66SZM+8MgO6Q7J7MNBsIF6GIFWgww3bi/H1vs/p8PsceitlTvptk01KqhvhwTadrjodRZQdH3XsX39Y+QRqCC2qQZPSXdKSjyaQGIjFSBvTJVgIstYSEa0Ld/RhG3BKM8w7mxXEZxh1xXYfr9fpz8J8RlIwpa0ZqkFFR07i7ga/Zujp9B3/q6DXVsqNs8e2ptTK1jM76fO0+2NCyiv4x18iYxETL0i2E2FqgW6gcsjrjmbh5okjyP/fx9VaeY1et8povCdrK45cv0Sc3xh/0LEynFniMdTOj+vTe8Es6KGiyj/mm81u6b64p6Aqa2t8wnQNWFSgFsueCWSLq0zDzczOjdQfruv7RuE4QO6T1dA4T1SbXhPeRgGVWFhKMldYgeSfwky3DHqnZDYZ9GkZLrxs5a0jRN3ZtrhlgugifcdYW3UIk6hTTnDTEfgJ9q/7Y7qLD+Xw+9uheC399bGYfWG6U1z6xuSvSE7q3rdGUPq/GFi4hru6maR8S/5hUw4P54je7dDM7lk0WnClE8yzN9bpW50xNsV4xyj7rrjuIsl7/bn5F/1NbPP9M89T8QM2JBcQ+Vb77n7sk1P1qHbJb2XZmmCmNB6z3qCWR+5nJ7DVI3pq/JQ3wWeSNuK55luCP3Z4c4fSf3VB5jzzPXtbxdMMeqmke0YXPDgicZxkJakS9JVlzq7l2GI6grZLczflWmXX69mt3R+msgUW/3r7N/xeSE8s1HWjmgIReSa4qiemOHUL7TOb0xzlXuEPoNNT13MaeTudGik6I0lvPk/3srLD/NcJC05brSG7q5vpZTS6a5mCemDuP+5otXExaj080NvDcnZ7W1HPPZvwXfW6fBpZ3Pbzf76NNdpYhLNU4FqNnKopudB5m0VFOvceNOa7XqQ2eRz4DtBv4NiixKKzmN2HWa8rMns1CNqrr/oQWGtfTIGuWNrQ16v7vLqHt0/NMFiMpTjswiQ7MZCDTh/H18WSSYft4luZFSnG3+bD7C3po9myWcpehZr0ARqYm2r5TJ94OUNWsB90QpO8Deq2uW4rSOrlpHpro6So/U9BdiJ5zlXmKduSY5ynpHQobpcrTNDzuhLk5LM36tePHAKXnX2XYdSrH3VlqFB3k4299APbpecad44rTxJlNk+85m/xncTWJeZd/cm/JSofT6XS0WUPzkXNSRajtXG0Ee9blaQSlU26taKKpJZ/UqZS6Ppasz+nOgRCdRykIaoLaY47Zk9nVzE6Sc7as79QHz3fTSJ/9alE16x3NizX6fr9/NE4b3Kcg9uxJfUWDqB6trCloLmZPYZiNwfU8bc8fmLGIzRlnw1KF0bowHPNsaagP3OuxHgLsHo3dc7caJZr5M322+anPKhac3HPnVXbLr8hAV6Z9GCe4qp196KxJ5Szva16np3PIScnfItkWKj22S4nuCeQm4JajemyvwZZVhMCBPTJfoYq57KEADgqQb6KbcsSkgViAhH3Q6OxAPIdyNlpvDpZgpYHenmNsZNRkmT6J0Ugv15VA1AhNNxzOpvRoIRrxaQBdV6CZN9p0arzWxhJMNzrOBqTOJi5Zj3PjrITsIHNjixY+e0xGU7IdrdtV40A8nlTV5KSe5mqjYB+qYPOIoXo3WPb5q83G7mNkwhBODmercLMCFMjZuI8+X87iqqwAAxB9nHNUHAwkEnO4Xq/Hnj3cuVwfNzmb9eHP3fzYD5l8zQd6PB4/jQ89wFo/ZTLfWindoQOANj35fCfxzQiQi9klqQYfeqCpwV6CNclKTXX35Mzu3/N9Dt/v99g0b/vEvGG6eARvbVgPJpiw2emxUXWbDbO4Hb477Ma8RmpFt4bJ4OrmRyVVVKOPDBMvVEM92cvuHIdmexy19xJw1tQZjXo+urhrj8eXbbDT84SwDL2bR2LY7KF8BhlBPfQRPZ/SfE8AeJb4dgjfA7y7Oqzg5eV7yKdV7qY+2EMwGx6q+fRZmn7R0WMCIX2u05Zibfo0Lg/oiCXY87jZ5AUlNAuU0UwNMEvZkyauvzG/aTJRTzrvuSLxjQqAJq9LTpZ7YgEcR+jA6j5AqQfE9LhCtblBdjtau5rfBwX2kdHdZ5DIuemIn8/nD5N5Nm7eGxkMRCr82ZagHlPrPI8+UGk2bFvp1DQ0fmdV29KM5CK7XpupbLqj6WqNMlfrA57+NkPFNiwVoaP3PpO2++lNA9ri7I2NjmU3uexetfwvvkepM5hwQyO1Tc37/4qX5m89xcAQXR8wG3c/m+EveD0rxLaZa/a2GmNEK5rSh8k7BzPplv5cU9vNkead27b9mbpgLavrWKIc3UfQBdOugnenir7FqMzhbJJoWpsVGGtWwmQ9TbWHvdgN1AcBpkIhEalPC+lOWjXbIM8xWnnuJPYKhY0n3TDjcNUmDO2cEwupPZgmZitAbXxGS0d36fwvJlQitD6MSE6mHIssXnyBtD1PBLZJpFOY5rQIgtsY35vdSbLdpU0Y6mE2M6GSimGq0pYuhwGaX8c9HL7f77GPt2wzkg/3QQsZMdFndusHZPPqaOURpopseJ2QWO3ukk4GDTTILJg9C2CMWjVn5qB/q4NZJup3Urtc6D6VKkLb1HrToiiKz2al4d+Gnh5u1z6tMUadtRUBo6Ik1W1GbHKcHV2WZ0pN0DZauRv9jApZH63iO5r4SzPsM3q6o8fP5P9NO/7G0/EaCViMPmfTBnsoW0+2PazrenRynIi0ZZDZlPGO8GYTTW2dNZqyZy7a2wVNO3E8u0AQWf8Zf5Ckv89AcDRUt4Z1oBPts4vUpvxEo9142BPN9V09XE5w3Onrbr7uxaDrcL1ejy5iU6a1y5o8H7wbB03K+1jKnv+chbper9NW245C29d0XtWtxRZJ3cBOmg3ZJbv27BbrazaOdBWjD9nthpkOmHRBVuybWZ7P/R/DO3ZUlw6I7gAAAABJRU5ErkJggg=="),
+    /* 主となる渦。中央やや上に置きます */
+    radial-gradient(34% 28% at 52% 44%, rgba(255,255,255,1), rgba(255,255,255,0) 74%),
+    conic-gradient(from -14deg at 52% 44%,
+      rgba(255,255,255,0), rgba(198,201,216,.34) 13%, rgba(255,255,255,0) 28%,
+      rgba(255,255,255,0) 41%, rgba(198,201,216,.34) 55%, rgba(255,255,255,0) 69%,
+      rgba(255,255,255,0) 81%, rgba(198,201,216,.34) 92%, rgba(255,255,255,0) 100%),
+    radial-gradient(78% 62% at 52% 44%, rgba(255,255,255,.56), rgba(255,255,255,0) 76%),
+    /* 添えの渦。左下と右上に、ごく薄く */
+    radial-gradient(40% 32% at 16% 90%, rgba(255,255,255,.92), rgba(255,255,255,0) 74%),
+    conic-gradient(from 190deg at 16% 90%,
+      rgba(255,255,255,0), rgba(192,196,214,.20) 14%, rgba(255,255,255,0) 30%,
+      rgba(255,255,255,0) 44%, rgba(192,196,214,.20) 58%, rgba(255,255,255,0) 72%,
+      rgba(255,255,255,0) 100%),
+    radial-gradient(38% 30% at 88% 10%, rgba(255,255,255,.92), rgba(255,255,255,0) 74%),
+    conic-gradient(from 60deg at 88% 10%,
+      rgba(255,255,255,0), rgba(192,196,214,.18) 14%, rgba(255,255,255,0) 30%,
+      rgba(255,255,255,0) 44%, rgba(192,196,214,.18) 58%, rgba(255,255,255,0) 72%,
+      rgba(255,255,255,0) 100%),
+    /* 土台。明るさはここで決まります */
+    linear-gradient(146deg, #ffffff 0%, #f8f8fb 28%, #edeef4 58%, #fcfcfd 100%),
+    #f4f5f9;
+  background-size:110px auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto,auto;
+  background-repeat:repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat;
+  background-attachment:fixed;
+}
+@media print{ body{background:#fff;} }
+
+
+/* ============================================================
+   pv-mobile-fix : スマホでの不具合だけを直す
+   見た目（色・質感）は一切変えていません。位置と表示の修正のみです。
+   ============================================================ */
+
+/* ① 年ごとのグラフで、いちばん高い棒の上の数字が読めない
+      .ovb-v は top:-2px で棒の真上に重なる作り。棒が満杯の高さになると
+      黒い棒の上に黒い字が乗り、その年だけ数字が消えていた。
+      棒の上に余白をつくり、数字をそこに逃がす。 */
+#bstat-body .ovb-col{box-sizing:border-box;padding-top:19px;height:107px;}
+#bstat-body .ovb-v{top:0;}
+
+@media (max-width:860px){
+
+  /* ② 設定メニューが画面の左外に出て見切れる
+        .settings-menu は right:0（ボタンの右端ぞろえ）。スマホでは
+        ヘッダーが折り返して設定ボタンが左端に来るため、幅210pxが
+        まるごと画面の外（左端 −118px）へ出ていた。
+        左端ぞろえに変え、幅にも画面内の上限をかける。 */
+  .settings-menu{
+    left:0;right:auto;
+    min-width:0;
+    width:240px;
+    max-width:calc(100vw - 24px);
+    max-height:min(70vh,440px);
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  /* ③ 客付業者ランキングへの入口が、スマホから消えていた
+        左メニューへ移した際に画面内の元ボタンを
+        .broker-stat-btn{display:none!important} で消したが、
+        860px以下では左メニュー自体が隠れる作りのため、
+        入口がひとつも無くなっていた。狭い画面でだけ元ボタンを戻す。 */
+  .broker-stat-btn{display:inline-flex!important;}
+  #kb-view .broker-stat-bar{padding:4px 16px 10px;}
+
+  /* ランキングの中身を、狭い画面に収める（配色は変更なし） */
+  #bstat-modal.done-modal{width:96vw;max-width:96vw;max-height:88vh;}
+  #bstat-body{padding-left:12px;padding-right:12px;}
+  #bstat-body .bstat-summary{gap:6px;}
+  #bstat-body .bstat-chip{padding:7px 12px;font-size:12px;}
+}
+
+@media (max-width:520px){
+  /* 見出しと操作ボタンを上下に分ける。横に並べると
+     「客付業者 統計」が2行に割れて読みにくいため */
+  #bstat-modal .done-head{
+    flex-direction:column;align-items:stretch;gap:10px;padding:14px 14px 12px;
+  }
+  #bstat-modal .done-head h2{font-size:17px;white-space:nowrap;}
+  #bstat-modal .done-head > div{justify-content:flex-start;}
+  /* 閉じるボタンだけ右上に固定。4つ並べると × が次の行へ落ちるため */
+  #bstat-modal .done-head .pv-close{position:absolute;top:12px;right:12px;}
+}
+
+
+/* ============================================================
+   pv-sheet-mobile : 契約の編集が、左右にはみ出す
+     #kb-view .dd-item は width:calc((100% - 48px)/7) で
+     画面幅にかかわらず「常に横7個」。スマホでは1個57pxになり、
+     ・「契約書送付」が1文字ずつ縦に並ぶ
+     ・日付「2026/08/26」が枠に収まらず外へ出て、
+       グリッドが12px右へはみ出す（＝左右の遊び）
+     という状態でした。狭い画面では個数を減らします。
+     色・質感は変えていません。
+     ============================================================ */
+@media (max-width:860px){
+  /* はみ出しそのものを止める */
+  #kb-view .dd-grid{overflow-x:hidden;}
+  /* 横4個に。1個あたりの幅が約2倍になり、日付が枠に収まります */
+  #kb-view .dd-item{
+    width:calc((100% - 24px) / 4);
+    padding:12px 4px;
+    min-width:0;
+  }
+  #kb-view .dd-item img,
+  #kb-view .dd-item.zone-fill img,
+  #kb-view .dd-item.zone-outline img{width:40px;height:40px;}
+  #kb-view .dd-item .dd-label{
+    font-size:12.5px!important;line-height:1.3;text-align:center;
+    overflow-wrap:anywhere;word-break:normal;
+  }
+  #kb-view .dd-item .dd-date{font-size:11px!important;white-space:nowrap;}
+  #kb-view .dd-item .dd-note{font-size:10.5px!important;}
+  #kb-view .dd-item .dd-cycle-hint{font-size:9.5px!important;}
+}
+
+@media (max-width:520px){
+  /* さらに狭い画面では横3個。日付の幅を確実に確保します */
+  #kb-view .dd-item{width:calc((100% - 16px) / 3);}
+}
+
+/* 上段の基本情報も同じ理由でつぶれていました。
+   #kb-view .info-icons は flex-wrap:nowrap で7項目を必ず1行に詰めるため、
+   スマホでは1個42pxになり「未入力」が1文字ずつ縦に並んでいました。
+   折り返して、1行に3つ（狭い画面）／4つ（少し広い画面）にします。 */
+@media (max-width:860px){
+  /* align-content を止めないと、折り返した行が縦に引き伸ばされて
+     1個203pxの間延びした箱になります */
+  #kb-view .info-icons{flex-wrap:wrap;gap:8px;align-content:flex-start;align-items:flex-start;}
+  #kb-view .info-icon{
+    flex:1 1 calc((100% - 24px) / 4);
+    min-width:calc((100% - 24px) / 4);
+    min-height:86px;padding:10px 6px;
+  }
+  #kb-view .info-icon.info-icon-wide{
+    flex:1 1 calc((100% - 24px) / 4);min-width:calc((100% - 24px) / 4);
+  }
+  #kb-view .info-ico-label{font-size:11px;line-height:1.3;overflow-wrap:anywhere;}
+  #kb-view .info-ico-val{font-size:12px;}
+  #kb-view .info-ico-val.is-date{font-size:14px;letter-spacing:0;}
+  #kb-view .info-ico-val.is-park{font-size:17px;}
+  #kb-view .info-icon.info-icon-wide .info-ico-val{font-size:13px;}
+  #kb-view .info-icon .info-ico-svg svg{width:24px;height:24px;}
+  /* 未入力の値が padding:60px 20px を拾って、1マスが203pxに膨らんでいました。
+     値に付く class は "info-ico-val empty" で、base.css:515 の
+     .empty{padding:60px 20px}（データ無し画面用の全体ルール）に
+     偶然あたっていたためです。ここだけ余白を戻します。 */
+  #kb-view .info-ico-val.empty{padding:0;}
+}
+@media (max-width:520px){
+  #kb-view .info-icon,
+  #kb-view .info-icon.info-icon-wide{
+    flex:1 1 calc((100% - 16px) / 3);min-width:calc((100% - 16px) / 3);
+  }
+}
+
+
+/* ============================================================
+   pv-wide : 画面を広げた分だけ、中身も広げる
+   ============================================================ */
+@media (min-width:861px){
+  /* 物件の画面。1200pxで頭打ちになり、1920pxの窓では480px余っていました */
+  #pivot-view .container{max-width:none;}
+  /* オーナーメールの画面。1100pxで頭打ち。同じく580px余り */
+  #rent-view .wrap{max-width:none;}
+}
+
+/* ============================================================
+   pv-bstat-full : 客付業者ランキングを、画面いっぱいの1画面に
+     もとは 720px の小さな枠に、中身を押し込んでいました。
+     枠を画面全体に広げ、余白と角丸をなくして「1画面」にします。
+     ★HTML・id・class・JS には触れていません。
+     ============================================================ */
+#kb-view #bstat-modal.done-modal,
+#kb-view #bstat-modal.done-modal.active{
+  top:0;left:0;right:0;bottom:0;
+  transform:none;
+  width:100vw;max-width:none;
+  height:100vh;max-height:none;
+  border-radius:0;
+  box-shadow:none;
+}
+/* 中身が縦に伸びきるように */
+#kb-view #bstat-modal .done-head{flex:0 0 auto;}
+#kb-view #bstat-modal #bstat-body{flex:1 1 auto;min-height:0;}
+
+/* 広がった横幅を、グラフに使わせる */
+#bstat-body{padding-left:24px;padding-right:24px;}
+#bstat-body .ov-bars.ov-year{gap:20px;padding-left:4px;padding-right:4px;}
+#bstat-body .ov-year .ovb{flex:1 1 0;width:auto;min-width:56px;max-width:170px;}
+#bstat-body .ov-year .ovb-col i{width:74%;max-width:96px;}
+#bstat-body .ov-month .ovb{flex:1 0 36px;width:auto;max-width:64px;}
+/* 会社ごとの月別グラフも、余った分だけ広がるように */
+#bstat-body .bm-chart{gap:7px;}
+#bstat-body .mbar{flex:1 0 30px;max-width:52px;width:auto;}
+
+/* 狭い画面では、もともとの全画面指定（96vw/88vh）を保つ */
+@media (max-width:860px){
+  #kb-view #bstat-modal.done-modal,
+  #kb-view #bstat-modal.done-modal.active{
+    width:100vw;height:100vh;border-radius:0;
+  }
+  #bstat-body{padding-left:12px;padding-right:12px;}
+}
+
+/* ---- 個別の業者の明細を、広い画面では段組みにする ----
+   1社ぶんの明細が88件・縦3,639pxあり、1件ずつ縦に並んでいました。
+   横幅が余っているので、段に分けて一度に見えるようにします。
+   ★行の中身（物件名・号数・担当・日付・キャンセル/審査落ち）は
+     もともと出ているものです。並べ方だけ変えています。 */
+/* ★.bstat-props は display:flex のため column-count が効きません。
+     grid に変えて段に分けます。
+     閉じているときの .bstat-collapsed{display:none} は
+     こちらより指定が強いので、開閉の動きはそのままです。 */
+@media (min-width:1200px){
+  #bstat-body .bstat-props{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 20px;
+  }
+  #bstat-body .bstat-props.cx-only::before{grid-column:1 / -1;}
+}
+@media (min-width:1650px){
+  #bstat-body .bstat-props{grid-template-columns:repeat(3,minmax(0,1fr));}
+}
+
+/* 「押すと明細が出る」ことが分かるようにする。
+   いままで小さな ▼ だけで、気づけませんでした。 */
+#bstat-body .bstat-caret::before{
+  content:'明細';
+  font-size:11px;font-weight:700;color:#8a8a8f;
+  margin-right:6px;vertical-align:middle;letter-spacing:.02em;
+}
+#bstat-body .bstat-card:hover .bstat-caret::before{color:#111;}
+
+
+/* ============================================================
+   pv-date-bigger : 日付が小さすぎて読めない
+     ・獲得アイテムの日付「08/26」      15px → 20px
+     ・日付の入力欄「2026/08/26」       11px → 14px（枠も広げる）
+     ・カードの「ひな形送付 → 8/26」    16px → 21px
+   大きさだけの変更です。色・配置・機能は変えていません。
+   ============================================================ */
+#kb-view .dd-date{font-size:20px;font-weight:800;}
+#kb-view .dd-item.zone-fill .dd-date,
+#kb-view .dd-item.zone-outline .dd-date{font-size:20px;font-weight:800;}
+/* 取得日の入力欄。
+   日付は上に「08/26」と大きく出ているので、ここの日付の文字は消し、
+   カレンダーのアイコンだけ残します。押せば今までどおり日付を直せます。
+   （文字を消すだけで、入力欄そのものは残しています） */
+#kb-view .dd-date-edit{
+  width:auto;max-width:100%;box-sizing:border-box;
+  padding:2px 3px;margin-top:2px;
+  border:1px solid rgba(0,0,0,.16);border-radius:7px;
+  background:rgba(255,255,255,.75);
+  font-size:13px;line-height:1;
+}
+#kb-view .dd-date-edit::-webkit-datetime-edit{display:none;}
+#kb-view .dd-date-edit::-webkit-inner-spin-button{display:none;}
+#kb-view .dd-date-edit::-webkit-clear-button{display:none;}
+#kb-view .dd-date-edit::-webkit-calendar-picker-indicator{
+  opacity:.5;padding:0;margin:0;cursor:pointer;
+}
+#kb-view .dd-item:hover .dd-date-edit::-webkit-calendar-picker-indicator{opacity:.9;}
+
+/* カード上の「ステータス → 切替日」 */
+#kb-view .ct-status-date{font-size:21px;letter-spacing:.5px;}
+#kb-view .ct-status-date-label{font-size:13px;opacity:.9;}
+#kb-view .ct-status-date-arrow{font-size:13px;}
+#kb-view .ct-status-date-edit{font-size:13px;}
+
+/* スマホ。枠が3列で143pxあるので、こちらも読める大きさに戻します
+   （pv-sheet-mobile で11pxまで落としていました） */
+@media (max-width:860px){
+  #kb-view .dd-item .dd-date{font-size:15px!important;font-weight:800;}
+  #kb-view .dd-date-edit{font-size:13px;max-width:100%;}
+  #kb-view .ct-status-date{font-size:18px;}
+}
+
+
+/* ============================================================
+   pv-monthly-color : マンスリーが白のままで見分けられない
+     cardStatus() は 'monthly' を返しているのに、
+     .ct-card.status-monthly の背景がどこにも定義されておらず、
+     白いカードのまま他と区別がつきませんでした。
+     アプリ内で既にマンスリーに使っている水色
+     （#e4f1fc / #1a7fd4）にそろえます。
+     ============================================================ */
+#kb-view .ct-card.status-monthly{
+  background:#e4f1fc;
+  box-shadow:inset 4px 0 0 #1a7fd4,0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(26,127,212,.10);
+}
+#kb-view .ct-card.status-monthly:hover{
+  box-shadow:inset 4px 0 0 #1a7fd4,0 2px 6px rgba(0,0,0,.07),0 14px 36px rgba(26,127,212,.16);
+}
+#kb-view .ct-card.status-monthly .ct-badge{background:#d0e6f9!important;}
+#kb-view .ct-card.status-monthly .ct-stage-name{color:#0a5a9e;}
+
+/* 獲得アイテムの日付が薄い山吹色(#f5c000)で読みにくいので、
+   基本情報の日付（申込日・契約日）と同じ濃さ(#9a7b00)にそろえます。
+   赤（不要）とグレー（他保険）のアイテムは、意味のある色なのでそのまま。 */
+#kb-view .dd-item:not(.is-red):not(.is-gray) .dd-date{color:#9a7b00;}
+
+
+/* ============================================================
+   pv-rank-green : 客付業者ランキングの画面だけ、緑基調にする
+     いったん「緑いらない」で全部外しましたが、
+     「ランキングの画面だけ」緑にしたいとのことなので、
+     当時のランキング用の指定だけを戻します。
+     ★画面全体の背景は今のまま（灰）です。緑にはしません。
+     ★今日の全画面化・幅拡張は、こちらより指定が強いのでそのまま生きます。
+     ============================================================ */
+#bstat-modal.done-modal{
+  max-width:840px;border-radius:24px;
+  box-shadow:0 2px 8px rgba(0,0,0,.08),0 40px 90px rgba(0,0,0,.30);
+}
+#bstat-modal .done-head{
+  background:#fff;border-bottom:1px solid #eaeaee;padding:18px 22px;
+}
+#bstat-modal .done-head h2{
+  font-size:19px;font-weight:600;letter-spacing:-.02em;color:var(--pv-ink);
+}
+#bstat-body{background:#f4f4f6;padding-top:14px;}
+
+/* ---- 上の要約チップ ---- */
+#bstat-body .bstat-chip{
+  background:#fff;border:1px solid #e6e6ea;border-radius:999px;padding:8px 16px;
+  font-size:13px;font-weight:500;color:var(--pv-ink-2);
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
+}
+#bstat-body .bstat-chip b{font-size:15px;font-weight:600;color:var(--pv-ink);}
+#bstat-body .bstat-chip-cx{border-color:#f0d5d2;color:#b0362c;}
+#bstat-body .bstat-chip-cx b{color:#b0362c;}
+#bstat-body .bstat-chip-rj{border-color:#ecdcc0;color:#8a6412;}
+#bstat-body .bstat-chip-rj b{color:#8a6412;}
+
+/* ---- 会社ごとのカード ---- */
+#bstat-body .bstat-card{
+  background:#fff;border:1px solid #e8e8ec;border-radius:18px;
+  padding:16px 18px;margin-bottom:14px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px rgba(0,0,0,.06);
+  transition:transform .22s cubic-bezier(.22,.61,.36,1),box-shadow .22s;
+}
+#bstat-body .bstat-card:hover{
+  transform:translateY(-4px);border-color:#d4d4da;
+  box-shadow:0 2px 6px rgba(0,0,0,.06),0 20px 44px rgba(0,0,0,.13);
+}
+#bstat-body .bstat-name{
+  font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--pv-ink);
+}
+#bstat-body .bstat-medal{
+  background:#f0f0f2;color:var(--pv-ink-2);border:1px solid #e4e4e8;
+  border-radius:14px;font-size:17px;font-weight:600;
+}
+#bstat-body .bstat-card:hover .bstat-medal{
+  background:var(--pv-accent);color:#fff;border-color:var(--pv-accent);
+}
+
+/* ══ 1位だけ、黒いカード（見本の Total Balance にあたるもの） ══ */
+#bstat-body .bstat-card.rk1{
+  background:#17171a;border-color:#17171a;
+  box-shadow:0 1px 2px rgba(0,0,0,.16),0 16px 38px rgba(0,0,0,.26);
+}
+#bstat-body .bstat-card.rk1:hover{
+  border-color:#17171a;
+  box-shadow:0 2px 6px rgba(0,0,0,.20),0 28px 60px rgba(0,0,0,.34);
+}
+#bstat-body .bstat-card.rk1 .bstat-name{color:#fff;}
+#bstat-body .bstat-card.rk1 .bstat-medal,
+#bstat-body .bstat-card.rk1:hover .bstat-medal{
+  background:var(--pv-accent);color:#fff;border-color:transparent;
+}
+#bstat-body .bstat-card.rk1 .bstat-rate{color:rgba(255,255,255,.62);}
+#bstat-body .bstat-card.rk1 .bstat-rate b{color:#fff;}
+#bstat-body .bstat-card.rk1 .bstat-caret{color:rgba(255,255,255,.5);}
+#bstat-body .bstat-card.rk1 .bstat-months,
+#bstat-body .bstat-card.rk1 .bstat-top3{border-top-color:rgba(255,255,255,.14);}
+#bstat-body .bstat-card.rk1 .bstat-months,
+#bstat-body .bstat-card.rk1 .bstat-top3,
+#bstat-body .bstat-card.rk1 .bstat-props{color:rgba(255,255,255,.8);}
+#bstat-body .bstat-card.rk1 .mbar-v{color:#fff;}
+#bstat-body .bstat-card.rk1 .mbar-x{color:rgba(255,255,255,.45);}
+#bstat-body .bstat-card.rk1 .mbar-col i{
+  background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.22))!important;
+}
+#bstat-body .bstat-card.rk1 .bstat-prop-row{
+  background:rgba(255,255,255,.07);
+}
+#bstat-body .bstat-card.rk1 .bstat-prop-row .pname{color:#fff;}
+#bstat-body .bstat-card.rk1 .bstat-prop-row .pstaff{
+  background:rgba(255,255,255,.16);color:#fff;
+}
+#bstat-body .bstat-card.rk1 .bstat-prop-row .pwhen{color:rgba(255,255,255,.5);}
+
+/* ---- 件数のまとまり ---- */
+#bstat-body .bstat-badge{
+  border-radius:14px;background:#17171a;border:0;min-width:66px;padding:9px 14px;
+}
+#bstat-body .bstat-badge .bnum{font-size:24px;font-weight:600;letter-spacing:-.03em;color:#fff;}
+#bstat-body .bstat-badge .blbl{font-size:10.5px;font-weight:500;color:rgba(255,255,255,.6);opacity:1;}
+#bstat-body .bstat-card.rk1 .bstat-badge{background:var(--pv-accent);}
+/* 落ちる数字だけ、色を持たせます */
+#bstat-body .bstat-badge-cx{background:#fbeceb!important;border:1px solid #f0d5d2!important;}
+#bstat-body .bstat-badge-cx .bnum,#bstat-body .bstat-badge-cx .blbl{color:#b0362c!important;}
+#bstat-body .bstat-badge-rj{background:#fdf6e8!important;border:1px solid #ecdcc0!important;}
+#bstat-body .bstat-badge-rj .bnum,#bstat-body .bstat-badge-rj .blbl{color:#8a6412!important;}
+#bstat-body .bstat-rate .rt-cx{color:#b0362c;}
+#bstat-body .bstat-rate .rt-rj{color:#8a6412;}
+#bstat-body .bstat-rate{font-size:12.5px;font-weight:500;color:var(--pv-ink-2);}
+
+/* ---- 棒グラフ。緑と黒の2色に絞ります ---- */
+#bstat-body .mbar-col i{
+  background:linear-gradient(180deg,#d6d6dc,#e8e8ec)!important;border-radius:5px 5px 0 0;width:17px;
+}
+#bstat-body .mbar-v{font-size:11px;font-weight:600;color:var(--pv-ink-2);}
+#bstat-body .mbar-x{font-size:9.5px;color:var(--pv-ink-3);font-weight:500;}
+/* いちばん多かった月 */
+#bstat-body .mbar-peak .mbar-col i{
+  background:linear-gradient(180deg,#17171a,#3c3c42)!important;
+}
+#bstat-body .mbar-peak .mbar-v{color:var(--pv-ink);font-weight:700;}
+#bstat-body .mbar-peak .mbar-x{color:var(--pv-ink);font-weight:600;}
+/* 今月 */
+#bstat-body .mbar-now .mbar-col i{
+  background:linear-gradient(180deg,#3a3a40,#8a8a92)!important;
+}
+#bstat-body .mbar-now .mbar-v{color:var(--pv-accent);font-weight:700;}
+#bstat-body .mbar-now .mbar-x{
+  color:#fff;background:var(--pv-accent);border-radius:6px;padding:1px 5px;font-weight:600;
+}
+#bstat-body .bstat-card.rk1 .mbar-now .mbar-col i,
+#bstat-body .bstat-card.rk1 .mbar-peak .mbar-col i{
+  background:linear-gradient(180deg,#9a9aa2,#c9c9d0)!important;
+}
+#bstat-body .bstat-card.rk1 .mbar-now .mbar-v,
+#bstat-body .bstat-card.rk1 .mbar-peak .mbar-v{color:#c9c9d0;}
+#bstat-body .bstat-card.rk1 .mbar-now .mbar-x{background:#3a3a40;color:#fff;}
+
+/* ---- 年別推移 ---- */
+#bstat-body .bstat-years{
+  background:#fff;border:1px solid #e8e8ec;border-radius:18px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px rgba(0,0,0,.06);
+}
+#bstat-body .bstat-years-h{font-size:14px;font-weight:600;color:var(--pv-ink);}
+#bstat-body .byr-bar{background:#f0f0f2;height:12px;}
+#bstat-body .byr-bar i{background:linear-gradient(90deg,#3a3a40,#9a9aa2);}
+#bstat-body .byr-yr{
+  background:#f4f4f6;border:1px solid #e6e6ea;border-radius:10px;
+  font-size:12px;font-weight:600;color:var(--pv-ink-2);
+}
+#bstat-body .byr-yr:hover{background:var(--pv-accent);border-color:var(--pv-accent);color:#fff;}
+
+/* ---- よく客付けする物件 ---- */
+#bstat-body .bstat-prop-row{
+  background:#f6f6f8;border-radius:12px;
+}
+#bstat-body .bstat-prop-row .pname{font-weight:600;color:var(--pv-ink);}
+#bstat-body .bstat-prop-row .pstaff{
+  background:#eaeaee;color:#3a3a40;font-weight:600;
+}
+#bstat-body .bstat-prop-row .pwhen{color:var(--pv-ink-3);font-weight:500;}
+#bstat-body .cxtag{background:#fbeceb;color:#b0362c;font-weight:600;border-radius:7px;}
+#bstat-body .cxtag.rjtag{background:#fdf6e8;color:#8a6412;}
+#bstat-body .bstat-months,#bstat-body .bstat-top3{border-top:1px solid #f0f0f2;}
+
+/* ---- 上の2つのグラフ（年ごと・月ごと）も同じ2色に ----
+   ★ここだけ .ovb という別の名前で、青のままでした */
+#bstat-body .ov-chart{
+  background:#fff;border:1px solid #e8e8ec;border-radius:18px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px rgba(0,0,0,.06);
+}
+#bstat-body .ov-h{font-size:14px;font-weight:600;color:var(--pv-ink);}
+#bstat-body .ovb-col i{
+  background:linear-gradient(180deg,#3a3a40,#9a9aa2)!important;border-radius:5px 5px 0 0;
+}
+#bstat-body .ov-year .ovb-col i{
+  background:linear-gradient(180deg,#17171a,#48484f)!important;
+}
+#bstat-body .ovb-v{font-size:11px;font-weight:600;color:var(--pv-ink);}
+#bstat-body .ovb-x{
+  font-size:10px;color:var(--pv-ink-3);font-weight:500;
+}
+#bstat-body .ov-year .ovb-x{
+  background:#f4f4f6;border:1px solid #e6e6ea;border-radius:8px;
+  color:var(--pv-ink-2);font-weight:600;
+}
+#bstat-body .ov-year .ovb-x:hover{background:var(--pv-accent);border-color:var(--pv-accent);color:#fff;}
+
+/* 件数の文字。青が残っていたので緑にそろえます */
+#bstat-body .bt3-ct,#bstat-body .pb-ct{color:var(--pv-accent);font-weight:600;}
+
+/* ---- 物件別タブも緑にそろえる ---- */
+/* ---- 5. 「物件別」タブだけ、青いままでした ----
+   段階9で緑にそろえたとき、こちらのクラス名（pb- / bt3-）を
+   見落としていました。同じ緑に合わせます。 */
+#bstat-body .pb-strong-badge{
+  background:linear-gradient(120deg,#f0f0f2,#fff);
+  border:1px solid #d8d8de;color:#3a3a40;font-weight:600;border-radius:12px;
+}
+#bstat-body .pb-strong-badge b{color:var(--pv-accent);font-weight:700;}
+#bstat-body .pb-share{color:var(--pv-accent);font-weight:600;}
+#bstat-body .pb-ct{color:var(--pv-accent);font-weight:700;}
+#bstat-body .pb-row.pb-strong{background:#f2f2f4;}
+#bstat-body .pb-row.pb-strong .pb-nm{color:#3a3a40;}
+#bstat-body .pb-nm{font-weight:600;color:var(--pv-ink);}
+#bstat-body .pb-row{border-bottom:1px solid #f0f0f2;}
+#bstat-body .bt3-ct{color:var(--pv-accent);font-weight:700;}
+#bstat-body .bt3-item{background:#f6f6f8;border:1px solid #e8e8ec;}
+#bstat-body .bt3-nm{font-weight:600;}
+/* 1位（黒いカード）の中では、白ぬきにします */
+#bstat-body .bstat-card.rk1 .pb-strong-badge{
+  background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:rgba(255,255,255,.82);
+}
+#bstat-body .bstat-card.rk1 .pb-strong-badge b{color:#c9c9d0;}
+#bstat-body .bstat-card.rk1 .pb-share{color:#c9c9d0;}
+#bstat-body .bstat-card.rk1 .pb-nm{color:#fff;}
+#bstat-body .bstat-card.rk1 .pb-row{border-bottom-color:rgba(255,255,255,.10);}
+#bstat-body .bstat-card.rk1 .pb-ct{color:#c9c9d0;}
+#bstat-body .bstat-card.rk1 .bt3-item{
+  background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#fff;
+}
+#bstat-body .bstat-card.rk1 .bt3-nm{color:#fff;}
+#bstat-body .bstat-card.rk1 .bt3-ct{color:#c9c9d0;}
+
+/* ---- 6. 切替タブ（業者別／物件別） ---- */
+#bstat-body .bmode{
+  border:1px solid #e6e6ea;border-radius:12px;background:#fff;
+  color:var(--pv-ink-2);font-size:14px;font-weight:600;padding:10px 12px;
+}
+#bstat-body .bmode.on{background:#17171a;border-color:#17171a;color:#fff;}
+
+/* 「今月」の棒だけ、ひときわ明るい黄緑でした。落ち着いた緑にします */
+#bstat-body .ovb-now .ovb-col i{
+  background:linear-gradient(180deg,#3a3a40,#9a9aa2)!important;
+}
+#bstat-body .ovb-now .ovb-v{color:var(--pv-accent);}
+#bstat-body .ovb-now .ovb-x{background:var(--pv-accent);color:#fff;font-weight:600;}
+
+
+/* ============================================================
+   pv-readable : 契約の編集まわりの、読みにくい所をまとめて直す
+     ① 小さすぎる説明文（10.5px〜13px）を、詰まらない範囲で拡大
+     ② 閉じる × が小さくて灰色 → 大きく黒く
+     ③ 日付にカレンダーの印を添え、日付を押しても開くようにする
+   ============================================================ */
+
+/* ---- ① 文字の大きさ。行間も一緒に上げて詰まらないようにする ---- */
+#kb-view .info-hint{
+  font-size:13.5px;color:#7a7a80;line-height:1.6;margin-top:10px;
+}
+#kb-view #sheet .sheet-section h3{
+  font-size:17px;font-weight:700;color:#3a3a40;margin-bottom:10px;
+}
+#kb-view .sis-count{
+  font-size:15px;font-weight:800;margin-bottom:9px;
+}
+#kb-view .sis-count span{font-size:13px!important;}
+#kb-view .pv-section-title{font-size:14px;letter-spacing:.3px;}
+
+/* ---- ② 閉じるボタン。灰色で埋もれていました ---- */
+#kb-view .pv-close{
+  width:42px;height:42px;font-size:26px;font-weight:700;
+  background:#111;color:#fff;line-height:1;
+  box-shadow:0 2px 8px rgba(0,0,0,.22);
+}
+#kb-view .pv-close:hover{background:#000;transform:scale(1.06);}
+#kb-view .done-head .pv-close{width:42px;height:42px;}
+
+/* ---- ③ 日付とカレンダー ----
+   カレンダーの入力欄が、枠のいちばん下に離れて浮いていたので、
+   日付のすぐ下に寄せて「日付の一部」に見えるようにします。
+   あわせて日付そのものも押せるようにします（JSは index.html 側）。 */
+#kb-view .dd-item{position:relative;}
+#kb-view .dd-iconwrap{order:1;}
+#kb-view .dd-label{order:2;}
+#kb-view .dd-date{order:3;cursor:pointer;}
+#kb-view .dd-date-edit{order:4;margin-top:1px;}
+#kb-view .dd-ok,
+#kb-view .dd-note,
+#kb-view .dd-ok-red,
+#kb-view .dd-pnum{order:5;}
+#kb-view .dd-cycle-hint{order:6;}
+#kb-view .dd-cross{order:0;}
+/* 日付を押せることが分かるように、うっすら下線を出す */
+#kb-view .dd-date{
+  text-decoration:underline;text-decoration-style:dotted;
+  text-underline-offset:3px;text-decoration-color:rgba(0,0,0,.22);
+}
+#kb-view .dd-item:hover .dd-date{text-decoration-color:currentColor;}
+
+/* 契約の編集シートの × も、同じく大きく黒く
+   （こちらは .sheet-close という別の名前でした。30px・灰色） */
+#kb-view .sheet-close{
+  width:42px;height:42px;font-size:26px;font-weight:700;
+  background:#111;color:#fff;line-height:1;
+  box-shadow:0 2px 8px rgba(0,0,0,.22);
+}
+#kb-view .sheet-close:hover{background:#000;transform:scale(1.06);}
+
+
+/* ============================================================
+   pv-filter-list : 件数バーの絞り込み・契約日間近・不備の列
+   ============================================================ */
+
+/* ---- ① 件数バーを押せるようにした分の見た目 ---- */
+#kb-view .stats-bar .stat-pill{
+  cursor:pointer;border-radius:14px;
+  transition:background .14s,transform .12s;
+}
+#kb-view .stats-bar .stat-pill:hover{background:rgba(255,255,255,.09);}
+/* 選んでいる項目 */
+#kb-view .stats-bar .stat-pill.on{
+  background:rgba(255,255,255,.16);
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.45);
+}
+#kb-view .stats-bar .stat-pill.on .lbl{color:#fff;font-weight:700;}
+/* 契約日間近は琥珀色。急ぎの赤とは分ける */
+#kb-view .stats-bar .stat-pill.near .num{color:#f0b429;}
+
+/* ---- ② 整列パネルが画面の外に出て見切れる ----
+   right:0（ボタンの右端ぞろえ）のため、左へ開いて画面外に出ていました。
+   左端ぞろえに変え、幅にも画面内の上限をかけます。 */
+#kb-view .kb-toolbar .sort-dropdown,
+.kb-toolbar .sort-dropdown{
+  right:auto;left:0;
+  max-width:calc(100vw - 32px);
+  max-height:70vh;overflow-y:auto;
+}
+
+/* ---- ③ 一覧表示。文字が小さすぎて読めない ---- */
+#kb-view .lv-table{font-size:15px;}
+#kb-view .lv-table th{
+  font-size:13px;letter-spacing:.02em;padding-top:12px;padding-bottom:12px;
+}
+#kb-view .lv-table td{padding:14px 12px;}
+#kb-view .lv-prop b{font-size:16px;}
+#kb-view .lv-sub{font-size:13px;}
+#kb-view .lv-badge{font-size:13px;padding:5px 12px;}
+#kb-view .lv-num{font-size:14px;font-weight:800;}
+
+/* ---- ④ 不備の列。何が足りなくてその状態なのかを並べる ---- */
+#kb-view .lv-table th.lv-miss-h{min-width:260px;}
+#kb-view .lv-miss{max-width:420px;}
+#kb-view .lv-miss-tag{
+  display:inline-block;margin:2px 4px 2px 0;padding:3px 9px;
+  background:#fdeceb;color:#b0362c;border:1px solid #f4d3d0;
+  border-radius:8px;font-size:12.5px;font-weight:700;white-space:nowrap;
+}
+#kb-view .lv-miss-ok{
+  color:#1f7a4d;font-size:13px;font-weight:700;
+}
+#kb-view .lv-row.arch .lv-miss-tag{opacity:.5;}
+
+/* ---- ⑤ 契約日まであと何日か ---- */
+#kb-view .lv-due{
+  display:inline-block;margin-left:6px;padding:2px 8px;
+  background:#fff3d6;color:#8a6412;border:1px solid #f0dcae;
+  border-radius:8px;font-size:12px;font-weight:800;white-space:nowrap;
+}
+
+
+/* ============================================================
+   pv-rate-bigger : ランキングの「申込 / キャンセル率 / 審査落ち率」
+     大事な数字なのに 12.5px（数字は14px）で小さすぎました。
+     文字と数字を上げ、区切りも見やすくします。
+   ============================================================ */
+#bstat-body .bstat-rate{
+  font-size:16px;font-weight:500;line-height:1.5;
+  padding-top:6px;padding-bottom:10px;
+}
+#bstat-body .bstat-rate b{
+  font-size:22px;font-weight:700;letter-spacing:-.01em;
+}
+/* 「／」の区切りを薄くして、数字を際立たせる */
+#bstat-body .bstat-rate .rt-cx,
+#bstat-body .bstat-rate .rt-rj{font-weight:700;}
+
+/* 1位（濃緑のカード）の中でも読めるように */
+#bstat-body .bstat-card.rk1 .bstat-rate{color:rgba(255,255,255,.72);}
+#bstat-body .bstat-card.rk1 .bstat-rate b{color:#fff;}
+
+/* 会社名と順位も、数字に負けない大きさに */
+#bstat-body .bstat-name{font-size:19px;}
+#bstat-body .bstat-medal{font-size:18px;}
+
+@media (max-width:640px){
+  #bstat-body .bstat-rate{font-size:14px;}
+  #bstat-body .bstat-rate b{font-size:19px;}
+  #bstat-body .bstat-name{font-size:17px;}
+}
+
+
+/* ============================================================
+   pv-insight : PDFの中にしか無かった2つの表を、画面に出す
+     ① よく客付けしてくれる業者 TOP20
+     ② 掘り起こし候補（広告・再アプローチ対象）
+   ＋ 月別グラフを年ごとに改行したときの見た目
+   ============================================================ */
+#bstat-body .bstat-insight{
+  display:grid;grid-template-columns:1fr;gap:14px;margin:0 2px 16px;
+}
+@media (min-width:1250px){
+  #bstat-body .bstat-insight{grid-template-columns:1.15fr 1fr;}
+}
+#bstat-body .bi-card{
+  background:#fff;border:1px solid #e8e8ec;border-radius:18px;
+  padding:16px 18px;
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 22px rgba(0,0,0,.06);
+}
+#bstat-body .bi-h{
+  font-size:16px;font-weight:700;color:var(--pv-ink);margin-bottom:12px;
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+}
+#bstat-body .bi-sub{font-size:12.5px;font-weight:500;color:var(--pv-ink-3);}
+#bstat-body .bi-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+#bstat-body .bi-table{width:100%;border-collapse:collapse;font-size:14px;}
+#bstat-body .bi-table th{
+  background:#f4f4f6;color:#5a6b62;font-size:12px;font-weight:700;
+  padding:9px 10px;text-align:left;white-space:nowrap;
+  border-bottom:1px solid #e6e6ea;
+}
+#bstat-body .bi-table td{
+  padding:10px;border-bottom:1px solid #f2f2f4;vertical-align:middle;
+}
+#bstat-body .bi-table tr:last-child td{border-bottom:0;}
+#bstat-body .bi-c{text-align:center;white-space:nowrap;}
+#bstat-body .bi-nm{font-weight:700;color:var(--pv-ink);}
+#bstat-body .bi-b3{font-size:12.5px;color:var(--pv-ink-2);}
+#bstat-body .bi-table td b{font-size:17px;font-weight:700;}
+/* 上位3社 */
+#bstat-body .bi-top3 td{background:#f6f6f8;}
+#bstat-body .bi-rank{font-weight:800;color:var(--pv-accent);}
+/* 掘り起こしの緊急度：6〜11ヶ月=黄 / 12〜23ヶ月=橙 / 24ヶ月〜=赤 */
+#bstat-body .bi-warn td{background:#fffbf0;}
+#bstat-body .bi-hot  td{background:#fff5ea;}
+#bstat-body .bi-crit td{background:#fdefee;}
+#bstat-body .bi-warn .bi-gap{color:#8a6412;font-weight:800;}
+#bstat-body .bi-hot  .bi-gap{color:#b3560f;font-weight:800;}
+#bstat-body .bi-crit .bi-gap{color:#b0362c;font-weight:800;}
+#bstat-body .bi-none{
+  font-size:14px;color:var(--pv-ink-2);padding:14px 4px;
+}
+
+/* ---- 月別グラフを年ごとに改行したときの1行分 ---- */
+#bstat-body .ovy-row{
+  border-top:1px solid #f0f0f2;padding-top:10px;margin-top:12px;
+}
+#bstat-body .ovy-row:first-of-type{border-top:0;padding-top:0;margin-top:0;}
+#bstat-body .ovy-h{
+  font-size:13.5px;font-weight:700;color:var(--pv-ink-2);margin-bottom:6px;
+}
+#bstat-body .ovy-h b{font-size:17px;color:var(--pv-ink);font-weight:700;}
+/* 12か月ぶんが必ず1行に収まるよう、棒を伸び縮みさせる */
+#bstat-body .ovy-row .ov-month .ovb{flex:1 1 0;min-width:0;max-width:none;}
+
+/* 記録が無い月・これから来る月の見え方（年ごとに12か月そろえたため） */
+#bstat-body .ovb-zero .ovb-col i{background:#e4e4e8!important;}
+#bstat-body .ovb-zero .ovb-x{color:var(--pv-ink-3);opacity:.7;}
+#bstat-body .ovb-future .ovb-x{color:var(--pv-ink-3);opacity:.35;}
+#bstat-body .ovb-future .ovb-col{border-bottom:1px dashed #e6e6ea;}
+
+
+/* ============================================================
+   pv-rent : オーナーメール画面を、他の2画面とそろえる
+     ① この画面だけ青のままだった
+        refine.css が #rent-view に直接 --rt-accent:#007aff を
+        当てているため、:root の緑では勝てませんでした。
+        同じ #rent-view に、後から緑を入れて上書きします。
+     ② 文字が小さい（説明12.8px / 見出し11.8px / ボタン13.4px）
+   ============================================================ */
+
+/* ---- ① 色を緑にそろえる ---- */
+#rent-view{
+  --rt-accent:#3a3a40;
+  --rt-accent-d:#222226;
+  --rt-soft:#f0f0f2;
+}
+
+/* ---- ② 文字を読める大きさに ---- */
+#rent-view .step h2{font-size:16px;}
+#rent-view .step h2 .n{width:25px;height:25px;font-size:13px;}
+#rent-view .step p{font-size:14px;line-height:1.65;}
+#rent-view .bar h2{font-size:19px;}
+#rent-view .btn{font-size:14px;padding:10px 18px;border-radius:10px;}
+#rent-view .tab{font-size:14.5px;padding:10px 18px;}
+#rent-view table.owners{font-size:14px;}
+#rent-view table.owners th{font-size:12.5px;letter-spacing:.02em;}
+#rent-view table.owners th,
+#rent-view table.owners td{padding:11px 12px;}
+#rent-view table.owners input{font-size:14px;padding:6px 8px;}
+
+/* 画面上部の説明行（送信元・流れ）も小さすぎました */
+#rent-view .wrap .note,
+#rent-view .wrap .tag{font-size:13px;}
+#rent-view h1{letter-spacing:-.02em;}
+
+/* ドロップ枠の中の説明 */
+#rent-view .drop .big{font-size:17px;}
+#rent-view .drop .sub,
+#rent-view .drop small{font-size:13px;}
+
+/* 「N物件」のバッジは ownermail.js が style="font-size:.66rem" を
+   直接書いているため、!important でないと上書きできません */
+#rent-view table.owners td div[style*="font-size"]{font-size:12.5px!important;}
+#rent-view table.owners td textarea{font-size:14px!important;line-height:1.6!important;}
+#rent-view .tmpl-area label{font-size:13.5px;}
+#rent-view .tmpl-area textarea{font-size:14.5px;line-height:1.75;}
+#rent-view .tmpl-area .hint{font-size:13px;}
+#rent-view .view p{font-size:14px;line-height:1.7;}
+#rent-view .bar span{font-size:13px;}
+
+/* 「一斉送信」だけ index.html に style="background:#007aff" が
+   直接書かれていて、1つだけ青のままでした。
+   取り消せない一括送信なので、緑の「下書きを作成」とは分けて、
+   いちばん重い操作の色（黒）にします。 */
+#rent-view #rent-btn-send{
+  background:#17171a!important;border-color:#17171a!important;color:#fff!important;
+  font-weight:700;
+}
+#rent-view #rent-btn-send:hover{background:#000!important;border-color:#000!important;}
+
+
+/* ============================================================
+   pv-modal : モーダル9種の仕上げ
+     見出し・余白・ボタン位置は refine.css で既にそろっていました
+     （9つとも 題17px / 頭18-22-14 / 体20px / 足14-22-18・右寄せ）。
+     残っていた不統一は「閉じる ×」だけです。
+     他の画面では42pxの黒にしたのに、ここだけ32pxの灰色でした。
+   ============================================================ */
+.modal .modal-close{
+  width:42px;height:42px;font-size:26px;font-weight:700;
+  background:#111;color:#fff;line-height:1;
+  box-shadow:0 2px 8px rgba(0,0,0,.22);
+  flex:0 0 auto;
+}
+.modal .modal-close:hover{background:#000;color:#fff;transform:scale(1.06);}
+
+/* 見出しも、シート（契約の編集）の17pxとそろえて少し上げます */
+.modal .modal-title{font-size:18px;}
+
+/* 狭い画面での余白。9つとも同じ値になるようにします */
+@media (max-width:760px){
+  .modal .modal-header{padding:14px 16px 12px;}
+  .modal .modal-body{padding:16px;}
+  .modal .modal-footer{padding:12px 16px 16px;}
+  .modal .modal-close{width:38px;height:38px;font-size:23px;}
+}/* ===== pv-table-fix : 一覧の縦書きと、表の横の遊びを直す ===== */
+
+#kb-view .lv-table{min-width:1180px;}
+#kb-view .lv-table th,
+#kb-view .lv-table td{white-space:nowrap;}
+#kb-view .lv-prop b,
+#kb-view .lv-sub{white-space:nowrap;}
+#kb-view .lv-table td.lv-miss{white-space:normal;min-width:240px;}
+#kb-view .lv-wrap{overscroll-behavior-x:contain;}
+
+#bstat-body .bi-wrap{overscroll-behavior-x:contain;}
+
+@media (max-width:820px){
+  #bstat-body .bi-table{font-size:13.5px;}
+  #bstat-body .bi-table th,
+  #bstat-body .bi-table td{padding:9px 8px;}
+  #bstat-body .bi-card:nth-child(1) .bi-table th:nth-child(4),
+  #bstat-body .bi-card:nth-child(1) .bi-table td:nth-child(4),
+  #bstat-body .bi-card:nth-child(1) .bi-table th:nth-child(6),
+  #bstat-body .bi-card:nth-child(1) .bi-table td:nth-child(6){display:none;}
+  #bstat-body .bi-card:nth-child(2) .bi-table th:nth-child(3),
+  #bstat-body .bi-card:nth-child(2) .bi-table td:nth-child(3),
+  #bstat-body .bi-card:nth-child(2) .bi-table th:nth-child(5),
+  #bstat-body .bi-card:nth-child(2) .bi-table td:nth-child(5){display:none;}
+  #bstat-body .bi-table{width:100%;table-layout:auto;}
+  #bstat-body .bi-nm{white-space:normal;word-break:normal;overflow-wrap:anywhere;}
+  #bstat-body .bi-wrap{overflow-x:hidden;}
+}
+
+@media (max-width:520px){
+  #bstat-body .bi-table{font-size:12.5px;}
+  #bstat-body .bi-table th,
+  #bstat-body .bi-table td{padding:8px 5px;}
+  #bstat-body .bi-table td b{font-size:15px;}
+  #bstat-body .bi-rank{width:22px;}
+  #bstat-body .bi-card{padding:14px 12px;}
+  #bstat-body .bi-h{font-size:15px;}
+  #bstat-body .bi-nm{white-space:normal;line-height:1.4;}
+}
+
+#bstat-body{overflow-x:hidden;overscroll-behavior-x:contain;}
+/* ===== pv-rank-btn : ランキングのボタンを大きく、絵文字を外す ===== */
+#kb-view .broker-stat-btn .bs-ico{display:none;}
+#kb-view .broker-stat-btn{
+  font-size:17px;font-weight:700;padding:15px 30px;border-radius:14px;
+  letter-spacing:.01em;gap:0;
+}
+#kb-view .broker-stat-bar{padding:6px 24px 12px;}
+@media (max-width:860px){
+  #kb-view .broker-stat-btn{font-size:16px;padding:14px 24px;width:auto;}
+  #kb-view .broker-stat-bar{padding:6px 16px 12px;}
+}
+/* ===== pv-head-stable : 上のバーが同期表示で動くのを止める ===== */
+@media (max-width:860px){
+  .app-tabs{flex-wrap:wrap;align-items:center;row-gap:8px;}
+  .app-tabs > .app-pivot-logo{order:1;flex:1 1 auto;min-width:0;}
+  .app-tabs > #sync-status{order:2;}
+  .app-tabs > #tab-pivot{order:3;}
+  .app-tabs > #tab-kanban{order:4;}
+  .app-tabs > #tab-rent{order:5;}
+  .app-tabs > .kb-toolbar{order:6;flex:0 0 100%;margin-top:2px;}
+  .app-tabs > .settings-wrap{order:7;}
+  .app-tabs > .app-tab{padding:9px 16px;font-size:14px;}
+}
+/* 同期表示の幅を固定する（これがずれの原因でした） */
+#sync-status{
+  flex:0 0 118px!important;width:118px!important;max-width:118px!important;
+  justify-content:center!important;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+/* ===== pv-head-break : スマホでタブを2行目にそろえる ===== */
+@media (max-width:860px){
+  .app-tabs > .app-pivot-logo{flex:0 0 auto!important;}
+  .app-tabs > #sync-status{margin-left:auto;}
+  .app-tabs::after{
+    content:"";flex:0 0 100%;width:100%;height:0;order:3;margin:0;
+  }
+  .app-tabs > #tab-pivot{order:4;margin-left:0;}
+  .app-tabs > #tab-kanban{order:5;}
+  .app-tabs > #tab-rent{order:6;}
+  .app-tabs > .kb-toolbar{order:7;}
+  .app-tabs > .settings-wrap{order:8;}
+}
+/* ===== pv-bg-plain : 背景を画像どおりのグラデーションに ===== */
+body{
+  background:
+    linear-gradient(90deg,
+      #9b9ba7 0%,
+      #a4a4b1 17%,
+      #afacba 28%,
+      #b2afbd 38%,
+      #c2bfcb 49%,
+      #cecbd3 59%,
+      #d7d5dd 69%,
+      #e1e1e6 80%,
+      #eaeaee 90%,
+      #f0f0f2 100%) !important;
+  background-attachment:fixed !important;
+  background-size:cover !important;
+  background-repeat:no-repeat !important;
+}
+@media print{ body{background:#fff !important;} }
+/* ===== pv-settings-right : 設定メニューを右ぞろえに戻す ===== */
+@media (max-width:860px){
+  .settings-menu{
+    left:auto!important;right:0!important;
+    width:auto!important;
+    min-width:210px;
+    max-width:calc(100vw - 20px)!important;
+    max-height:min(70vh,440px);
+    overflow-y:auto;
+  }
+  .settings-wrap{position:relative;}
+}
+
+/* ============================================================
+   pv-rent-pc : PCの広い画面で、オーナーメールの画面が
+                 横に間延びしないように整える
+     ・中身を 1320px で止めて、中央にそろえる
+     ・取込枠（①②③）の縦の余白を詰める
+     ・空っぽの状態表示が場所を取らないようにする
+   ★HTML・id・class・JS には触れていません。
+   ============================================================ */
+@media (min-width:1200px){
+  #rent-view .wrap{
+    max-width:1320px;
+    margin-left:auto;
+    margin-right:auto;
+  }
+  #rent-view .drop{
+    min-height:0;
+    padding:24px 20px;
+    margin:4px 0 6px;
+  }
+  #rent-view .drop .ico{font-size:1.6rem;margin-bottom:4px;opacity:.65;}
+  /* 「ドロップ / クリック」の途中や、かっこの中で改行しないようにする */
+  #rent-view .drop .big{line-height:1.5;word-break:keep-all;}
+  #rent-view .drop .sub{margin-top:4px;}
+  #rent-view .bar{margin:20px 0 12px;}
+}
+/* 取込前は「1ページを取込…」の表示が空なので、場所を取らせない */
+#rent-view .pdfstat:empty{min-height:0;margin:0;}
+
+/* ============================================================
+   pv-rank-grid : 客付業者ランキングを「大きめのカード」で並べる
+     いままでは1社ぶんが横いっぱいの帯で、画面に2社しか入りませんでした。
+     カードにして格子状に並べ、件数の数字を大きく見せます。
+     ★HTML・id・class・JS には触れていません。並べ方と大きさだけです。
+   ============================================================ */
+@media (min-width:900px){
+  #kb-view #bstat-body{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(380px,1fr));
+    grid-auto-rows:min-content;
+    align-content:start;
+    gap:16px;
+  }
+  /* タブ・集計チップ・①②の分析・年別グラフは、今までどおり横いっぱい */
+  #kb-view #bstat-body > *:not(.bstat-card){grid-column:1 / -1;}
+
+  #kb-view #bstat-body .bstat-card{
+    margin-bottom:0;
+    padding:18px 20px 14px;
+    border-radius:18px;
+  }
+  /* 業者名と件数を大きく */
+  #kb-view #bstat-body .bstat-top{gap:11px;}
+  #kb-view #bstat-body .bstat-name{font-size:17px;}
+  #kb-view #bstat-body .bstat-badge{min-width:64px;padding:8px 12px;}
+  #kb-view #bstat-body .bstat-badge .bnum{font-size:28px;}
+  #kb-view #bstat-body .bstat-badge .blbl{font-size:11px;}
+  /* 申込・キャンセル率・審査落ち率を、数字の見える帯にする */
+  #kb-view #bstat-body .bstat-rate{
+    padding:11px 10px;
+    margin:10px 0 2px;
+    background:#f6f6f8;
+    border:1px solid #e6e6ea;
+    border-radius:12px;
+    font-size:12px;
+    text-align:center;
+  }
+  #kb-view #bstat-body .bstat-rate b{font-size:19px;}
+  /* 1位の黒いカードでは、帯を明るくすると字が読めなくなるので反転させる */
+  #kb-view #bstat-body .bstat-card.rk1 .bstat-rate{
+    background:rgba(255,255,255,.09);
+    border-color:rgba(255,255,255,.16);
+  }
+  /* カードの中では明細を1列に戻す（2〜3段だと狭すぎるため） */
+  #kb-view #bstat-body .bstat-props{
+    grid-template-columns:1fr;
+    padding-left:0;
+  }
+  /* 月別グラフをカードの幅に収める */
+  #kb-view #bstat-body .bm-chart{gap:4px;overflow-x:hidden;}
+  #kb-view #bstat-body .mbar{flex:1 1 0;min-width:0;max-width:none;width:auto;}
+  #kb-view #bstat-body .mbar-x{font-size:10px;}
+  /* 明細を開いたカードは、1行ぶん丸ごと使う */
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)){
+    grid-column:1 / -1;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-props{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    display:grid;
+    gap:5px 20px;
+  }
+}
+
+/* ============================================================
+   pv-rank-side : ランキング画面でも左メニューを出し、
+                   背景を他の画面と同じにする
+     ・左メニュー(238px)ぶんを空けて、その右側にランキングを出す
+     ・黒い幕も左メニューにはかけない（押して画面を移動できる）
+     ・緑の下地をやめ、body と同じグラデーションにそろえる
+       （カードの緑はそのままです）
+   ★HTML・id・class・JS には触れていません。
+   ============================================================ */
+/* 背景を body と同じにする（画面の広さに関係なく） */
+#kb-view #bstat-modal.done-modal,
+#kb-view #bstat-modal.done-modal.active{
+  background:
+    linear-gradient(90deg,
+      #9b9ba7 0%,
+      #a4a4b1 17%,
+      #afacba 28%,
+      #b2afbd 38%,
+      #c2bfcb 49%,
+      #cecbd3 59%,
+      #d7d5dd 69%,
+      #e1e1e6 80%,
+      #eaeaee 90%,
+      #f0f0f2 100%);
+  background-attachment:fixed;
+  background-size:cover;
+  background-repeat:no-repeat;
+}
+#kb-view #bstat-modal #bstat-body{background:transparent;}
+/* 上の見出し帯は、下地の上で浮くように半透明の白にする */
+#kb-view #bstat-modal .done-head{
+  background:rgba(255,255,255,.86);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  border-bottom:1px solid rgba(0,0,0,.08);
+}
+
+/* 左メニューが出ている画面幅のときだけ、その右側に表示する */
+@media (min-width:861px){
+  #kb-view #bstat-modal.done-modal,
+  #kb-view #bstat-modal.done-modal.active{
+    left:238px;
+    right:0;
+    width:auto;
+    max-width:none;
+  }
+  /* 黒い幕は左メニューにかけない＝メニューが押せる */
+  #kb-view #bstat-backdrop,
+  #kb-view #bstat-backdrop.active{
+    left:238px;
+  }
+}
+
+/* ============================================================
+   pv-rank-gap : ランキングと左メニューの間合いをそろえる
+     左メニューは left:16px / 幅224px で、右端が240px。
+     本文は body{padding-left:256px} なので、他の画面は
+     メニューとのすき間が16pxあります。ランキングも同じにします。
+   ★HTML・id・class・JS には触れていません。
+   ============================================================ */
+@media (min-width:861px){
+  /* 他の画面と同じ 256px から始める（16px のすき間ができる） */
+  #kb-view #bstat-modal.done-modal,
+  #kb-view #bstat-modal.done-modal.active{
+    left:256px;
+  }
+  /* すき間には、黒い幕ではなく body と同じ下地を敷く。
+     左端にやわらかい影を入れて、メニューが浮いて見えるようにする */
+  #kb-view #bstat-backdrop,
+  #kb-view #bstat-backdrop.active{
+    left:240px;
+    background:
+      linear-gradient(90deg,
+        #9b9ba7 0%,
+        #a4a4b1 17%,
+        #afacba 28%,
+        #b2afbd 38%,
+        #c2bfcb 49%,
+        #cecbd3 59%,
+        #d7d5dd 69%,
+        #e1e1e6 80%,
+        #eaeaee 90%,
+        #f0f0f2 100%);
+    background-attachment:fixed;
+    background-size:cover;
+    background-repeat:no-repeat;
+    -webkit-backdrop-filter:none;
+    backdrop-filter:none;
+    box-shadow:inset 24px 0 44px -24px rgba(0,0,0,.20);
+  }
+}
+
+/* ============================================================
+   pv-rank-big : ランキングを目で見て分かりやすくする
+     ・上の白い帯をなくして、下地に溶け込ませる
+     ・月別グラフの棒を太く、数字を大きく
+     ・「明細」を開いたカードは、縦にゆったり大きく
+   ★HTML・id・class・JS には触れていません。
+   ============================================================ */
+/* 上の帯の白い下地をやめる */
+#kb-view #bstat-modal .done-head{
+  background:transparent;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+  border-bottom:0;
+}
+
+@media (min-width:900px){
+  /* ---- 月別グラフを大きく ---- */
+  #kb-view #bstat-body .bm-chart{
+    gap:5px;
+    min-height:118px;
+    align-items:flex-end;
+  }
+  #kb-view #bstat-body .mbar-col{height:84px;}
+  #kb-view #bstat-body .mbar-col i{
+    width:70%;
+    max-width:30px;
+    border-radius:5px 5px 0 0;
+  }
+  #kb-view #bstat-body .mbar-v{font-size:13px;margin-bottom:3px;}
+  #kb-view #bstat-body .mbar-x{font-size:11.5px;font-weight:700;}
+  #kb-view #bstat-body .bm-h{font-size:13px;}
+
+  /* ---- 「明細」を開いたカードは、さらにゆったり ---- */
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)){
+    min-height:440px;
+    padding:26px 30px 24px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-name{
+    font-size:21px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-medal{
+    width:50px;height:50px;font-size:21px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-badge .bnum{
+    font-size:34px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-rate{
+    padding:16px 12px;
+    font-size:14px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-rate b{
+    font-size:24px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bstat-prop-row{
+    font-size:14.5px;
+    padding:11px 15px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bt3-item{
+    font-size:14.5px;
+    padding:6px 14px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .mbar-col{
+    height:150px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .mbar-col i{
+    max-width:52px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .mbar-v{
+    font-size:18px;
+  }
+  #kb-view #bstat-body .bstat-card:has(.bstat-props:not(.bstat-collapsed)) .bm-chart{
+    min-height:190px;
+  }
+}
+
+/* ============================================================
+   pv-rank-bar : ランキング上部の集計を、契約画面と同じ黒いバーにする
+     ・色つきの丸チップ（と絵文字）をやめ、モノクロにそろえる
+     ・ランキングを開いている間は、左メニューの選択を
+       「契約」から「客付業者ランキング」に移す
+   ★CSS だけです。数字の中身は変えていません。
+   ============================================================ */
+#kb-view #bstat-body .stats-bar{
+  margin:2px 0 12px;
+  padding:20px 8px;
+}
+/* 期間は数字ではないので、少し小さく */
+#kb-view #bstat-body .stat-pill.bs-period .num{
+  font-size:22px!important;
+  letter-spacing:-.01em!important;
+  line-height:1.5;
+}
+/* ランキングの集計は押せないので、指のかたちにしない */
+#kb-view #bstat-body .stat-pill{cursor:default;}
+#kb-view #bstat-body .stat-pill:hover .num{opacity:1;}
+#kb-view #bstat-body .bstat-ratenote{
+  color:rgba(0,0,0,.45);
+  padding:0 4px 14px;
+}
+#kb-view #bstat-body .bstat-mode{padding:2px 0 12px;}
+
+/* ---- 開いている間は「契約」ではなく「ランキング」を選択中にする ---- */
+body:has(#bstat-modal.active) #pv-side a[data-k="kanban"]{
+  background:transparent!important;
+  color:var(--pv-ink-2)!important;
+  font-weight:500!important;
+}
+body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
+  background:var(--pv-ink);
+  color:#fff;
+  font-weight:600;
+}
+
+/* ============================================================
+   pv-pref-split : 都道府県フォルダを、独立したカードに分ける
+     いままで外側の .bld-list が白い箱で、その上に
+     HIROSHIMA と OKAYAMA が乗っていました。
+     すき間から外側の白が見えて、1枚の板に切れ目が入ったように
+     見えていたので、外側の白をやめて、それぞれを浮かせます。
+   ★HTML・id・class・JS には触れていません。
+   ============================================================ */
+.bld-list:has(.pref-grid){
+  background:transparent!important;
+  box-shadow:none!important;
+  border-radius:0!important;
+  overflow:visible!important;
+}
+.pref-grid{gap:24px!important;}
+.pref-folder{
+  border-radius:18px;
+  overflow:hidden;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.05),0 16px 38px rgba(0,0,0,.12);
+}
+/* 見出しの帯も、カードの角に合わせる */
+.pref-folder .pref-header{border-radius:18px 18px 0 0;}
+
+
+/* ============================================================
+   pv2-mono : PIVOT2 全体をモノクロにそろえる
+     ★緑（#1f7a4d）をやめ、黒〜グレーひとつにします。
+       ボタン・タブ・リンク・グラフ、すべてが灰の濃淡になります。
+     ★赤（不備あり・キャンセル）と琥珀（審査落ち）は残しています。
+       ここまで灰にすると「気づいてほしい所」が沈んで、
+       見落としの原因になるためです。
+       完全に灰だけにしたい場合はお知らせください。
+     ★緑に戻したいときは、このブロックを消したうえで
+       tune.css の pv-rank-green / pv-insight の色を戻してください。
+   ============================================================ */
+:root{
+  --pv-accent:#2b2b30;
+  --pv-accent-d:#141417;
+  --pv-accent-soft:#eeeef0;
+  --rt-accent:#2b2b30; --rt-accent-d:#141417; --rt-soft:#f0f0f2;
+}
+#rent-view{
+  --rt-accent:#2b2b30;
+  --rt-accent-d:#141417;
+  --rt-soft:#f0f0f2;
+}
+#bstat-modal,#bstat-body{
+  --pv-accent:#3a3a40;
+  --pv-accent-d:#17171a;
+  --pv-accent-soft:#f0f0f2;
+}
+/* 一覧の「不備なし」の緑も灰に */
+#kb-view .lv-miss-ok{color:#3a3a40;}
