@@ -185,7 +185,7 @@ async function doAutoPush(){
     let kintai = {};
     try{ kintai = JSON.parse(localStorage.getItem('pivot_kintai_v1') || '{}'); }catch(e){ kintai = {}; }
     let ownersData = [];
-    try{ ownersData = JSON.parse(localStorage.getItem('rent_owner_send_owners_v1') || '[]'); }catch(e){ ownersData = []; }
+    try{ ownersData = JSON.parse(localStorage.getItem('pivot2_rent_owner_send_owners_v1') || '[]'); }catch(e){ ownersData = []; }
     // ===== 安全装置: 手元の物件が空/極端に少ないのにクラウドに多数ある場合は上書きしない =====
     // (別端末の空データや読込前の状態で、クラウドの正しいデータを消す事故を防ぐ)
     const localCount = all && typeof all==='object' ? Object.keys(all).length : 0;
@@ -247,7 +247,7 @@ async function autoPullOnStart(){
     // 契約か物件が入っているときだけ退避（空を退避して上書きしない）
     const hasC = Object.keys(JSON.parse(snap.contracts)).length > 0;
     const hasB = Object.keys(JSON.parse(snap.buildings)).length > 0;
-    if(hasC || hasB){ localStorage.setItem('pivot_emergency_backup', JSON.stringify(snap)); }
+    if(hasC || hasB){ localStorage.setItem('pivot2_emergency_backup', JSON.stringify(snap)); }
   }catch(e){ /* 退避失敗しても本処理は続行 */ }
   setSyncStatus('loading', '☁️ 確認中…');
   try{
@@ -937,7 +937,7 @@ async function pushFeatureToCloud(feature){
       payload = { contracts: cts };
     } else if(feature === 'owners'){
       let ow = [];
-      try{ ow = JSON.parse(localStorage.getItem('rent_owner_send_owners_v1') || '[]'); }catch(e){ ow = []; }
+      try{ ow = JSON.parse(localStorage.getItem('pivot2_rent_owner_send_owners_v1') || '[]'); }catch(e){ ow = []; }
       action = 'saveOwnersOnly';
       payload = { owners: ow };
     } else {
