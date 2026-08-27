@@ -133,54 +133,165 @@ function _ownerHit(o){
                (o.properties||[]).join(" ")].join(" ").normalize("NFKC").toLowerCase();
   return q.split(/[\s\u3000]+/).filter(Boolean).every(w => hay.indexOf(w) >= 0);
 }
-function renderOwners(){
-  const t=document.getElementById("ownerTable");
-  const hits = owners.map((o,i)=>({o,i})).filter(x=>_ownerHit(x.o));
-  const cnt=document.getElementById("ownerCount");
-  if(cnt) cnt.textContent = _ownerQ ? (hits.length + " / " + owners.length + " 件") : (owners.length + " 件");
-  let rows=hits.map(({o,i})=>`<tr${o.exclude?' style="background:#f3f0ee;opacity:.7;"':''}>
-    <td style="width:20%;min-width:150px;"><input value="${esc(o.name)}" oninput="RENT.editOwner(${i},'name',this.value)" placeholder="オーナー名"></td>
-    <td style="width:28%"><textarea rows="${Math.min(8,Math.max(1,(o.properties&&o.properties.length)||1))}" oninput="RENT.editProps(${i},this.value);this.rows=Math.min(12,Math.max(1,this.value.split('\\n').length))" placeholder="物件名（複数は改行で）" style="font-family:inherit;font-size:.8rem;border:1px solid transparent;background:transparent;border-radius:5px;padding:5px 6px;width:100%;resize:vertical;line-height:1.5;">${esc((o.properties&&o.properties.length?o.properties:[o.property||'']).join('\n'))}</textarea>${(o.properties&&o.properties.length>1)?`<div style="font-size:.66rem;color:var(--gold);font-weight:800;margin-top:2px;">${o.properties.length}物件</div>`:''}</td>
-    <td style="width:20%"><input value="${esc(o.atena)}" oninput="RENT.editOwner(${i},'atena',this.value)" placeholder="宛名（〇〇 御中）"></td>
-    <td style="width:24%"><input value="${esc(o.email)}" oninput="RENT.editOwner(${i},'email',this.value)" placeholder="メールアドレス"${String(o.email||'').trim()?'':' style="background:#fdecea;border:1px solid #f0b6ae;border-radius:5px;"'}></td>
-    <td style="width:8%;text-align:center;"><input type="checkbox" ${o.exclude?'checked':''} onclick="RENT.editOwner(${i},'exclude',this.checked)" style="cursor:pointer;width:18px;height:18px;accent-color:#c0392b;" title="チェックすると送信対象から除外"></td>
-    <td style="width:4%;text-align:center;"><button class="delrow" onclick="RENT.delOwner(${i})" title="削除">×</button></td>
-  </tr>
-  <tr><td colspan="6" style="padding:0 8px 12px;border-top:none;">
-    <details style="border:1px solid #e3e3e6;border-radius:10px;background:#fbfbfc;">
-      <summary style="cursor:pointer;font-size:.86rem;font-weight:800;padding:10px 12px;list-style:none;">
-        ▼ 連絡先・税区分・備考${o.memo?'　<span style="color:#c0392b;font-weight:700;font-size:.76rem;">備考あり</span>':''}
-      </summary>
-      <div style="padding:4px 12px 12px;">
- 
-        <div style="font-size:.72rem;font-weight:800;color:var(--rt-muted);margin:6px 0 4px;">連絡先</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <label style="font-size:.7rem;">郵便番号<br><input value="${esc(o.zip)}" oninput="RENT.editOwner(${i},'zip',this.value)" placeholder="721-0963" style="width:120px;padding:7px 8px;border:1px solid #dcdce0;border-radius:6px;"></label>
-          <label style="font-size:.7rem;flex:1;min-width:260px;">住所<br><input value="${esc(o.addr)}" oninput="RENT.editOwner(${i},'addr',this.value)" placeholder="広島県福山市…" style="width:100%;padding:7px 8px;border:1px solid #dcdce0;border-radius:6px;"></label>
-          <label style="font-size:.7rem;">TEL<br><input value="${esc(o.tel)}" oninput="RENT.editOwner(${i},'tel',this.value)" placeholder="084-000-0000" style="width:150px;padding:7px 8px;border:1px solid #dcdce0;border-radius:6px;"></label>
-          <label style="font-size:.7rem;">FAX<br><input value="${esc(o.fax)}" oninput="RENT.editOwner(${i},'fax',this.value)" placeholder="084-000-0000" style="width:150px;padding:7px 8px;border:1px solid #dcdce0;border-radius:6px;"></label>
-        </div>
- 
-        <div style="font-size:.72rem;font-weight:800;color:var(--rt-muted);margin:12px 0 4px;">インボイス</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
-          <label style="font-size:.7rem;">課税区分<br>
-            <select onchange="RENT.editOwner(${i},'taxKbn',this.value)" style="padding:7px 8px;border:1px solid #dcdce0;border-radius:6px;min-width:130px;">
-              <option value=""${!o.taxKbn?' selected':''}>未選択</option>
-              <option value="課税事業者"${o.taxKbn==='課税事業者'?' selected':''}>課税事業者</option>
-              <option value="免税事業者"${o.taxKbn==='免税事業者'?' selected':''}>免税事業者</option>
-              <option value="未確認"${o.taxKbn==='未確認'?' selected':''}>未確認</option>
-            </select></label>
-          <label style="font-size:.7rem;flex:1;min-width:240px;">登録番号<br><input value="${esc(o.invoiceNo)}" oninput="RENT.editOwner(${i},'invoiceNo',this.value)" placeholder="T1234567890123" style="width:100%;padding:7px 8px;border:1px solid #dcdce0;border-radius:6px;${(o.taxKbn==='課税事業者'&&!String(o.invoiceNo||'').trim())?'background:#fdecea;border-color:#f0b6ae;':''}"></label>
-        </div>
- 
-        <div style="font-size:.72rem;font-weight:800;color:var(--rt-muted);margin:12px 0 4px;">備考（このオーナー特有の事情・依頼など）</div>
-        <textarea rows="3" oninput="RENT.editOwner(${i},'memo',this.value)" placeholder="例）固定電話への連絡は不可。メールは奥様もCC希望。" style="width:100%;font-family:inherit;font-size:.8rem;padding:8px 9px;border:1px solid #dcdce0;border-radius:6px;line-height:1.6;resize:vertical;">${esc(o.memo)}</textarea>
-      </div>
-    </details>
-  </td></tr>`).join("");
-  if(!rows) rows = `<tr><td colspan="6" style="padding:26px;text-align:center;color:var(--rt-muted);">「${esc(_ownerQ)}」に一致するオーナーはありません</td></tr>`;
-  t.innerHTML=`<thead><tr><th>オーナー名</th><th>物件名</th><th>宛名</th><th>メールアドレス</th><th>除外</th><th></th></tr></thead><tbody>${rows}</tbody>`;
+/* ===== 棟数の数え方 =====
+   「タリスヴィータ A棟」「タリスヴィータ B棟」は 1棟 として数えます。
+   物件名の末尾の「A棟／B棟／第2棟／A館」などを落とし、
+   残った基準名の種類を数えます。 */
+function _bldBase(name){
+  var s = String(name||'').trim();
+  try{ s = s.normalize('NFKC'); }catch(e){}   // Ａ棟 → A棟 に統一
+  s = s.replace(/[\s　]+/g, '');              // 空白を詰める
+  // ①「A棟」「B館」「第2棟」などを落とす
+  s = s.replace(/(第?[0-9A-Za-z一二三四五六七八九十]{1,3})?[棟館]$/, '');
+  // ②「棟」の字がない「ハイサニーA」「ピラ芳翠B」も落とす。
+  //    末尾が大文字1字で、その手前が英字でないときだけ。
+  //    （"KUSADO HOUSE" の E や "seto house East" は残ります）
+  if(/[A-Z]$/.test(s) && !/[A-Za-z][A-Z]$/.test(s)) s = s.slice(0, -1);
+  return s.toLowerCase();
 }
+function _ownerProps(o){
+  if(o.properties && o.properties.length) return o.properties.filter(Boolean);
+  return o.property ? [o.property] : [];
+}
+function _touCount(o){
+  var set = {};
+  _ownerProps(o).forEach(function(p){ var b = _bldBase(p); if(b) set[b] = 1; });
+  return Object.keys(set).length;
+}
+/* ランクは2段階だけ。0=白（黒文字） / 1=黒（白文字・VIP）※10棟以上 */
+function _ownerRank(n){ return n >= 10 ? 1 : 0; }
+
+function renderOwners(){
+  const t = document.getElementById("ownerTable");
+  if(!t) return;
+  t.style.display = "none";              // 表は残したまま隠します
+  let host = document.getElementById("ownerCards");
+  if(!host){
+    host = document.createElement("div");
+    host.id = "ownerCards";
+    t.parentNode.insertBefore(host, t);
+  }
+  const hits = owners.map((o,i)=>({o,i})).filter(x=>_ownerHit(x.o));
+  const cnt = document.getElementById("ownerCount");
+  if(cnt) cnt.textContent = _ownerQ ? (hits.length + " / " + owners.length + " 件") : (owners.length + " 件");
+
+  if(!hits.length){
+    host.innerHTML = '<div class="ow-empty">「' + esc(_ownerQ) + '」に一致するオーナーはありません</div>';
+    return;
+  }
+  host.innerHTML = hits.map(function(x){
+    const o = x.o, i = x.i;
+    const tou = _touCount(o);
+    const rank = _ownerRank(tou);
+    // カードに出すのは「会社名」と「棟数」だけ。
+    // 物件名・メール・住所などは、押して開くシートで見ます。
+    const nm = esc(o.name) || esc(o.atena) || '<span class="ow-none">名称なし</span>';
+    return '<button type="button" class="ow-card ow-r' + rank + (o.exclude ? ' ow-ex' : '') + '"' +
+      ' onclick="RENT.openOwnerSheet(' + i + ')">' +
+      '<div class="ow-head">' + (rank ? '<span class="ow-vip">VIP</span>' : '') + '</div>' +
+      '<div class="ow-mid"><div class="ow-atena">' + nm + '</div></div>' +
+      '<div class="ow-foot">' +
+        '<span class="ow-tou">' +
+          '<span class="num">' + tou + '</span>' +
+          '<span class="unit">棟</span>' +
+        '</span>' +
+      '</div>' +
+    '</button>';
+  }).join("");
+}
+
+/* ===== カードを押して開く記入シート（ここで全項目を編集します） ===== */
+function openOwnerSheet(i){
+  const o = owners[i];
+  if(!o) return;
+  closeOwnerSheet();
+  const tou = _touCount(o);
+  const rank = _ownerRank(tou);
+  const props = _ownerProps(o);
+  const sh = document.createElement("div");
+  sh.className = "ow-sheet";
+  sh.id = "ow-sheet";
+  sh.innerHTML =
+    '<div class="ow-sheet-head">' +
+      '<button type="button" class="ow-sheet-close" onclick="RENT.closeOwnerSheet()" title="閉じる">×</button>' +
+    '</div>' +
+    '<div class="ow-sheet-body"><div class="ow-sheet-inner">' +
+
+      /* ---- 左：このオーナーの要約 ---- */
+      '<aside class="ow-aside">' +
+        '<h2 class="ow-h2">オーナー情報</h2>' +
+        '<div class="ow-aside-nm">' + (esc(o.name) || esc(o.atena) || '名称なし') + '</div>' +
+        '<div class="ow-aside-tou"><span class="n">' + tou + '</span><span class="u">棟</span>' +
+          (rank ? '<span class="ow-vip">VIP</span>' : '') + '</div>' +
+        '<p class="ow-aside-p">右の項目を直すと、その場で保存されます。<br>' +
+          '「タリスヴィータ A棟」「B棟」のような同じ建物は 1棟 として数えます。</p>' +
+        (props.length ? '<p class="ow-aside-p ow-aside-props">登録物件 ' + props.length + '件<br>' +
+          props.slice(0,6).map(function(p){ return esc(p); }).join('<br>') +
+          (props.length>6 ? '<br>ほか' + (props.length-6) + '件' : '') + '</p>' : '') +
+      '</aside>' +
+
+      /* ---- 右：記入欄 ---- */
+      '<div class="ow-form">' +
+
+        '<label class="ow-f"><span class="ow-lb">オーナー名<i class="ow-req">必須</i></span>' +
+          '<input value="' + esc(o.name) + '" oninput="RENT.editOwner(' + i + ',\'name\',this.value)" placeholder="株式会社〇〇"></label>' +
+
+        '<label class="ow-f"><span class="ow-lb">宛名<i class="ow-req">必須</i></span>' +
+          '<input value="' + esc(o.atena) + '" oninput="RENT.editOwner(' + i + ',\'atena\',this.value)" placeholder="株式会社〇〇 御中"></label>' +
+
+        '<label class="ow-f"><span class="ow-lb">メールアドレス<i class="ow-req">必須</i></span>' +
+          '<input value="' + esc(o.email) + '" oninput="RENT.editOwner(' + i + ',\'email\',this.value)" placeholder="owner@example.com"' +
+          (String(o.email||'').trim() ? '' : ' class="ow-warn"') + '></label>' +
+
+        '<label class="ow-f"><span class="ow-lb">物件名<i class="ow-any">複数は改行で</i></span>' +
+          '<textarea rows="' + Math.min(14, Math.max(4, props.length || 4)) + '"' +
+          ' oninput="RENT.editProps(' + i + ',this.value)" placeholder="グロリオサ">' +
+          esc(props.join('\n')) + '</textarea></label>' +
+
+        '<label class="ow-f"><span class="ow-lb">郵便番号</span>' +
+          '<input value="' + esc(o.zip) + '" oninput="RENT.editOwner(' + i + ',\'zip\',this.value)" placeholder="721-0963"></label>' +
+
+        '<label class="ow-f"><span class="ow-lb">住所</span>' +
+          '<input value="' + esc(o.addr) + '" oninput="RENT.editOwner(' + i + ',\'addr\',this.value)" placeholder="広島県福山市…"></label>' +
+
+        '<label class="ow-f"><span class="ow-lb">電話番号</span>' +
+          '<input value="' + esc(o.tel) + '" oninput="RENT.editOwner(' + i + ',\'tel\',this.value)" placeholder="084-000-0000"></label>' +
+
+        '<label class="ow-f"><span class="ow-lb">FAX</span>' +
+          '<input value="' + esc(o.fax) + '" oninput="RENT.editOwner(' + i + ',\'fax\',this.value)" placeholder="084-000-0000"></label>' +
+
+        '<label class="ow-f"><span class="ow-lb">課税区分</span>' +
+          '<select onchange="RENT.editOwner(' + i + ',\'taxKbn\',this.value)">' +
+            '<option value=""' + (!o.taxKbn ? ' selected' : '') + '>選択してください</option>' +
+            '<option value="課税事業者"' + (o.taxKbn === '課税事業者' ? ' selected' : '') + '>課税事業者</option>' +
+            '<option value="免税事業者"' + (o.taxKbn === '免税事業者' ? ' selected' : '') + '>免税事業者</option>' +
+            '<option value="未確認"' + (o.taxKbn === '未確認' ? ' selected' : '') + '>未確認</option>' +
+          '</select></label>' +
+
+        '<label class="ow-f"><span class="ow-lb">インボイス登録番号</span>' +
+          '<input value="' + esc(o.invoiceNo) + '" oninput="RENT.editOwner(' + i + ',\'invoiceNo\',this.value)" placeholder="T1234567890123"' +
+          ((o.taxKbn === '課税事業者' && !String(o.invoiceNo||'').trim()) ? ' class="ow-warn"' : '') + '></label>' +
+
+        '<label class="ow-f"><span class="ow-lb">備考<i class="ow-any">任意</i></span>' +
+          '<textarea rows="4" oninput="RENT.editOwner(' + i + ',\'memo\',this.value)" placeholder="例）固定電話への連絡は不可。メールは奥様もCC希望。">' + esc(o.memo) + '</textarea></label>' +
+
+        '<div class="ow-f ow-f-check"><label class="ow-check"><input type="checkbox"' + (o.exclude ? ' checked' : '') +
+          ' onclick="RENT.editOwner(' + i + ',\'exclude\',this.checked)">' +
+          '<span>このオーナーを一斉送信の対象から外す</span></label></div>' +
+
+        '<div class="ow-del"><button type="button" onclick="RENT.delOwner(' + i + ');RENT.closeOwnerSheet()">このオーナーを削除する</button></div>' +
+      '</div>' +
+    '</div></div>';
+  document.body.appendChild(sh);
+  document.body.style.overflow = "hidden";
+}
+function closeOwnerSheet(){
+  const m = document.getElementById("ow-sheet");
+  if(m) m.remove();
+  document.body.style.overflow = "";
+  renderOwners();
+}
+
 let _saveTimer=null;
 function flashSaved(){ const el=document.getElementById("ownerSaveStat"); if(!el)return; el.textContent="✅ 自動保存しました"; el.style.opacity="1"; clearTimeout(_saveTimer); _saveTimer=setTimeout(()=>{el.style.opacity="0";},1500); }
 function editOwner(i,f,v){ owners[i][f]=v; saveOwners(); flashSaved(); if(f==="exclude"){ renderOwners(); renderPreview(); return; } if(detail && detail.length){ const o=owners[i]; detail.forEach(d=>{ if(d.owner===o.name && f==="email") d.email=v; }); if(f==="email") renderPreview(); } }
@@ -1407,6 +1518,10 @@ function activate(){
   }
   renderOwners();
   renderPreview();
+  // オーナーメール画面を開くたびに、いちばん左の
+  // 「明細取込・送信」に戻します。
+  // （前に見ていたタブが残ったままになるのを防ぐため）
+  showView("send");
   _rentBooted=true;
 }
  
@@ -1416,5 +1531,5 @@ try{ window.RENT_CORE = {
   get owners(){ return owners; },
   save: saveOwners, render: renderOwners, flash: flashSaved, toast: toast
 }; }catch(e){}
-window.RENT = { activate, filterOwners, unexcludeOwner, setEmail, showView, addOwnerRow, resetOwners, resetTmpl, expandAll, renderPreview, saveTmpl, editOwner, editProps, delOwner, togglePv, copyBody, previewOwnerPdf, downloadOwnerPdf, sendViaGmail, renderOwners, createDraftsForChecked, sendMailsForChecked, updateCheckCount, toggleCheckAll, sendOne, draftOne, unsendOne, removeFromList, renderHistory, clearHistory, checkBounces, accumulateOwnerMonth, accumulateOwnerYear, mergeYearForOwner, deleteExAccum, deleteExYear, saveSophiaGasUrl, viewExAccum };
+window.RENT = { activate, filterOwners, openOwnerSheet, closeOwnerSheet, unexcludeOwner, setEmail, showView, addOwnerRow, resetOwners, resetTmpl, expandAll, renderPreview, saveTmpl, editOwner, editProps, delOwner, togglePv, copyBody, previewOwnerPdf, downloadOwnerPdf, sendViaGmail, renderOwners, createDraftsForChecked, sendMailsForChecked, updateCheckCount, toggleCheckAll, sendOne, draftOne, unsendOne, removeFromList, renderHistory, clearHistory, checkBounces, accumulateOwnerMonth, accumulateOwnerYear, mergeYearForOwner, deleteExAccum, deleteExYear, saveSophiaGasUrl, viewExAccum };
 })();
