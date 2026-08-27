@@ -29,7 +29,7 @@
 <!-- Webアプリ マニフェスト(Androidや一部ブラウザ用。data URLで埋め込み) -->
 <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22PIVOT%22%2C%22short_name%22%3A%22PIVOT%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23ffffff%22%2C%22theme_color%22%3A%22%23111111%22%2C%22start_url%22%3A%22.%22%7D">
  
-<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/base.css?v=1">
 <!-- ============================================================
      スマホ表示の修正  pv-mobile-2026-08-16a
      ・整列パネルが画面外へ出る
@@ -55,7 +55,7 @@
      既存の指定は書き換えず、この1枚を後ろに足して上書きしています。
      戻したいときは、この <style> ごと削除してください。
      ============================================================ -->
-<link rel="stylesheet" href="css/refine.css">
+<link rel="stylesheet" href="css/refine.css?v=1">
 <!-- ============================================================
      左メニュー  pv-side-2026-08-25a
      画面の切り替えを、上のタブから左の柱に移します。
@@ -64,7 +64,7 @@
        呼ぶだけで、どの画面にいるかは body に付く印で判断しています。
      ============================================================ -->
 <link rel="stylesheet" href="css/sidebar.css">
-<link rel="stylesheet" href="css/tune.css?v=15">
+<link rel="stylesheet" href="css/tune.css?v=16">
  
 </head>
 <body>
@@ -329,7 +329,7 @@
       <button class="btn btn-sm" onclick="RENT.expandAll(true)">すべて開く</button>
       <button class="btn btn-sm" onclick="RENT.expandAll(false)">すべて閉じる</button>
     </div>
-    <input type="text" id="searchBox" placeholder="🔍 オーナー名・物件名で検索（例: ルミエール / Turnkey）" oninput="RENT.renderPreview()"
+      <input type="text" id="searchBox" placeholder="🔍 オーナー名・物件名・住所で検索（例: 倉敷 / 岡山市 / ルミエール）" oninput="RENT.renderPreview()"
       style="font-family:inherit;font-size:.9rem;padding:11px 16px;border:1.5px solid var(--rt-accent);border-radius:10px;width:100%;margin-bottom:12px;background:#fff;">
     <div class="note-box" id="matchNote" style="display:none;"></div>
     <div id="rent-action-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--rt-soft);border:1px solid var(--rt-line);border-radius:10px;padding:10px 14px;margin-bottom:12px;">
@@ -1083,9 +1083,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/core.js?v=5"></script>
-<script src="js/buildings.js"></script>
+<script src="js/buildings.js?v=1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="js/ownermail.js?v=2"></script>
+<script src="js/ownermail.js?v=3"></script>
 <script src="js/ownerimport.js?v=1"></script>
 <script src="js/contracts.js?v=2"></script>
 <script src="js/sidebar.js?v=1"></script>
