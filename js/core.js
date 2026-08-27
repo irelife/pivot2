@@ -70,7 +70,7 @@ function setSyncStatus(state, text){
 // ===== 時刻ベースの自動同期(一人運用・複数端末でも復活しない) =====
 // 仕組み: 保存のたびにローカル更新時刻を記録し、自動でクラウドへ送信(時刻も一緒に送る)。
 // 起動時はクラウドを読み、クラウドの時刻が自分より新しいときだけ取り込む(古い物で上書きしない)。
-const MTIME_KEY = 'pivot_local_mtime';
+const MTIME_KEY = 'pivot2_local_mtime';
 let _hasUnsavedChanges = false;
  
 function touchLocalMtime(){
@@ -849,7 +849,7 @@ function saveCompany(){
 // ==============================
 // クラウド同期(Google Apps Script 連携)
 // ==============================
-const CLOUD_URL_KEY = 'pivot_cloud_url';
+const CLOUD_URL_KEY = 'pivot2_cloud_url';
  
 function getCloudUrl(){
   return (localStorage.getItem(CLOUD_URL_KEY) || '').trim();
