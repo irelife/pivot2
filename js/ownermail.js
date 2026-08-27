@@ -96,14 +96,35 @@ function renderOwners(){
     <td style="width:8%;text-align:center;"><input type="checkbox" ${o.exclude?'checked':''} onclick="RENT.editOwner(${i},'exclude',this.checked)" style="cursor:pointer;width:18px;height:18px;accent-color:#c0392b;" title="チェックすると送信対象から除外"></td>
     <td style="width:4%;text-align:center;"><button class="delrow" onclick="RENT.delOwner(${i})" title="削除">×</button></td>
   </tr>
-  <tr><td colspan="6" style="padding:0 6px 8px;border-top:none;">
-    <details${(o.zip||o.addr||o.tel)?'':' data-empty="1"'}>
-      <summary style="cursor:pointer;font-size:.7rem;color:var(--rt-muted);">連絡先（郵便番号・住所・TEL）</summary>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:5px;">
-        <input value="${esc(o.zip)}"  oninput="RENT.editOwner(${i},'zip',this.value)"  placeholder="郵便番号" style="width:110px;">
-        <input value="${esc(o.addr)}" oninput="RENT.editOwner(${i},'addr',this.value)" placeholder="住所" style="flex:1;min-width:220px;">
-        <input value="${esc(o.tel)}"  oninput="RENT.editOwner(${i},'tel',this.value)"  placeholder="TEL" style="width:140px;">
-        <input value="${esc(o.fax)}"  oninput="RENT.editOwner(${i},'fax',this.value)"  placeholder="FAX" style="width:140px;">
+  <tr><td colspan="6" style="padding:0 8px 12px;border-top:none;">
+    <details style="border:1px solid #e3e3e6;border-radius:10px;background:#fbfbfc;">
+      <summary style="cursor:pointer;font-size:.86rem;font-weight:800;padding:10px 12px;list-style:none;">
+        ▼ 連絡先・税区分・備考${o.memo?'　<span style="color:#c0392b;font-weight:700;font-size:.76rem;">備考あり</span>':''}
+      </summary>
+      <div style="padding:4px 12px 12px;">
+ 
+        <div style="font-size:.72rem;font-weight:800;color:var(--rt-muted);margin:6px 0 4px;">連絡先</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <label style="font-size:.7rem;">郵便番号<br><input value="${esc(o.zip)}" oninput="RENT.editOwner(${i},'zip',this.value)" placeholder="721-0963" style="width:120px;padding:7px 8px;border:1px solid #dcdce0;border-radius:6px;"></label>
+          <label style="font-size:.7rem;flex:1;min-width:260px;">住所<br><input value="${esc(o.addr)}" oninput="RENT.editOwner(${i},'addr',this.value)" placeholder="広島県福山市…" style="width:100%;padding:7px 8px;border:1px solid #dcdce0;border-radius:6px;"></label>
+          <label style="font-size:.7rem;">TEL<br><input value="${esc(o.tel)}" oninput="RENT.editOwner(${i},'tel',this.value)" placeholder="084-000-0000" style="width:150px;padding:7px 8px;border:1px solid #dcdce0;border-radius:6px;"></label>
+          <label style="font-size:.7rem;">FAX<br><input value="${esc(o.fax)}" oninput="RENT.editOwner(${i},'fax',this.value)" placeholder="084-000-0000" style="width:150px;padding:7px 8px;border:1px solid #dcdce0;border-radius:6px;"></label>
+        </div>
+ 
+        <div style="font-size:.72rem;font-weight:800;color:var(--rt-muted);margin:12px 0 4px;">インボイス</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+          <label style="font-size:.7rem;">課税区分<br>
+            <select onchange="RENT.editOwner(${i},'taxKbn',this.value)" style="padding:7px 8px;border:1px solid #dcdce0;border-radius:6px;min-width:130px;">
+              <option value=""${!o.taxKbn?' selected':''}>未選択</option>
+              <option value="課税事業者"${o.taxKbn==='課税事業者'?' selected':''}>課税事業者</option>
+              <option value="免税事業者"${o.taxKbn==='免税事業者'?' selected':''}>免税事業者</option>
+              <option value="未確認"${o.taxKbn==='未確認'?' selected':''}>未確認</option>
+            </select></label>
+          <label style="font-size:.7rem;flex:1;min-width:240px;">登録番号<br><input value="${esc(o.invoiceNo)}" oninput="RENT.editOwner(${i},'invoiceNo',this.value)" placeholder="T1234567890123" style="width:100%;padding:7px 8px;border:1px solid #dcdce0;border-radius:6px;${(o.taxKbn==='課税事業者'&&!String(o.invoiceNo||'').trim())?'background:#fdecea;border-color:#f0b6ae;':''}"></label>
+        </div>
+ 
+        <div style="font-size:.72rem;font-weight:800;color:var(--rt-muted);margin:12px 0 4px;">備考（このオーナー特有の事情・依頼など）</div>
+        <textarea rows="3" oninput="RENT.editOwner(${i},'memo',this.value)" placeholder="例）固定電話への連絡は不可。メールは奥様もCC希望。" style="width:100%;font-family:inherit;font-size:.8rem;padding:8px 9px;border:1px solid #dcdce0;border-radius:6px;line-height:1.6;resize:vertical;">${esc(o.memo)}</textarea>
       </div>
     </details>
   </td></tr>`).join("");
