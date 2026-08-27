@@ -19,6 +19,9 @@ function pbSaveRaw(obj){
   try{ localStorage.setItem(pbKey(), JSON.stringify(obj || {})); }catch(e){}
 }
 try{ window.pbKey = pbKey; window.pbLoadAll = pbLoadAll; window.pbSaveRaw = pbSaveRaw; }catch(e){}
+/* ---- 契約データの保存キー。1(本番)と2(検証)を分けるための窓口 ---- */
+function ctKey(){ return 'pivot2_contract_kanban_v2'; }
+try{ window.ctKey = ctKey; }catch(e){}
 /* ---- buildings.js の機能への窓口。未読込でも落ちないようにする ---- */
 function pbCall(name, arg){
   try{
@@ -178,7 +181,7 @@ async function doAutoPush(){
   try{
     const all = pbLoadAll();
     let contracts = {};
-    try{ contracts = JSON.parse(localStorage.getItem('contract_kanban_v2') || '{}'); }catch(e){ contracts = {}; }
+    try{ contracts = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){ contracts = {}; }
     let kintai = {};
     try{ kintai = JSON.parse(localStorage.getItem('pivot_kintai_v1') || '{}'); }catch(e){ kintai = {}; }
     let ownersData = [];
@@ -238,7 +241,7 @@ async function autoPullOnStart(){
     const snap = {
       at: new Date().toISOString(),
       buildings: localStorage.getItem(pbKey()) || '{}',
-      contracts: localStorage.getItem('contract_kanban_v2') || '{}',
+      contracts: localStorage.getItem(ctKey()) || '{}',
       kintai: localStorage.getItem('pivot_kintai_v1') || '{}',
     };
     // 契約か物件が入っているときだけ退避（空を退避して上書きしない）
@@ -260,7 +263,7 @@ async function autoPullOnStart(){
       // 判定: クラウドの方が新しい(または、ローカルにまだ時刻記録がない初回)なら取り込む。
       // 自分のローカルの方が新しい場合は取り込まない(自分の削除・編集を守る)。
       const localHasData = (Object.keys(pbLoadAll()).length > 0) ||
-        (Object.keys((function(){try{return JSON.parse(localStorage.getItem('contract_kanban_v2')||'{}');}catch(e){return {};}})()).length > 0) ||
+        (Object.keys((function(){try{return JSON.parse(localStorage.getItem(ctKey())||'{}');}catch(e){return {};}})()).length > 0) ||
         (Object.keys((function(){try{return JSON.parse(localStorage.getItem('pivot_kintai_v1')||'{}');}catch(e){return {};}})()).length > 0);
       const shouldPull = (!localHasData) || (cloudMtime > localMtime);
       if(shouldPull){
@@ -280,7 +283,7 @@ async function autoPullOnStart(){
         // クラウドの契約がローカルより大幅に少ない/空なら、ローカルの契約を消さない。
         // (クラウド側が空・古い状態で起動したときに、手元の正しい契約を上書き消失する事故を防ぐ)
         let localContracts = {};
-        try{ localContracts = JSON.parse(localStorage.getItem('contract_kanban_v2') || '{}'); }catch(e){ localContracts = {}; }
+        try{ localContracts = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){ localContracts = {}; }
         const localCC = Object.keys(localContracts).length;
         const cloudCC = Object.keys(contracts || {}).length;
         if(localCC >= 3 && cloudCC < localCC * 0.5){
@@ -289,7 +292,7 @@ async function autoPullOnStart(){
           alert('クラウドの契約数('+cloudCC+'件)が、この端末('+localCC+'件)より大幅に少なかったため、\n手元の契約データを保護し、クラウドの内容では上書きしませんでした。\n\nこの端末の契約をクラウドへ送って復旧します。');
           scheduleAutoPush();
         } else {
-          localStorage.setItem('contract_kanban_v2', JSON.stringify(contracts || {}));
+          localStorage.setItem(ctKey(), JSON.stringify(contracts || {}));
         }
         {
           // 勤怠は上書きせず、ローカルとクラウドを日付単位でマージ(複数端末で消えない)
@@ -667,7 +670,7 @@ async function loginPull(opt){
     return;
   }
   pbSaveRaw(buildings);
-  localStorage.setItem('contract_kanban_v2', JSON.stringify(contracts));
+  localStorage.setItem(ctKey(), JSON.stringify(contracts));
   // 勤怠: クラウドが勤怠を保持していない(キー無し or 空)場合は、ローカルの勤怠を消さずに守る。
   // (クラウド側がまだ勤怠フィールドに未対応でも、この端末の打刻を失わないため)
   {
@@ -709,7 +712,7 @@ async function forcePullLatest(){
       const buildings = payload.buildings || {};
       const contracts = payload.contracts || {};
       pbSaveRaw(buildings);
-      localStorage.setItem('contract_kanban_v2', JSON.stringify(contracts || {}));
+      localStorage.setItem(ctKey(), JSON.stringify(contracts || {}));
       {
         // 勤怠は上書きせず、ローカルとクラウドを日付単位でマージ(複数端末で消えない)
         applyCloudKintai(payload.kintai);
@@ -929,7 +932,7 @@ async function pushFeatureToCloud(feature){
       payload = { buildings: blds };
     } else if(feature === 'contracts'){
       let cts = {};
-      try{ cts = JSON.parse(localStorage.getItem('contract_kanban_v2') || '{}'); }catch(e){ cts = {}; }
+      try{ cts = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){ cts = {}; }
       action = 'saveContractsOnly';
       payload = { contracts: cts };
     } else if(feature === 'owners'){
