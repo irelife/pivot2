@@ -67,7 +67,7 @@ function setSyncStatus(state, text){
 // ===== 時刻ベースの自動同期(一人運用・複数端末でも復活しない) =====
 // 仕組み: 保存のたびにローカル更新時刻を記録し、自動でクラウドへ送信(時刻も一緒に送る)。
 // 起動時はクラウドを読み、クラウドの時刻が自分より新しいときだけ取り込む(古い物で上書きしない)。
-const MTIME_KEY = 'pivot2_local_mtime';
+const MTIME_KEY = insPrefix() + 'local_mtime';
 let _hasUnsavedChanges = false;
  
 function touchLocalMtime(){
@@ -116,7 +116,7 @@ async function doAutoPush(){
     let contracts = {};
     try{ contracts = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){ contracts = {}; }
     let ownersData = [];
-    try{ ownersData = JSON.parse(localStorage.getItem('pivot2_rent_owner_send_owners_v1') || '[]'); }catch(e){ ownersData = []; }
+        try{ ownersData = JSON.parse(localStorage.getItem(insPrefix() + 'rent_owner_send_owners_v1') || '[]'); }catch(e){ ownersData = []; }
     // ===== 安全装置: 手元の物件が空/極端に少ないのにクラウドに多数ある場合は上書きしない =====
     // (別端末の空データや読込前の状態で、クラウドの正しいデータを消す事故を防ぐ)
     const localCount = all && typeof all==='object' ? Object.keys(all).length : 0;
@@ -177,7 +177,7 @@ async function autoPullOnStart(){
     // 契約か物件が入っているときだけ退避（空を退避して上書きしない）
     const hasC = Object.keys(JSON.parse(snap.contracts)).length > 0;
     const hasB = Object.keys(JSON.parse(snap.buildings)).length > 0;
-    if(hasC || hasB){ localStorage.setItem('pivot2_emergency_backup', JSON.stringify(snap)); }
+    if(hasC || hasB){ localStorage.setItem(insPrefix() + 'emergency_backup', JSON.stringify(snap)); }
   }catch(e){ /* 退避失敗しても本処理は続行 */ }
   setSyncStatus('loading', '☁️ 確認中…');
   try{
@@ -769,7 +769,7 @@ function saveCompany(){
 // ==============================
 // クラウド同期(Google Apps Script 連携)
 // ==============================
-const CLOUD_URL_KEY = 'pivot2_cloud_url';
+const CLOUD_URL_KEY = insPrefix() + 'cloud_url';
  
 function getCloudUrl(){
   return (localStorage.getItem(CLOUD_URL_KEY) || '').trim();
@@ -857,7 +857,7 @@ async function pushFeatureToCloud(feature){
       payload = { contracts: cts };
     } else if(feature === 'owners'){
       let ow = [];
-      try{ ow = JSON.parse(localStorage.getItem('pivot2_rent_owner_send_owners_v1') || '[]'); }catch(e){ ow = []; }
+      try{ ow = JSON.parse(localStorage.getItem(insPrefix() + 'rent_owner_send_owners_v1') || '[]'); }catch(e){ ow = []; }
       action = 'saveOwnersOnly';
       payload = { owners: ow };
     } else {
