@@ -3727,7 +3727,7 @@ const _imgCache = {};
 // 画像の永続キャッシュ (IndexedDB)
 // 一度クラウドから取得した画像を端末に保存し、2回目以降は即表示する
 // ==============================
-const IMGDB_NAME = 'pivot_img_cache';
+const IMGDB_NAME = (typeof insPrefix === 'function' ? insPrefix() : 'pivot_') + 'img_cache';
 const IMGDB_STORE = 'images';
 let _imgDbPromise = null;
 function openImgDb(){
