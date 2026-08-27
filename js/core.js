@@ -335,7 +335,7 @@ function pivotLogout(){
 try{ window.pivotLogout = pivotLogout; }catch(e){}
  
 // ===== 自動ログアウト(1時間操作なし / 日付が変わったら 再ログイン) =====
-const LS_LASTSEEN = 'pivot_lastseen_v1';
+const LS_LASTSEEN = insPrefix() + 'lastseen_v1';
 const IDLE_LIMIT_MS = 60 * 60 * 1000;  // 1時間
  
 // 最終操作時刻と日付を記録
@@ -600,8 +600,32 @@ async function loginPull(opt){
     try{ if(typeof pushNow === 'function') pushNow(); }catch(e){}
     return;
   }
-  pbSaveRaw(buildings);
-  localStorage.setItem(ctKey(), JSON.stringify(contracts));
+  // ===== 物件データ保護ガード =====
+  // クラウドの物件がローカルより大幅に少なければ取り込まず、手元を守ってクラウドへ送り返す。
+  let _lb = {};
+  try{ _lb = pbLoadAll() || {}; }catch(e){ _lb = {}; }
+  const _lbc = Object.keys(_lb).length;
+  const _cbc = Object.keys(buildings || {}).length;
+  let _guarded = false;
+  if(_lbc >= 1 && _cbc < _lbc * 0.5){
+    setSyncStatus('error', '⚠️ 物件データを保護しました');
+    _guarded = true;
+  } else {
+    pbSaveRaw(buildings);
+  }
+  // ===== 契約データ保護ガード =====
+  let _lc = {};
+  try{ _lc = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){ _lc = {}; }
+  const _lcc = Object.keys(_lc).length;
+  const _ccc = Object.keys(contracts || {}).length;
+  if(_lcc >= 1 && _ccc < _lcc * 0.5){
+    setSyncStatus('error', '⚠️ 契約データを保護しました');
+    _guarded = true;
+  } else {
+    localStorage.setItem(ctKey(), JSON.stringify(contracts || {}));
+  }
+  // 取り込みを止めた場合は、手元の内容をクラウドへ送って復旧させる
+  if(_guarded){ try{ scheduleAutoPush(); }catch(e){} }
   if(typeof window.applyCloudOwners === 'function'){ window.applyCloudOwners(payload.owners); }
   const cloudMtime = parseInt(payload.mtime || '0', 10) || Date.now();
   try{ localStorage.setItem(MTIME_KEY, String(cloudMtime)); }catch(e){}
@@ -665,7 +689,7 @@ function genId(){
 // ==============================
 // 会社情報の管理(localStorage + クラウド同期)
 // ==============================
-const COMPANY_INFO_KEY = 'pivot_company_info';
+const COMPANY_INFO_KEY = insPrefix() + 'company_info';
  
 function getCompanyInfo(){
   try {
