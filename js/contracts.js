@@ -1215,14 +1215,17 @@ function _canonBroker(name){
     return { key:'いえなび', name:'いえなび' };
   }
   // ライフ系（IRE/ＩＲＥ/ライフ）→ ライフ
-  if(/ライフ/.test(n) || /IRE/i.test(n) || /ＩＲＥ/.test(n)) return { key:'ライフ', name:'ライフ' };
+
   // 大東建託系（リーシング・各店・全角半角ゆれ）→ 大東建託
   if(/大東建託/.test(n)) return { key:'大東建託', name:'大東建託' };
   // 中国バス不動産系（中国バス／中バス／LIFUKU併記など・各店）→ 中国バス不動産
   if(/中国バス/.test(n) || /中バス/.test(n)) return { key:'中国バス不動産', name:'中国バス不動産' };
   return { key:n, name:String(name||'').trim() };
 }
- 
+  // 自社客付け（IRE／ＩＲＥ／ライフ の表記ゆれ）は「自社（IREライフ）」とまとめて表示します。
+  // 集計の中身・順位・件数は今までどおりで、名前の見え方だけを変えています。
+  if(/ライフ/.test(n) || /IRE/i.test(n) || /ＩＲＥ/.test(n)) return { key:'ライフ', name:'自社（IREライフ）' };
+
 // 統計データを集計して返す(業者ごと)。現在の契約 ＋ PIVOT導入前の履歴(BROKER_HISTORY)を合算
 function computeBrokerStats(){
   const yearInput = document.getElementById('bstat-year');
