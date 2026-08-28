@@ -728,7 +728,7 @@ function renderCard(c){
     }catch(e){ notLinked = false; }
   }
   const notLinkedBadge = notLinked
-    ? '<div class="ct-notlinked" title="この契約は駐車場区画にまだ紐づけられていません。カードを開いて「紐づけ」を押してください。">⚠ 駐車場 未紐づけ</div>'
+    ? '<div class="ct-notlinked" title="この契約は駐車場区画にまだ紐づけられていません。カードを開いて「🅿 紐づけ」を押してください。">⚠ 駐車場 未紐づけ</div>'
     : '';
  
   const curName = (curIdx < 0) ? '未着手' : cur.name;
@@ -834,7 +834,7 @@ function renderCard(c){
             ' <span class="ct-stage-count">' + doneCount + '/' + totalCount + '</span>' +
           '</div>' +
         '</div>' +
-        (c.memo ? '<div class="ct-memo">' + esc(c.memo).replace(/\n/g,'<br>') + '</div>' : '') +
+        (c.memo ? '<div class="ct-memo">📝 ' + esc(c.memo).replace(/\n/g,'<br>') + '</div>' : '') +
       '</div>' +
     '</div>' +
     ((moveBtn || revertBtn) ? '<div class="ct-actions">' + revertBtn + moveBtn + '</div>' : '') +
@@ -1120,13 +1120,13 @@ function showPreview(id){
     (isPet ? '<img class="pv-pet" src="' + ICON_DOG + '" title="ペットあり" alt="ペット">' : '') +
     '<div class="pv-head">' + head + '</div>' +
     '<div class="pv-contractor">' + esc(c.contractor || '(契約者未入力)') + '</div>' +
-    (c.broker ? '<div class="pv-broker">' + esc(c.broker) + '</div>' : '') +
+    (c.broker ? '<div class="pv-broker">🏢 ' + esc(c.broker) + '</div>' : '') +
     '<div class="pv-meta">' + metaHtml + '</div>' +
-    '<div class="pv-section-title">獲得アイテム (' + gotCount + ' / ' + pvItems.length + ')</div>' +
+    '<div class="pv-section-title">🎒 獲得アイテム (' + gotCount + ' / ' + pvItems.length + ')</div>' +
     '<div class="pv-items">' + itemsBig + '</div>' +
     '<div class="pv-section-title">ステージ到達履歴</div>' +
     '<div class="pv-stages">' + stagesHtml + '</div>' +
-    (c.memo ? '<div class="pv-section-title">備考</div><div class="pv-memo">' + esc(c.memo).replace(/\n/g,'<br>') + '</div>' : '') +
+    (c.memo ? '<div class="pv-section-title">📝 備考</div><div class="pv-memo">' + esc(c.memo).replace(/\n/g,'<br>') + '</div>' : '') +
     '<button class="pv-edit-btn" onclick="KB.openSheet(\'' + id + '\')">編集する</button>';
  
   document.getElementById('preview-backdrop').classList.add('active');
@@ -1233,6 +1233,8 @@ function computeBrokerStats(){
   const yearMap = {};  // year -> {count, cancel, reject}
   const monthAll = {}; // "YYYY-MM" -> {count, cancel, reject} 全業者横断
   const propMap = {};  // 建物名 -> { building, count, brokers:{brokerName:count} } 物件別
+  // 担当者別。同じ名字の人が別の会社にもいるので、「会社キー|担当者名」でひとりと数えます。
+  const staffMap = {}; // "業者キー|担当者名" -> {broker, staff, count, cancel, reject, bldg, lastSort}
  
   // kind: 'ok'(成約) / 'cancel'(キャンセル) / 'reject'(審査落ち)
   function add(broker, when, propName, building, staff, kind){
@@ -1266,6 +1268,20 @@ function computeBrokerStats(){
       propMap[building].brokers[canon.name] = (propMap[building].brokers[canon.name]||0) + 1;
     }
     map[key].items.push({ property: propName, staff:(staff||'').trim(), when: when.disp, sort: when.sort, cancel: ng, kind: (isCx?'cancel':(isRj?'reject':'ok')) });
+    // ---- 担当者ごとの集計（会社名とセットで1人と数えます）----
+    const _stf = String(staff||'').replace(/[\s\u3000]+/g,'').trim();
+    if(_stf){
+      const sKey = key + '|' + _stf;
+      if(!staffMap[sKey]) staffMap[sKey] = { key:sKey, broker: canon.name, staff:_stf, count:0, cancel:0, reject:0, bldg:{}, lastSort:'' };
+      const S = staffMap[sKey];
+      if(isCx){ S.cancel++; }
+      else if(isRj){ S.reject++; }
+      else {
+        S.count++;
+        if(building){ S.bldg[building] = (S.bldg[building]||0) + 1; }
+        if(when.sort && when.sort !== '00000000' && when.sort > S.lastSort){ S.lastSort = when.sort; }
+      }
+    }
     const yr = when.year || '不明';
     if(!yearMap[yr]) yearMap[yr] = { count:0, cancel:0, reject:0 };
     if(isCx) yearMap[yr].cancel++; else if(isRj) yearMap[yr].reject++; else yearMap[yr].count++;
@@ -1337,9 +1353,18 @@ function computeBrokerStats(){
       .sort((a,b)=> b.count - a.count || a.broker.localeCompare(b.broker,'ja'));
     return { building:p.building, count:p.count, brokers };
   }).sort((a,b)=> b.count - a.count || a.building.localeCompare(b.building,'ja'));
-  return { rows, fyValid, fy, total, totalCancel, totalReject, totalBase, cancelRate, rejectRate, years, monthsAll, props };
+  // 担当者ランキング（成約数の多い順）。会社名つきなので、同姓の別人も区別できます。
+  const staffs = Object.values(staffMap).map(s => {
+    s.base = s.count + s.cancel + s.reject;
+    s.cancelRate = _rate(s.cancel, s.base);
+    s.rejectRate = _rate(s.reject, s.base);
+    s.top3 = Object.keys(s.bldg||{}).map(b => ({ name:b, count:s.bldg[b] }))
+      .sort((a,b) => b.count - a.count || a.name.localeCompare(b.name,'ja')).slice(0,3);
+    return s;
+  }).sort((a,b) => b.count - a.count || a.staff.localeCompare(b.staff,'ja'));
+  return { rows, fyValid, fy, total, totalCancel, totalReject, totalBase, cancelRate, rejectRate, years, monthsAll, props, staffs };
 }
-let _brokerStatMode = 'broker'; // 'broker' | 'property'
+let _brokerStatMode = 'broker'; // 'broker' | 'property' | 'staff'
 function setBrokerStatMode(m){ _brokerStatMode = m; renderBrokerStats(); }
 /* PDFの中にしか無かった ①TOP20 ②掘り起こし候補 を、画面にも出す。
    計算の考え方は exportBrokerStatsPdf と同じ（最終客付けからの経過月数）。 */
@@ -1411,7 +1436,7 @@ function brokerInsightHtml(rows){
 }
  
 function renderBrokerStats(){
-  const { rows, fyValid, fy, total, totalCancel, totalReject, totalBase, cancelRate, rejectRate, years, monthsAll, props: propRanking } = computeBrokerStats();
+  const { rows, fyValid, fy, total, totalCancel, totalReject, totalBase, cancelRate, rejectRate, years, monthsAll, props: propRanking, staffs: staffRanking } = computeBrokerStats();
   const _now = new Date();
   const THIS_YM = _now.getFullYear() + '-' + String(_now.getMonth()+1).padStart(2,'0'); // 今月 YYYY-MM
   const body = document.getElementById('bstat-body');
@@ -1426,6 +1451,7 @@ function renderBrokerStats(){
   const modeTabs = '<div class="bstat-mode">' +
     '<button class="bmode'+(_brokerStatMode==='broker'?' on':'')+'" onclick="KB.setBrokerStatMode(\'broker\')">業者別</button>' +
     '<button class="bmode'+(_brokerStatMode==='property'?' on':'')+'" onclick="KB.setBrokerStatMode(\'property\')">物件別</button>' +
+    '<button class="bmode'+(_brokerStatMode==='staff'?' on':'')+'" onclick="KB.setBrokerStatMode(\'staff\')">担当者別</button>' +
     '</div>';
   // 集計は、契約画面の黒い件数バーと同じ見た目にそろえる（モノクロ・絵文字なし）
   let html = modeTabs + '<div class="stats-bar bstat-bar">' +
@@ -1433,6 +1459,8 @@ function renderBrokerStats(){
       '<span class="lbl">' + (fyValid ? '年' : '2023〜') + '</span></div>' +
     (_brokerStatMode==='broker'
       ? '<div class="stat-pill"><span class="num">' + rows.length + '</span><span class="lbl">業者</span></div>'
+      : _brokerStatMode==='staff'
+      ? '<div class="stat-pill"><span class="num">' + staffRanking.length + '</span><span class="lbl">担当者</span></div>'
       : '<div class="stat-pill"><span class="num">' + propRanking.length + '</span><span class="lbl">物件</span></div>') +
     '<div class="stat-pill"><span class="num">' + total + '</span><span class="lbl">客付</span></div>' +
     '<div class="stat-pill warn"><span class="num">' + totalCancel + '</span><span class="lbl">キャンセル ' + cancelRate + '</span></div>' +
@@ -1441,6 +1469,43 @@ function renderBrokerStats(){
     '</div>' +
     '<div class="bstat-ratenote">率の母数は「成約＋キャンセル＋審査落ち」＝申込総数です。</div>';
  
+  // ===== 担当者別ビュー =====
+  // 「会社名 ＋ 担当者名」でひとりと数えています。
+  // 同じ名字の人が別の会社にいても、混ざらないようにするためです。
+  if(_brokerStatMode === 'staff'){
+    if(staffRanking.length === 0){
+      body.innerHTML = html + '<div class="bstat-empty"><span class="be-ico">👤</span>担当者名の入っているデータがありません。<br>契約カードの「担当」に名前を入れると集計されます。</div>';
+      return;
+    }
+    staffRanking.forEach((s, i) => {
+      const rankCls = i < 3 ? ' rk' + (i+1) : '';
+      const lastDisp = (s.lastSort && s.lastSort.length>=8)
+        ? (s.lastSort.slice(0,4)+'/'+s.lastSort.slice(4,6)+'/'+s.lastSort.slice(6,8))
+        : (s.lastSort && s.lastSort.length>=6 ? (s.lastSort.slice(0,4)+'/'+s.lastSort.slice(4,6)) : '');
+      const bestRows = (s.top3||[]).length
+        ? (s.top3||[]).map((t, bi) =>
+            '<div class="pb-row'+(bi===0?' pb-strong':'')+'"><span class="pb-dot">'+(bi===0?'⭐':'●')+'</span><span class="pb-nm">'+esc(t.name)+'</span><span class="pb-ct">'+t.count+'件</span></div>'
+          ).join('')
+        : '<div class="pb-row"><span class="pb-nm">（物件の記録がありません）</span></div>';
+      html += '<div class="bstat-card'+rankCls+'" data-scard="'+i+'">'+
+        '<div class="bstat-top bstat-toggle" onclick="KB.toggleStaffCard('+i+')">'+
+          '<div class="bstat-medal">'+(i+1)+'</div>'+
+          '<div class="bstat-name">'+esc(s.staff)+'</div>'+
+          '<div class="bstat-badge"><span class="bnum">'+s.count+'</span><span class="blbl">件</span></div>'+
+          '<span class="pb-sub">'+esc(s.broker)+'</span>'+
+          '<span class="bstat-caret">▾</span>'+
+        '</div>'+
+        '<div class="pb-strong-badge">'+
+          'キャンセル <b>'+s.cancel+'</b> 件（'+s.cancelRate+'）／ 審査落ち <b>'+(s.reject||0)+'</b> 件（'+s.rejectRate+'）'+
+          (lastDisp ? ' ／ 最終客付け <b>'+lastDisp+'</b>' : '')+
+        '</div>'+
+        '<div class="bstat-props pb-list bstat-collapsed">'+bestRows+'</div>'+
+      '</div>';
+    });
+    body.innerHTML = html;
+    return;
+  }
+
   // ===== 物件別ビュー =====
   if(_brokerStatMode === 'property'){
     if(propRanking.length === 0){ body.innerHTML = html + '<div class="bstat-empty"><span class="be-ico">🏠</span>物件データがありません。</div>'; return; }
@@ -1478,7 +1543,7 @@ function renderBrokerStats(){
   if(!fyValid && years.length > 1){
     const ys = years.slice().sort((a,b)=>a.year.localeCompare(b.year)); // 古い順
     const maxc = Math.max(1, ...ys.map(y=>y.count));
-    html += '<div class="ov-chart"><div class="ov-h">年ごとの客付け件数</div><div class="ov-bars ov-year">';
+    html += '<div class="ov-chart"><div class="ov-h">📅 年ごとの客付け件数</div><div class="ov-bars ov-year">';
     ys.forEach(y=>{
       const h = Math.round(y.count/maxc*100);
       html += '<div class="ovb" title="'+y.year+'年：'+y.count+'件'+(y.cancel?' / ｷｬﾝｾﾙ'+y.cancel:'')+'">'+
@@ -1496,7 +1561,7 @@ function renderBrokerStats(){
     const byYear = {};
     monthsAll.forEach(m => { const y = m.ym.slice(0,4); (byYear[y] = byYear[y] || []).push(m); });
     const yearKeys = Object.keys(byYear).sort();
-    html += '<div class="ov-chart"><div class="ov-h">月ごとの客付け件数'
+    html += '<div class="ov-chart"><div class="ov-h">📊 月ごとの客付け件数'
           + (fyValid ? '（'+fy+'年）' : '（年ごと）') + '</div>';
     const nowY = _now.getFullYear(), nowM = _now.getMonth()+1;
     yearKeys.forEach(y => {
@@ -1561,13 +1626,13 @@ function renderBrokerStats(){
           '<div class="mbar-col" data-tip-ym="'+k+'" data-tip-cnt="'+cnt+'" data-tip-props="'+esc(plist).replace(/"/g,'&quot;')+'"><span class="mbar-v">'+cnt+'</span><i style="height:'+Math.max(8,h)+'%"></i></div>'+
           '<span class="mbar-x">'+(isNow?'今月':lbl)+'</span></div>';
       }).join('');
-      monthChart = '<div class="bstat-months"><div class="bm-h">月別の客付け（棒にカーソルで物件一覧）</div><div class="bm-chart">'+bars+'</div></div>';
+      monthChart = '<div class="bstat-months"><div class="bm-h">📊 月別の客付け（棒にカーソルで物件一覧）</div><div class="bm-chart">'+bars+'</div></div>';
     }
     // よく客付けする物件 Best3
     let top3html = '';
     if(r.top3 && r.top3.length){
       const medals3 = ['🥇','🥈','🥉'];
-      top3html = '<div class="bstat-top3"><div class="bt3-h">よく客付けする物件</div><div class="bt3-list">' +
+      top3html = '<div class="bstat-top3"><div class="bt3-h">🏆 よく客付けする物件</div><div class="bt3-list">' +
         r.top3.map((t,ti)=>'<div class="bt3-item"><span class="bt3-rk">'+medals3[ti]+'</span><span class="bt3-nm">'+esc(t.name)+'</span><span class="bt3-ct">'+t.count+'件</span></div>').join('') +
         '</div></div>';
     }
@@ -1626,6 +1691,15 @@ function filterBrokerYear(y){
 // 物件カードの業者内訳を開閉
 function togglePropCard(i){
   const card = document.querySelector('[data-pcard="'+i+'"]');
+  if(!card) return;
+  const list = card.querySelector('.bstat-props');
+  const caret = card.querySelector('.bstat-caret');
+  if(list){ list.classList.toggle('bstat-collapsed'); }
+  if(caret){ caret.textContent = (list && list.classList.contains('bstat-collapsed')) ? '▾' : '▴'; }
+}
+// 担当者カードの「よく決める物件」を開閉
+function toggleStaffCard(i){
+  const card = document.querySelector('[data-scard="'+i+'"]');
   if(!card) return;
   const list = card.querySelector('.bstat-props');
   const caret = card.querySelector('.bstat-caret');
@@ -1704,9 +1778,10 @@ function exportBrokerStatsCsv(){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url), 1000);
 }
-// 社長向けPDF資料を出力（印刷ダイアログ方式）。①ランキングTOP20 ＋ ②掘り起こし候補
+// 社長向けPDF資料を出力（印刷ダイアログ方式）。
+// ①ランキングTOP20 ＋ ②掘り起こし候補 ＋ ③担当者ランキング（会社名つき）
 function exportBrokerStatsPdf(){
-  const { rows, fyValid, fy } = computeBrokerStats();
+  const { rows, fyValid, fy, staffs } = computeBrokerStats();
   if(rows.length === 0){ alert('出力できる統計データがありません。'); return; }
   const esc = (s)=> String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
  
@@ -1785,6 +1860,26 @@ function exportBrokerStatsPdf(){
       <td>${b2}</td></tr>`;
   });
  
+  // ③ 担当者ランキング（会社名つき。同姓の別人が混ざらないよう会社名を必ず添えます）
+  let staffRows = '';
+  (staffs||[]).slice(0,30).forEach((s,i)=>{
+    const cls = (i<3) ? ' class="top3"' : (i%2===1 ? ' class="alt"' : '');
+    const ar = areaOf(addrByName[(s.top3&&s.top3[0])?s.top3[0].name:''] || '');
+    const dot = `<span class="dot" style="background:${ar.color}"></span>`;
+    const last = (s.lastSort && s.lastSort.length>=8)
+      ? (s.lastSort.slice(0,4)+'/'+s.lastSort.slice(4,6)+'/'+s.lastSort.slice(6,8))
+      : (s.lastSort && s.lastSort.length>=6 ? (s.lastSort.slice(0,4)+'/'+s.lastSort.slice(4,6)) : '－');
+    const b3 = (s.top3||[]).map(t=>esc(t.name)+'('+t.count+')').join(' / ');
+    staffRows += `<tr${cls}>
+      <td class="c">${i+1}</td>
+      <td class="b">${dot}${esc(s.staff)}</td>
+      <td style="color:${ar.color}">${esc(s.broker)}</td>
+      <td class="c">${s.count}</td>
+      <td class="c">${s.cancel||'－'}</td>
+      <td class="c">${last}</td>
+      <td>${b3}</td></tr>`;
+  });
+
   const today = new Date();
   const dstr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
  
@@ -1807,6 +1902,7 @@ function exportBrokerStatsPdf(){
   tr.alt td { background:#f4f6f8; }
   tr.top3 td { background:#e8f0fb; }
   #dig th { background:#b7791f; }
+  #stf th { background:#155e75; }
   tr.warn td { background:#fdf6e3; }   /* 6-11ヶ月：黄 */
   tr.hot  td { background:#fdecd7; }   /* 12-23ヶ月：橙 */
   tr.crit td { background:#fde0dd; }   /* 24ヶ月以上：赤 */
@@ -1824,7 +1920,7 @@ function exportBrokerStatsPdf(){
   .noprint { position:fixed; top:10px; right:10px; }
   .noprint button { font-size:14px; font-weight:700; padding:8px 16px; border:none; border-radius:8px; background:#1f3a5f; color:#fff; cursor:pointer; }
 </style></head><body>
-<div class="noprint"><button onclick="window.print()">PDFとして保存 / 印刷</button></div>
+<div class="noprint"><button onclick="window.print()">🖨 PDFとして保存 / 印刷</button></div>
 <h1>客付業者 分析レポート</h1>
 <div class="sub">作成日：${dstr} ／ 集計期間：${period}（全客付け実績）${fyValid?'／年絞り込み: '+fy+'年':''}</div>
 <div class="rule"></div>
@@ -1844,6 +1940,14 @@ function exportBrokerStatsPdf(){
 <table id="dig">
   <tr><th style="width:24%">業者名</th><th style="width:14%">過去の客付け</th><th style="width:16%">最終客付け</th><th style="width:14%">客付けなし</th><th>得意物件（過去実績）</th></tr>
   ${digRows || '<tr><td colspan="5" class="c">該当なし</td></tr>'}
+</table>
+
+<div class="pagebreak"></div>
+<h2 id="stfttl">③ 担当者ランキング（会社名つき）</h2>
+<div class="note">仲介会社の担当者ひとりずつの成績です。同じ名字の方が別の会社にいても混ざらないよう、<b>会社名とセット</b>で数えています。成約数の多い順・上位30名。</div>
+<table id="stf">
+  <tr><th style="width:7%">順位</th><th style="width:14%">担当者</th><th style="width:22%">会社名</th><th style="width:9%">客付け数</th><th style="width:8%">ｷｬﾝｾﾙ</th><th style="width:13%">最終客付け</th><th>よく決める物件 Best3</th></tr>
+  ${staffRows || '<tr><td colspan="7" class="c">担当者名の入っているデータがありません</td></tr>'}
 </table>
 </body></html>`;
   // iPhone / iPad は別ウィンドウでの印刷が働かないので、
@@ -1898,7 +2002,7 @@ function renderDoneList(){
       '</div>' +
       (dDate ? '<div class="di-date">' + dateLabel + ' ' + dDate + '</div>' : '') +
       '<button class="di-back" onclick="KB.returnToBoard(event,\'' + c.id + '\')" title="一覧へ戻す">↩ 一覧へ戻す</button>' +
-      '<button class="di-del" onclick="KB.deleteFromDone(event,\'' + c.id + '\')" title="この契約を削除" style="border:none; background:#fdecec; color:#d32f2f; font-size:13px; font-weight:800; padding:8px 14px; border-radius:10px; cursor:pointer; font-family:inherit; white-space:nowrap; margin-left:8px;">削除</button>' +
+      '<button class="di-del" onclick="KB.deleteFromDone(event,\'' + c.id + '\')" title="この契約を削除" style="border:none; background:#fdecec; color:#d32f2f; font-size:13px; font-weight:800; padding:8px 14px; border-radius:10px; cursor:pointer; font-family:inherit; white-space:nowrap; margin-left:8px;">🗑 削除</button>' +
     '</div>';
   }).join('');
   updateDoneSelCount();
@@ -1961,7 +2065,7 @@ function updateDoneSelCount(){
   const checks = Array.from(document.querySelectorAll('#done-body .di-check'));
   const sel = checks.filter(ch => ch.checked).length;
   const delBtn = document.getElementById('done-del-selected');
-  if(delBtn){ delBtn.textContent = sel > 0 ? ('選択削除 (' + sel + ')') : '選択削除'; }
+  if(delBtn){ delBtn.textContent = sel > 0 ? ('🗑 選択削除 (' + sel + ')') : '🗑 選択削除'; }
   const csvBtn = document.getElementById('done-csv');
   if(csvBtn){ csvBtn.textContent = sel > 0 ? ('⬇ CSV出力 (' + sel + ')') : '⬇ CSV出力'; }
   const allBtn = document.getElementById('done-select-all');
@@ -3214,7 +3318,7 @@ function linkCurrentToSpot(){
     alert('紐づけ処理を実行しましたが、結果を判定できませんでした。区画が物件管理に登録されているかご確認ください。');
   }
 }
-// 完了お祝い演出(画面全体)
+// 🎉 完了お祝い演出(画面全体)
 function celebrateComplete(c){
   const name = (c.property || '') + (c.room ? ' ' + String(c.room).replace(/^P/i,'') + '号' : '');
   const ov = document.createElement('div');
@@ -3458,6 +3562,7 @@ try{window.KB.toggleBrokerCard=toggleBrokerCard;}catch(e){}
 try{window.KB.showBrokerCancels=showBrokerCancels;}catch(e){}
 try{window.KB.setBrokerStatMode=setBrokerStatMode;}catch(e){}
 try{window.KB.togglePropCard=togglePropCard;}catch(e){}
+try{window.KB.toggleStaffCard=toggleStaffCard;}catch(e){}
 try{window.KB.openFromDone=openFromDone;}catch(e){}
 try{window.KB.openInfoEdit=openInfoEdit;}catch(e){}
 try{window.KB.openSheet=openSheet;}catch(e){}
