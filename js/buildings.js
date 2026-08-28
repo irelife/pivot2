@@ -1754,7 +1754,7 @@ function openModal(id){
   currentEditId = id || null;
   const modal = document.getElementById('modal');
   const title = document.getElementById('modal-title');
-  const delBtn = document.getElementById('del-btn');
+  const delBtn = document.getElementById('del-btn') || { style:{} };  // 削除ボタンは廃止。無くても落ちないようにする
 
   // 画像状態をリセット
   _currentImages = { layout_id: '', layout_url: '', layout2_id: '', layout2_url: '', photo_ids: [], photo_urls: {}, mime: {} };
