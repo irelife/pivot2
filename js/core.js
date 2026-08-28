@@ -1099,165 +1099,6 @@ function switchApp(which){
      ・iPhone の Safari は、ふつうの「ダウンロード」を無視して
        ファイルを画面に映すだけで終わってしまいます。
        そこで iPhone のときだけ「共有シート」を出し、
-       そこから「"ファイル"に保存」を選べるようにします。
-     ・別ウィンドウでの印刷も iPhone では働かないので、
-       画面の中に重ねて印刷できるようにします。
-     ・承諾書・契約書・請求書は、書類だけを入れた小窓(iframe)に移してから
-       印刷します。アプリ側の見た目が混ざらないので、A4横・A3横といった
-       用紙の指定や改ページがそのまま効き、きれいに出ます。
-     ★パソコンと Android の動きは、これまでと一切変わりません。
-     ★他のファイル(contracts.js など)は書き換えず、
-       ここから横取りして差し替えています。
-   ============================================================ */
-(function(){
-  // iPad は「Macintosh」と名乗るので、指で触れるかどうかも見ます
-  var _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  window.PV_IS_IOS = _isIOS;
-
-  /* --- ① 作ったファイルの中身を覚えておく ---
-     ダウンロード用のリンクは「blob:...」という置き場所しか持っていません。
-     あとで共有シートに渡せるよう、中身そのものを控えておきます。 */
-  var _keep = {};
-  var _create = URL.createObjectURL;
-  var _revoke = URL.revokeObjectURL;
-  URL.createObjectURL = function(b){
-    var u = _create.call(URL, b);
-    try{ if(b instanceof Blob) _keep[u] = b; }catch(e){}
-    return u;
-  };
-  URL.revokeObjectURL = function(u){
-    // 共有シートが読み終わる前に捨てないよう、少し置いてから忘れます
-    setTimeout(function(){ try{ delete _keep[u]; }catch(e){} }, 30000);
-    return _revoke.call(URL, u);
-  };
-
-  /* --- ② 「保存」の押しかたを iPhone のやり方に差し替える ---
-     CSV・PDF・バックアップJSON など、すべての保存がここを通ります。 */
-  var _click = HTMLAnchorElement.prototype.click;
-  HTMLAnchorElement.prototype.click = function(){
-    if(_isIOS){
-      var name = this.getAttribute('download');
-      var b = name ? _keep[this.href] : null;
-      if(b && typeof File === 'function' && navigator.canShare){
-        try{
-          var f = new File([b], name, {type: b.type || 'application/octet-stream'});
-          if(navigator.canShare({files:[f]})){
-            // 「"ファイル"に保存」「メールで送信」などが選べます
-            navigator.share({files:[f], title:name}).catch(function(){});
-            return;
-          }
-        }catch(e){ /* だめならふつうのやり方に戻します */ }
-      }
-    }
-    return _click.apply(this, arguments);
-  };
-
-  /* --- ③ iPhone でも印刷・PDF保存ができる画面を出す ---
-     別ウィンドウを開かず、この画面の中に重ねて表示します。 */
-  /* A4横・A3横の書類はスマホの画面より広いので、
-     「画面で見るときだけ」横幅に合わせて縮めます。
-     印刷は @media screen で囲ってあるため原寸のままです。 */
-  function _fitToWidth(fr){
-    try{
-      var d = fr.contentDocument; if(!d || !d.body) return;
-      var need = Math.max(d.documentElement.scrollWidth, d.body.scrollWidth);
-      var have = fr.clientWidth;
-      if(!need || !have || need <= have + 2) return;
-      var st = d.createElement('style');
-      st.textContent = '@media screen{html{zoom:' + (have / need).toFixed(4) + ';}}';
-      (d.head || d.documentElement).appendChild(st);
-    }catch(e){}
-  }
-
-  window.PV_PRINT_HTML = function(html){
-    var old = document.getElementById('pv-print-ov');
-    if(old && old.parentNode) old.parentNode.removeChild(old);
-
-    var ov = document.createElement('div');
-    ov.id = 'pv-print-ov';
-    ov.setAttribute('style','position:fixed;top:0;right:0;bottom:0;left:0;z-index:100000;'+
-      'background:#fff;display:flex;flex-direction:column;');
-
-    var bar = document.createElement('div');
-    bar.setAttribute('style','flex:0 0 auto;display:flex;gap:10px;justify-content:space-between;'+
-      'align-items:center;padding:10px 12px;background:#1f3a5f;');
-    var bs = 'font-size:15px;font-weight:700;padding:9px 16px;border:0;border-radius:8px;cursor:pointer;';
-
-    var close = document.createElement('button');
-    close.type = 'button'; close.textContent = '✕ 閉じる';
-    close.setAttribute('style', bs + 'background:rgba(255,255,255,.18);color:#fff;');
-
-    var go = document.createElement('button');
-    go.type = 'button'; go.textContent = '🖨 PDF / 印刷';
-    go.setAttribute('style', bs + 'background:#fff;color:#1f3a5f;');
-
-    bar.appendChild(close); bar.appendChild(go);
-
-    var fr = document.createElement('iframe');
-    fr.setAttribute('style','flex:1 1 auto;width:100%;border:0;background:#fff;');
-
-    ov.appendChild(bar); ov.appendChild(fr);
-    document.body.appendChild(ov);
-
-    var doPrint = function(){
-      try{ fr.contentWindow.focus(); fr.contentWindow.print(); }
-      catch(e){
-        alert('印刷を開けませんでした。\n画面下の「共有」→「プリント」からもPDFにできます。');
-      }
-    };
-    close.onclick = function(){ if(ov.parentNode) ov.parentNode.removeChild(ov); };
-    go.onclick = doPrint;
-    // 書類じたいが「読み込めたら印刷する」を持っている場合は任せます(二重に出さない)
-    var self = /window\.print\s*\(/.test(String(html));
-    fr.onload = function(){
-      _fitToWidth(fr);
-      if(!self) setTimeout(doPrint, 400);
-    };
-
-    if('srcdoc' in fr){ fr.srcdoc = html; }
-    else{ var d = fr.contentWindow.document; d.open(); d.write(html); d.close(); }
-  };
-
-  /* --- ④ 承諾書・契約書・請求書を、iPhone でもきれいに印刷する ---
-     いまは書類をアプリの画面の上に重ねて、そのまま印刷しています。
-     この方法だとアプリ側の見た目が混ざり、用紙の向き(A4横・A3横)や
-     改ページが崩れることがあります。
-     iPhone のときだけ、書類だけを入れた小窓に移してから印刷します。
-     ★パソコンは今までどおりです。 */
-  function _patchDocPrint(){
-    if(typeof window.printDocOverlay !== 'function') return;
-    if(window.printDocOverlay._pvPatched) return;
-    var _orig = window.printDocOverlay;
-    var f = function(){
-      var c = _isIOS ? document.getElementById('doc-ov-content') : null;
-      if(c && window.PV_PRINT_HTML){
-        // 書類の見た目(style)と中身を、そのまま小窓へ移します
-        window.PV_PRINT_HTML(
-          '<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">' +
-          '<style>html,body{margin:0;padding:0;}</style></head><body>' +
-          c.innerHTML + '</body></html>');
-        return;
-      }
-      return _orig.apply(this, arguments);
-    };
-    f._pvPatched = 1;
-    window.printDocOverlay = f;
-  }
-  if(document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', _patchDocPrint);
-  }else{
-    _patchDocPrint();
-  }
-  window.addEventListener('load', _patchDocPrint);
-})();
-
-
-/* ============================================================
-   iPhone / iPad で「CSV・PDF が出せない」を直す   pv-ios-export
-     ・iPhone の Safari は、ふつうの「ダウンロード」を無視して
-       ファイルを画面に映すだけで終わってしまいます。
-       そこで iPhone のときだけ「共有シート」を出し、
        そこから「"ファイル"に保存」やメール送信を選べるようにします。
      ・ホーム画面から開いたアプリでは、iOS は印刷そのものを
        受け付けません（window.print が何もしません）。
@@ -1368,12 +1209,15 @@ function switchApp(which){
     return box;
   }
   // 書類の中の「1枚ずつ」を探す。承諾書は2枚、契約書・請求書は1枚。
+  //   fixed=true … 書類が「これで1枚」と決めている入れ物。多少はみ出しても
+  //                縮めて1枚に収めます(承諾書・契約書・請求書)。
+  //   fixed=false… ただの長い書類。用紙の高さで切り分けます(ランキング表)。
   function _pagesIn(doc){
     var l = doc.querySelectorAll('.page');
-    if(l.length) return [].slice.call(l);
+    if(l.length) return { els: [].slice.call(l), fixed: true };
     l = doc.querySelectorAll('.sheet');
-    if(l.length) return [].slice.call(l);
-    return [doc.body];
+    if(l.length) return { els: [].slice.call(l), fixed: true };
+    return { els: [doc.body], fixed: false };
   }
 
   /* --- ⑤ 用紙の幅で組み立てて、画面の幅に合わせて縮める --- */
@@ -1421,7 +1265,7 @@ function switchApp(which){
       .then(function(){
         jsPDF = window.jspdf.jsPDF;
         pdf = new jsPDF({ unit:'mm', format: box.fmt, orientation: box.ori });
-        var pages = _pagesIn(doc), i = 0, first = true;
+        var found = _pagesIn(doc), pages = found.els, i = 0, first = true;
         function step(){
           if(i >= pages.length) return pdf.output('blob');
           var el = pages[i++];
@@ -1431,10 +1275,14 @@ function switchApp(which){
             width: w, windowWidth: w         // 用紙の幅で描く(画面の幅ではない)
           }).then(function(cv){
             var full = cw * cv.height / cv.width;      // 原寸なら何mmになるか
-            if(full <= ch + 1){
+            if(full <= ch + 1 || found.fixed){
+              // 1枚もの。はみ出す分は縮めて、必ず1枚に収めます。
+              var dw = cw, dh = full;
+              if(dh > ch){ var k = ch / dh; dw = cw * k; dh = ch; }
               if(!first) pdf.addPage(box.fmt, box.ori);
               first = false;
-              pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', box.ml, box.mt, cw, full);
+              pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG',
+                           box.ml + (cw - dw) / 2, box.mt, dw, dh);
             }else{
               // 1枚に収まらないときは、用紙の高さで切り分けます
               var slice = Math.floor(cv.width * ch / cw), y = 0;
@@ -1504,11 +1352,18 @@ function switchApp(which){
     close.type = 'button'; close.textContent = '✕ 閉じる';
     close.setAttribute('style', bs + 'background:rgba(255,255,255,.18);color:#fff;');
 
+    var pr = document.createElement('button');
+    pr.type = 'button'; pr.textContent = '🖨 印刷';
+    pr.setAttribute('style', bs + 'background:rgba(255,255,255,.18);color:#fff;');
+
     var go = document.createElement('button');
-    go.type = 'button'; go.textContent = '📄 PDFにする';
+    go.type = 'button'; go.textContent = '📄 PDF';
     go.setAttribute('style', bs + 'background:#fff;color:#1f3a5f;');
 
-    bar.appendChild(close); bar.appendChild(go);
+    var right = document.createElement('div');
+    right.setAttribute('style','display:flex;gap:8px;flex:0 0 auto;');
+    right.appendChild(pr); right.appendChild(go);
+    bar.appendChild(close); bar.appendChild(right);
 
     var fr = document.createElement('iframe');
     fr.setAttribute('style','flex:1 1 auto;width:100%;border:0;background:#fff;');
@@ -1518,9 +1373,17 @@ function switchApp(which){
 
     close.onclick = function(){ if(ov.parentNode) ov.parentNode.removeChild(ov); };
 
+    // 印刷。パソコンはそのまま印刷、iPhone は印刷が働かないので
+    // PDF を作って共有シートへ渡します(その中の「プリント」で印刷できます)。
+    pr.onclick = function(){
+      if(_isIOS){ go.onclick(); return; }
+      try{ fr.contentWindow.focus(); fr.contentWindow.print(); }
+      catch(e){ alert('印刷を開けませんでした。「📄 PDF」からお試しください。'); }
+    };
+
     go.onclick = function(){
       if(go.disabled) return;
-      go.disabled = true; go.textContent = '⏳ 作成中…'; go.style.opacity = '.7';
+      go.disabled = true; go.textContent = '⏳ 作成中…'; go.style.opacity = '.7'; pr.disabled = true;
       _buildPdf(fr, box)
         .then(function(blob){ return _sharePdf(blob, fname); })
         .catch(function(e){
@@ -1528,7 +1391,7 @@ function switchApp(which){
                 '\n\n電波の届く場所で、もう一度お試しください。');
         })
         .then(function(){
-          go.disabled = false; go.textContent = '📄 PDFにする'; go.style.opacity = '1';
+          go.disabled = false; go.textContent = '📄 PDF'; go.style.opacity = '1'; pr.disabled = false;
         });
     };
 
