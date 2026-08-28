@@ -2535,3 +2535,23 @@ body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
     padding:9px 10px;
   }
 }
+
+
+/* ============================================================
+   ct-future : 契約日がまだ来ていない契約カードを薄い緑にする
+     ・「契約日」が今日より後のものだけ
+     ・完了・キャンセル・完了タブへ移したものは対象外（灰色のまま）
+     ・赤（基本情報不備あり）は、手を打つ合図なので赤のまま残します
+   このブロックを消せば元に戻ります。
+   ============================================================ */
+#kb-view .ct-card.ct-future:not(.status-defect):not(.done):not(.archived):not(.status-cancel):not(.status-complete){
+  background:#eef7ef;
+  box-shadow:inset 4px 0 0 #3f6b4a,
+             0 1px 2px rgba(0,0,0,.05),
+             0 8px 24px rgba(63,107,74,.10);
+}
+#kb-view .ct-card.ct-future:not(.status-defect):not(.done):not(.archived):not(.status-cancel):not(.status-complete):hover{
+  box-shadow:inset 4px 0 0 #3f6b4a,
+             0 2px 6px rgba(0,0,0,.07),
+             0 14px 36px rgba(63,107,74,.16);
+}
