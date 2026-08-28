@@ -117,7 +117,7 @@ async function doAutoPush(){
   if(_autoPushInFlight){ _autoPushPending = true; return; }
   _autoPushInFlight = true;
   _autoPushStartedAt = Date.now();
-  setSyncStatus('saving', '☁️ 同期中…');
+  setSyncStatus('saving', '同期中…');
   try{
     const all = pbLoadAll();
     let contracts = {};
@@ -186,7 +186,7 @@ async function autoPullOnStart(){
     const hasB = Object.keys(JSON.parse(snap.buildings)).length > 0;
     if(hasC || hasB){ localStorage.setItem(insPrefix() + 'emergency_backup', JSON.stringify(snap)); }
   }catch(e){ /* 退避失敗しても本処理は続行 */ }
-  setSyncStatus('loading', '☁️ 確認中…');
+  setSyncStatus('loading', '確認中…');
   try{
     const r = await postToGas(url, { action:'load' });
     if(r && r.ok){
@@ -336,7 +336,11 @@ try{ window.pivotLogout = pivotLogout; }catch(e){}
  
 // ===== 自動ログアウト(1時間操作なし / 日付が変わったら 再ログイン) =====
 const LS_LASTSEEN = insPrefix() + 'lastseen_v1';
-const IDLE_LIMIT_MS = 60 * 60 * 1000;  // 1時間
+// 12時間なにも操作しないと、または日付が変わると再ログイン。
+// （以前は1時間でしたが、日中に何度も打つことになるため延ばしました。
+//   日付が変わると切れる決まりは残してあるので、実質「朝に1回」です。
+//   別の端末からは、いずれにせよメールとパスワードが必要です。）
+const IDLE_LIMIT_MS = 12 * 60 * 60 * 1000;  // 12時間
  
 // 最終操作時刻と日付を記録
 function markActivity(){
@@ -607,7 +611,7 @@ function showLocalFirst(){
 }
 /* うしろで最新を取り込む。取り込み中に編集していたら、その内容を消さない。 */
 function backgroundPull(){
-  try{ setSyncStatus('loading', '☁️ 最新を確認中…'); }catch(e){}
+  try{ setSyncStatus('loading', '最新を確認中…'); }catch(e){}
   return loginPull({ keepLocalEdits:true }).catch(function(){
     try{ setSyncStatus('error', '⚠️ 最新の取り込みに失敗（端末の内容を表示中）'); }catch(e){}
   });
@@ -680,7 +684,7 @@ async function forcePullLatest(){
       await new Promise(r=>setTimeout(r, 200));
     }
   }
-  setSyncStatus('loading', '☁️ 確認中…');
+  setSyncStatus('loading', '確認中…');
   try{
     const r = await postToGas(url, { action:'load' });
     if(r && r.ok){
@@ -978,7 +982,7 @@ async function cloudSaveAll(){
     if(r.ok){
       cloudLog('送信成功: 物件 '+r.buildingCount+'件 / 区画 '+r.spotCount+'件', 'success');
       cloudLog('  → スプレッドシートを確認してください', 'success');
-      document.dispatchEvent(new CustomEvent('pivot:toast', { detail: '☁ クラウドへ送信完了' }));
+      document.dispatchEvent(new CustomEvent('pivot:toast', { detail: 'クラウドへ送信完了' }));
     } else {
       cloudLog('送信失敗: ' + (r.message || '不明'), 'error');
     }
@@ -1014,7 +1018,7 @@ async function cloudLoadAll(){
       const buildings = payload.buildings || {};
       document.dispatchEvent(new CustomEvent('pivot:save-buildings', { detail: buildings }));
       cloudLog('読込成功: 物件 '+(r.buildingCount||0)+'件', 'success');
-      document.dispatchEvent(new CustomEvent('pivot:toast', { detail: '☁ クラウドから読込完了' }));
+      document.dispatchEvent(new CustomEvent('pivot:toast', { detail: 'クラウドから読込完了' }));
       requestRender('buildings');
     } else {
       cloudLog('読込失敗: ' + (r.message || '不明'), 'error');
@@ -1373,11 +1377,11 @@ function switchApp(which){
     close.setAttribute('style', bs + 'background:rgba(255,255,255,.18);color:#fff;');
 
     var pr = document.createElement('button');
-    pr.type = 'button'; pr.textContent = '🖨 印刷';
+    pr.type = 'button'; pr.textContent = '印刷';
     pr.setAttribute('style', bs + 'background:rgba(255,255,255,.18);color:#fff;');
 
     var go = document.createElement('button');
-    go.type = 'button'; go.textContent = '📄 PDF';
+    go.type = 'button'; go.textContent = 'PDF';
     go.setAttribute('style', bs + 'background:#fff;color:#1f3a5f;');
 
     var right = document.createElement('div');
@@ -1398,7 +1402,7 @@ function switchApp(which){
     pr.onclick = function(){
       if(_isIOS){ go.onclick(); return; }
       try{ fr.contentWindow.focus(); fr.contentWindow.print(); }
-      catch(e){ alert('印刷を開けませんでした。「📄 PDF」からお試しください。'); }
+      catch(e){ alert('印刷を開けませんでした。「PDF」からお試しください。'); }
     };
 
     go.onclick = function(){
@@ -1411,7 +1415,7 @@ function switchApp(which){
                 '\n\n電波の届く場所で、もう一度お試しください。');
         })
         .then(function(){
-          go.disabled = false; go.textContent = '📄 PDF'; go.style.opacity = '1'; pr.disabled = false;
+          go.disabled = false; go.textContent = 'PDF'; go.style.opacity = '1'; pr.disabled = false;
         });
     };
 
