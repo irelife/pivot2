@@ -1205,24 +1205,84 @@ function brokerWhen(c){
   return { year:'', disp:'時期不明', sort:'00000000' };
 }
 // 業者名の正規化（全半角スペース・前後空白を吸収して名寄せ）
-function _normBroker(s){ return String(s||'').replace(/[\s\u3000]+/g,'').trim(); }
-// 業者名の名寄せ（表記ゆれ・店舗違いを1社に統合）。表示名も返す
-function _canonBroker(name){
+/* ==== 業者名の名寄せ ====================================================
+   「会社名」と「地域名」が同じなら、書き方が違っても同じ店舗として数えます。
+     例）ケイアイ沖野上 ／ ケイアイホーム沖野上店 ／ 株式会社ケイアイホーム　沖野上
+         → どれも「ケイアイ 沖野上」
+   そろえているもの
+     ・株式会社／有限会社／㈱／㈲／( )／空白／全角半角
+     ・髙→高、﨑→崎 のような異体字
+     ・会社名の言い方の違い（ケイアイ＝ケイアイホーム、大東建託＝大東建託リーシング、
+       中国バス＝中国バス不動産、さくら＝さくらコーポレーション、穴吹＝あなぶき）
+     ・店名に付く「エイブルNW」「アパマンショップ」などのブランド名
+     ・店名の頭の市名（福山○○店→○○店）。ただし市名だけの店はそのまま
+     ・末尾の「店」「支店」「営業所」
+   ★下の _BROKER_STEMS が会社の一覧です。会社を足したいときはここに1行足します。
+     （上にあるものから先に照合します。運営会社を上、ブランド名を下に置いてください）
+   ====================================================================== */
+const _BROKER_STEMS = [
+  ['アークス','アークス'],
+  ['BRUNO不動産','BRUNO不動産'], ['ブルーノ不動産','BRUNO不動産'],
+  ['ワイケイ','ワイケイ'], ['タカハシ','タカハシ'],
+  ['さくらコーポレーション','さくら'], ['さくら','さくら'],
+  ['穴吹ハウジングサービス','穴吹'], ['あなぶきハウジングサービス','穴吹'],
+  ['穴吹','穴吹'], ['あなぶき','穴吹'],
+  ['良和ハウス','良和ハウス'], ['東建コーポレーション','東建コーポレーション'],
+  ['大東建託リーシング','大東建託'], ['大東建託','大東建託'],
+  ['中国バス不動産','中国バス'], ['中国バス','中国バス'], ['中バス','中国バス'],
+  ['いえなび','いえなび'],
+  ['ケイアイホーム','ケイアイ'], ['ケイアイ','ケイアイ'],
+  ['タイヨウエステート','タイヨウエステート'], ['トリコム','トリコム'],
+  ['ホーミィエステート','ホーミィエステート'], ['不動産の岩原','不動産の岩原'],
+  ['佐藤エステート','佐藤エステート'], ['エステート高橋','エステート高橋'],
+  ['住まいのクエスト','住まいのクエスト'], ['ネクステージホーム','ネクステージホーム'],
+  ['アヤカホーム','アヤカホーム'], ['オリゾン','オリゾン'], ['ピタットハウス','ピタットハウス'],
+  ['IREライフ','自社（IREライフ）'], ['ライフ','自社（IREライフ）'],
+  ['エイブル','エイブル'], ['アパマンショップ','アパマンショップ'], ['ミニミニ','ミニミニ']
+];
+const _BROKER_BRAND = /(エイブルネットワーク|エイブルNW|エイブル|アパマンショップ|ミニミニFC|ミニミニ|ハウジングサービス|リーシング|コーポレーション|ホーム|不動産|ネットワーク|NW|FC)/g;
+const _BROKER_CITY  = /^(福山|倉敷|岡山|尾道|三原|広島|府中)(?=.+)/;
+const _KANJI_VAR = { '髙':'高','﨑':'崎','濵':'浜','濱':'浜','德':'徳','眞':'真','靑':'青' };
+// 空白・記号・会社の種類・異体字をそろえます
+function _normBroker(s){
+  let n = String(s||'');
+  try{ n = n.normalize('NFKC'); }catch(e){}
+  n = n.replace(/[髙﨑濵濱德眞靑]/g, c => _KANJI_VAR[c] || c);
+  n = n.replace(/(株式会社|有限会社|合同会社|\(株\)|\(有\)|\(合\))/g, '');
+  return n.replace(/[\s\u3000・,，\.。「」『』()（）]/g, '').trim();
+}
+// 業者名を「会社」と「店舗(地域名)」に分けます
+function _brokerParts(name){
   const n = _normBroker(name);
-  // いえなび系：多治米と記載がある分だけ別。それ以外（春日含む・店舗名なし）は全て「いえなび」
-  if(/いえなび/.test(n)){
-    if(/多治米/.test(n)) return { key:'いえなび多治米', name:'いえなび多治米' };
-    return { key:'いえなび', name:'いえなび' };
+  if(!n) return { company:'', branch:'' };
+  for(let i = 0; i < _BROKER_STEMS.length; i++){
+    const p = _normBroker(_BROKER_STEMS[i][0]);
+    if(!p) continue;
+    const j = n.indexOf(p);
+    if(j < 0) continue;
+    const rest = (n.slice(0, j) + n.slice(j + p.length))
+      .replace(_BROKER_BRAND, '')
+      .replace(/(支店|営業所|店)$/, '')
+      .replace(_BROKER_CITY, '')
+      .replace(/(支店|営業所|店)$/, '');
+    return { company: _BROKER_STEMS[i][1], branch: rest };
   }
-  // ライフ系（IRE/ＩＲＥ/ライフ）→ ライフ
-  // 自社客付け（IRE／ＩＲＥ／ライフ の表記ゆれ）は「自社（IREライフ）」とまとめて表示します。
-  // 集計の中身・順位・件数は今までどおりで、名前の見え方だけを変えています。
-  if(/ライフ/.test(n) || /IRE/i.test(n) || /ＩＲＥ/.test(n)) return { key:'ライフ', name:'自社（IREライフ）' };
-  // 大東建託系（リーシング・各店・全角半角ゆれ）→ 大東建託
-  if(/大東建託/.test(n)) return { key:'大東建託', name:'大東建託' };
-  // 中国バス不動産系（中国バス／中バス／LIFUKU併記など・各店）→ 中国バス不動産
-  if(/中国バス/.test(n) || /中バス/.test(n)) return { key:'中国バス不動産', name:'中国バス不動産' };
-  return { key:n, name:String(name||'').trim() };
+  return { company:n, branch:'' };   // 一覧に無い会社は、そのままの名前で1社として扱います
+}
+// 業者名の名寄せ（会社＋店舗で1つ）。表示名も返す
+function _canonBroker(name){
+  const p = _brokerParts(name);
+  if(!p.company) return { key:'', name:String(name||'').trim() };
+  return { key: p.company + '|' + p.branch,
+           name: p.company + (p.branch ? ' ' + p.branch : '') };
+}
+// 担当者名をそろえます（（代理○○）などのメモを外し、異体字をそろえます）
+function _normStaff(s){
+  let n = String(s||'');
+  try{ n = n.normalize('NFKC'); }catch(e){}
+  n = n.replace(/[（(][^）)]*[）)]/g, '');
+  n = n.replace(/[髙﨑濵濱德眞靑]/g, c => _KANJI_VAR[c] || c);
+  return n.replace(/[\s\u3000]+/g, '').trim();
 }
 // 統計データを集計して返す(業者ごと)。現在の契約 ＋ PIVOT導入前の履歴(BROKER_HISTORY)を合算
 function computeBrokerStats(){
@@ -1268,17 +1328,23 @@ function computeBrokerStats(){
       propMap[building].brokers[canon.name] = (propMap[building].brokers[canon.name]||0) + 1;
     }
     map[key].items.push({ property: propName, staff:(staff||'').trim(), when: when.disp, sort: when.sort, cancel: ng, kind: (isCx?'cancel':(isRj?'reject':'ok')) });
-    // ---- 担当者ごとの集計（会社名とセットで1人と数えます）----
-    const _stf = String(staff||'').replace(/[\s\u3000]+/g,'').trim();
+    // ---- 担当者ごとの集計 ----
+    // 担当者は「会社」でひとりと数えます（店舗が変わっても同じ人なので合算）。
+    // どの店で決めたかは内訳(store)に残して、カードに出します。
+    const _stf = _normStaff(staff);
     if(_stf){
-      const sKey = key + '|' + _stf;
-      if(!staffMap[sKey]) staffMap[sKey] = { key:sKey, broker: canon.name, staff:_stf, count:0, cancel:0, reject:0, bldg:{}, lastSort:'' };
+      const _pt  = _brokerParts(broker);
+      const _cmp = _pt.company || key;
+      const _br  = _pt.branch || '本店';
+      const sKey = _cmp + '||' + _stf;
+      if(!staffMap[sKey]) staffMap[sKey] = { key:sKey, broker:_cmp, staff:_stf, count:0, cancel:0, reject:0, bldg:{}, store:{}, lastSort:'' };
       const S = staffMap[sKey];
       if(isCx){ S.cancel++; }
       else if(isRj){ S.reject++; }
       else {
         S.count++;
         if(building){ S.bldg[building] = (S.bldg[building]||0) + 1; }
+        S.store[_br] = (S.store[_br]||0) + 1;
         if(when.sort && when.sort !== '00000000' && when.sort > S.lastSort){ S.lastSort = when.sort; }
       }
     }
@@ -1360,6 +1426,9 @@ function computeBrokerStats(){
     s.rejectRate = _rate(s.reject, s.base);
     s.top3 = Object.keys(s.bldg||{}).map(b => ({ name:b, count:s.bldg[b] }))
       .sort((a,b) => b.count - a.count || a.name.localeCompare(b.name,'ja')).slice(0,3);
+    // どの店で決めたか（多い順）
+    s.stores = Object.keys(s.store||{}).map(b => ({ name:b, count:s.store[b] }))
+      .sort((a,b) => b.count - a.count || a.name.localeCompare(b.name,'ja'));
     return s;
   }).sort((a,b) => b.count - a.count || a.staff.localeCompare(b.staff,'ja'));
   return { rows, fyValid, fy, total, totalCancel, totalReject, totalBase, cancelRate, rejectRate, years, monthsAll, props, staffs };
@@ -1496,6 +1565,7 @@ function renderBrokerStats(){
           '<span class="bstat-caret">▾</span>'+
         '</div>'+
         '<div class="pb-strong-badge">'+
+          ((s.stores||[]).length ? '店舗：' + (s.stores||[]).map(x => esc(x.name)+' <b>'+x.count+'</b>').join('／') + '　' : '')+
           'キャンセル <b>'+s.cancel+'</b> 件（'+s.cancelRate+'）／ 審査落ち <b>'+(s.reject||0)+'</b> 件（'+s.rejectRate+'）'+
           (lastDisp ? ' ／ 最終客付け <b>'+lastDisp+'</b>' : '')+
         '</div>'+
@@ -1873,7 +1943,7 @@ function exportBrokerStatsPdf(){
     staffRows += `<tr${cls}>
       <td class="c">${i+1}</td>
       <td class="b">${dot}${esc(s.staff)}</td>
-      <td style="color:${ar.color}">${esc(s.broker)}</td>
+      <td style="color:${ar.color}">${esc(s.broker)}${(s.stores&&s.stores.length)?' <span style="color:#666">('+s.stores.map(x=>esc(x.name)+x.count).join('/')+')</span>':''}</td>
       <td class="c">${s.count}</td>
       <td class="c">${s.cancel||'－'}</td>
       <td class="c">${last}</td>
