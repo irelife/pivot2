@@ -800,8 +800,11 @@ function renderCard(c){
   const adLabelHtml = '<span class="ct-ad-label' + adCls + '">' + adText + '</span>';
  
   var _touch = ('ontouchstart' in window);
-  return '<div class="ct-card status-' + status + (isDone ? ' done' : '') + (c.archived ? ' archived' : '') + '" data-id="' + c.id + '"' + (_touch ? '' : ' draggable="true"') +
-    ' style="border-color:' + accent + ';"' +
+ // 契約日がまだ来ていないものは、カードを薄い緑にします（ct-future）
+  const _dtc = daysToContract(c);
+  const isFuture = (_dtc !== null && _dtc > 0 && !isDone && !c.archived);
+  return '<div class="ct-card status-' + status + (isDone ? ' done' : '') + (c.archived ? ' archived' : '') + (isFuture ? ' ct-future' : '') + '" data-id="' + c.id + '"' + (_touch ? '' : ' draggable="true"') +
+
     ' onclick="KB.onCardClick(event,\'' + c.id + '\')">' +
     '<button class="ct-card-del" title="この契約を削除" onclick="event.stopPropagation();KB.deleteCardContract(event,\'' + c.id + '\')">×</button>' +
     (c.archived ? '<div class="ct-archived">完了タブ' + (c.archivedAt ? '（' + esc(c.archivedAt.slice(0,10).replace(/-/g,'/')) + '）' : '') + '</div>' : '') +
