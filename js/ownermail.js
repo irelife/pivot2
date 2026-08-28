@@ -161,6 +161,94 @@ function _touCount(o){
 /* ランクは2段階だけ。0=白（黒文字） / 1=黒（白文字・VIP）※10棟以上 */
 function _ownerRank(n){ return n >= 10 ? 1 : 0; }
 
+/* ===== 左スワイプでゴミ箱を出す =====
+   カードを指で左へ動かすと、うしろに敷いてあるゴミ箱が出ます。
+   ・横に動かしたときだけ反応します（縦スクロールの邪魔をしない）
+   ・半分より左まで動かせば開いたままになり、戻せば閉じます
+   ・開いているカードを押すと、削除ではなく「閉じる」だけです
+   ・パソコンでは指で触れないので、これまでどおりカードを開いて
+     いちばん下の「このオーナーを削除する」から消せます。
+   ============================================================ */
+var OW_TRASH_W = 88;              // ゴミ箱の幅(px)。CSS の .ow-trash と合わせています
+var _swEl = null;                 // いま触っているカード
+var _swX = 0, _swY = 0;           // 指を置いた位置
+var _swDir = 0;                   // 0=まだ不明 / 1=横に動いている / 2=縦
+var _swBase = 0;                  // 触り始めた時点のずれ
+var _swMoved = false;             // 動かしたか(押しただけかの判定に使う)
+
+function _swClose(el){ if(el){ el.classList.remove("ow-open"); el.style.transform = ""; } }
+
+function _swCloseAll(except){
+  var l = document.querySelectorAll("#ownerCards .ow-card.ow-open");
+  for(var k = 0; k < l.length; k++){ if(l[k] !== except) _swClose(l[k]); }
+}
+
+function _swCard(e){
+  var t = e.target;
+  return (t && t.closest) ? t.closest("#ownerCards .ow-card") : null;
+}
+
+function _bindSwipe(){
+  var host = document.getElementById("ownerCards");
+  if(!host || host._swBound) return;   // 付けるのは一度だけ
+  host._swBound = 1;
+
+  host.addEventListener("touchstart", function(e){
+    var c = _swCard(e);
+    _swEl = c; _swDir = 0; _swMoved = false;
+    if(!c) return;
+    _swCloseAll(c);                    // ほかに開いているカードは閉じる
+    _swX = e.touches[0].clientX;
+    _swY = e.touches[0].clientY;
+    _swBase = c.classList.contains("ow-open") ? -OW_TRASH_W : 0;
+    c.style.transition = "none";       // 指に張り付かせる
+  }, {passive:true});
+
+  host.addEventListener("touchmove", function(e){
+    if(!_swEl) return;
+    var dx = e.touches[0].clientX - _swX;
+    var dy = e.touches[0].clientY - _swY;
+    if(!_swDir){
+      if(Math.abs(dx) < 8 && Math.abs(dy) < 8) return;   // まだ判断しない
+      _swDir = (Math.abs(dx) > Math.abs(dy)) ? 1 : 2;
+    }
+    if(_swDir !== 1) return;           // 縦なら普通のスクロールに任せる
+    e.preventDefault();
+    _swMoved = true;
+    var x = _swBase + dx;
+    if(x > 0) x = 0;                                   // 右へは出さない
+    if(x < -OW_TRASH_W - 40) x = -OW_TRASH_W - 40;     // 行きすぎも止める
+    _swEl.style.transform = "translateX(" + x + "px)";
+  }, {passive:false});
+
+  host.addEventListener("touchend", function(){
+    if(!_swEl) return;
+    var c = _swEl; _swEl = null;
+    c.style.transition = "";           // ここから先はCSSの動きに戻す
+    if(_swDir !== 1) return;
+    var m = /translateX\((-?[0-9.]+)px\)/.exec(c.style.transform || "");
+    var x = m ? parseFloat(m[1]) : 0;
+    if(x < -OW_TRASH_W / 2){           // 半分より左 → 開いたままにする
+      c.classList.add("ow-open");
+      c.style.transform = "translateX(-" + OW_TRASH_W + "px)";
+    }else{
+      _swClose(c);
+    }
+  });
+
+  // 動かした直後の「押した」は、シートを開かずに握りつぶします
+  host.addEventListener("click", function(e){
+    var c = _swCard(e);
+    if(!c) return;
+    var open = c.classList.contains("ow-open");
+    if(_swMoved || open){
+      e.preventDefault(); e.stopPropagation();
+      _swMoved = false;
+      if(open) _swClose(c);            // 開いているときは閉じるだけ
+    }
+  }, true);
+}
+
 function renderOwners(){
   const t = document.getElementById("ownerTable");
   if(!t) return;
@@ -186,7 +274,14 @@ function renderOwners(){
     // カードに出すのは「会社名」と「棟数」だけ。
     // 物件名・メール・住所などは、押して開くシートで見ます。
     const nm = esc(o.name) || esc(o.atena) || '<span class="ow-none">名称なし</span>';
-    return '<button type="button" class="ow-card ow-r' + rank + (o.exclude ? ' ow-ex' : '') + '"' +
+    return '<div class="ow-row">' +
+      // カードの下に敷いておくゴミ箱。左スワイプで顔を出します。
+      '<button type="button" class="ow-trash" onclick="RENT.delOwner(' + i + ')" aria-label="削除">' +
+        '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" ' +
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg>' +
+      '</button>' +
+      '<button type="button" class="ow-card ow-r' + rank + (o.exclude ? ' ow-ex' : '') + '"' +
       ' onclick="RENT.openOwnerSheet(' + i + ')">' +
       '<div class="ow-head">' + (rank ? '<span class="ow-vip">VIP</span>' : '') + '</div>' +
       '<div class="ow-mid"><div class="ow-atena">' + nm + '</div></div>' +
@@ -196,8 +291,10 @@ function renderOwners(){
           '<span class="unit">棟</span>' +
         '</span>' +
       '</div>' +
-    '</button>';
+    '</button>' +
+    '</div>';
   }).join("");
+  _bindSwipe();
 }
 
 /* ===== カードを押して開く記入シート（ここで全項目を編集します） ===== */
