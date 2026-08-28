@@ -3979,10 +3979,10 @@ function _layoutSlotHtml(slot){
   let inner;
   if(isPdf){
     // PDFはサムネイル表示できないのでアイコン+クリックで開く
-    inner = '<div class="img-thumb-pdf" onclick="openPdf(\''+slot+'\')" title="クリックでPDFを開く">' +
+    inner = '<div class="img-thumb-pdf" onclick="openPdfZoom(\''+slot+'\')" title="クリックで大きく表示">' +
       '<div style="font-size:34px;">📄</div>' +
       '<div style="font-size:11px;font-weight:700;margin-top:4px;">PDF配置図</div>' +
-      '<div style="font-size:10px;color:#888;">クリックで開く</div>' +
+      '<div style="font-size:10px;color:#888;">クリックで拡大</div>' +
     '</div>';
     return '<div class="img-thumb">' +
       '<button class="img-thumb-remove" onclick="removeLayoutSlot(event,'+slot+')" title="削除">×</button>' +
@@ -4513,11 +4513,56 @@ function removePhoto(event, fileId){
 // 画像拡大表示
 function openImgZoom(src){
   if(!src) return;
-  document.getElementById('img-zoom-target').src = src;
+  // PDF用の枠が出ていたら引っ込めて、写真用に戻します
+  const _fr = document.getElementById('img-zoom-pdf');
+  const _op = document.getElementById('img-zoom-open');
+  if(_fr){ _fr.src = 'about:blank'; _fr.style.display = 'none'; }
+  if(_op){ _op.style.display = 'none'; }
+  const _im = document.getElementById('img-zoom-target');
+  if(_im){ _im.style.display = ''; _im.src = src; }
   document.getElementById('img-zoom').classList.add('active');
 }
+/* 配置図がPDFのときも、現地写真と同じように画面の中で大きく開きます。
+   PDFは <img> では出せないので、同じ黒い画面の中に PDF の枠を置いて表示します。
+   うまく出ない端末のために「別のタブで開く」も一緒に出しておきます。 */
+function openPdfZoom(slot){
+  slot = Number(slot);
+  const id  = (slot === 1) ? _currentImages.layout_id  : _currentImages.layout2_id;
+  const url = ((slot === 1) ? _currentImages.layout_url : _currentImages.layout2_url) || _imgCache[id] || '';
+  if(!url){ showToast('PDFを読込中です。少し待ってから再度お試しください'); return; }
+  // data: のままだと表示できないブラウザがあるので、blob: に変えてから渡します
+  let src = url;
+  try{
+    if(/^data:/i.test(url)){
+      const bin = atob(url.slice(url.indexOf(',') + 1));
+      const buf = new Uint8Array(bin.length);
+      for(let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      src = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }));
+    }
+  }catch(e){}
+  const ov = document.getElementById('img-zoom');
+  const fr = document.getElementById('img-zoom-pdf');
+  if(!ov || !fr){ openPdf(slot); return; }   // 受け皿が無ければ、今までどおり別タブで開きます
+  const im = document.getElementById('img-zoom-target');
+  if(im){ im.src = ''; im.style.display = 'none'; }
+  fr.src = src;
+  fr.style.display = 'block';
+  const op = document.getElementById('img-zoom-open');
+  if(op){ op.href = src; op.style.display = 'inline-block'; }
+  ov.classList.add('active');
+}
 function closeImgZoom(event){
-  if(event && event.target.tagName === 'IMG' && event.target.id === 'img-zoom-target') return;
+  if(event && event.target){
+    const t = event.target;
+    if(t.tagName === 'IMG' && t.id === 'img-zoom-target') return;
+    if(t.id === 'img-zoom-pdf' || t.id === 'img-zoom-open') return;
+  }
+  const fr = document.getElementById('img-zoom-pdf');
+  if(fr){ fr.src = 'about:blank'; fr.style.display = 'none'; }
+  const op = document.getElementById('img-zoom-open');
+  if(op){ op.style.display = 'none'; }
+  const im = document.getElementById('img-zoom-target');
+  if(im){ im.style.display = ''; }
   document.getElementById('img-zoom').classList.remove('active');
 }
 
