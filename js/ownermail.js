@@ -437,7 +437,7 @@ async function handlePayPdf(file){
     const dataUrl = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); });
     payPdfBase64 = (dataUrl.indexOf(",")>=0) ? dataUrl.split(",")[1] : dataUrl;
     payPdfName = file.name || "振込明細.pdf";
-    if(stat) stat.textContent="💳 振込明細を取り込みました（IRE宛 asano@i-r-e.jp にのみ添付されます）";
+    if(stat) stat.textContent="振込明細を取り込みました（IRE宛 asano@i-r-e.jp にのみ添付されます）";
     if(typeof RENT!=="undefined" && RENT.renderPreview) { try{ RENT.renderPreview(); }catch(e){} }
   }catch(e){ if(stat) stat.textContent="⚠ 振込明細の読み込みに失敗しました: "+e.message; }
 }
@@ -477,7 +477,7 @@ async function handleYearPdf(file){
       stat.textContent=`年間収支表 解析中… ${i}/${doc.numPages}ページ`;
     }
     const ownerCount=Object.keys(yearMap).length;
-    stat.textContent=`📊 年間収支表 ${doc.numPages}ページ取込・${ownerCount}オーナーに仕分け（マッチ${matched}件）`;
+    stat.textContent=`年間収支表 ${doc.numPages}ページ取込・${ownerCount}オーナーに仕分け（マッチ${matched}件）`;
     mergeYearIntoDetail();   // 年間だけのオーナーもカードとして追加(月額がなくても成立)
     renderPreview();
     showView("send");
@@ -884,13 +884,13 @@ function renderExcludedViewOnly(){
         <span class="nm">${esc(o.name)}</span>
         <span class="pill" style="background:#f3ead4;color:#8a6d2f;font-weight:800;">別管理</span>
         <span class="spacer"></span>
-        <span class="vac" style="color:#1565c0;">👁 閲覧のみ</span>
+        <span class="vac" style="color:#1565c0;">閲覧のみ</span>
         <button onclick="event.stopPropagation();RENT.unexcludeOwner('${esc(o.name).replace(/'/g,"\\'")}')" title="別管理から外して通常の送信一覧に戻す"
           style="flex-shrink:0;margin-left:10px;border:1px solid #d9c9a8;background:#fff;color:#8a6d2f;font-size:.74rem;font-weight:800;padding:5px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">✕ 別管理から外す</button>
       </div>
       <div class="pv-body open" style="padding:10px 12px;">
         <div style="font-size:.78rem;color:var(--rt-muted);margin-bottom:6px;">明細PDFを取り込んでいないため閲覧専用です。月をタップすると明細が開きます。蓄積するにはPCで明細PDFを取り込んでください。</div>
-        <div style="margin-top:4px;font-size:.78rem;font-weight:800;color:#8a6d2f;">📚 共用Driveに蓄積済みの明細（年ごと）</div>
+        <div style="margin-top:4px;font-size:.78rem;font-weight:800;color:#8a6d2f;">共用Driveに蓄積済みの明細（年ごと）</div>
         <div id="${accumId}" style="margin-top:4px;"><div style="font-size:.76rem;color:var(--rt-muted);">読み込み中…</div></div>
       </div>
     </div>`;
@@ -939,7 +939,7 @@ function renderPreview(){
     d.props.forEach(p=>{ newN+=((p.newc||[]).length); });
     let vacPill="";
     if(d.yearOnly){
-      vacPill=`<span class="vac" style="color:#8a6d2f;font-weight:800;">📊 年間収支表のみ</span>`;
+      vacPill=`<span class="vac" style="color:#8a6d2f;font-weight:800;">年間収支表のみ</span>`;
     }else{
       if(boshuN) vacPill+=`<span class="vac">募集中 ${boshuN}</span>`;
       if(yoteiN) vacPill+=`<span class="vac" style="margin-left:6px;color:#a14a3a;">解約予定 ${yoteiN}</span>`;
@@ -965,18 +965,18 @@ function renderPreview(){
       </div>
       <div class="pv-body" id="pvb-${i}">
         <div class="pv-meta">${d.yearOnly
-          ? `年間収支表のみ送付 <span class="attach" style="background:#f7efdc;color:#8a6d2f;">📊 ${esc(d.owner)}_年間収支表.pdf を添付予定</span>`
-          : `対象物件: <b>${d.props.map(p=>esc(p.property||p.bldNo)).join(" / ")}</b>　|　PDF ${pageList.length}ページ分 <span class="attach">📎 ${esc(d.owner)}_明細.pdf を添付予定</span>${yearKeys.has(norm(d.owner))?` <span class="attach" style="background:#f7efdc;color:#8a6d2f;">📊 年間収支表.pdf も添付</span>`:""}`} <span class="attach" style="background:#eef;color:#446;">送信元 infoirelife@gmail.com</span></div>
+          ? `年間収支表のみ送付 <span class="attach" style="background:#f7efdc;color:#8a6d2f;">${esc(d.owner)}_年間収支表.pdf を添付予定</span>`
+          : `対象物件: <b>${d.props.map(p=>esc(p.property||p.bldNo)).join(" / ")}</b>　|　PDF ${pageList.length}ページ分 <span class="attach">${esc(d.owner)}_明細.pdf を添付予定</span>${yearKeys.has(norm(d.owner))?` <span class="attach" style="background:#f7efdc;color:#8a6d2f;">年間収支表.pdf も添付</span>`:""}`} <span class="attach" style="background:#eef;color:#446;">送信元 infoirelife@gmail.com</span></div>
         <div class="pv-grid">
           <div class="field"><label>宛先メール</label><input value="${esc(d.email)}" oninput="RENT.setEmail(${i},this.value)" placeholder="未登録 — 入力するとここだけ反映"></div>
           <div class="field"><label>件名</label><input id="subj-${i}" value="${esc(subj)}"></div>
           <div class="field"><label>本文</label><textarea id="body-${i}">${esc(body)}</textarea></div>
         </div>
         <div class="pv-actions">
-          <button class="btn btn-sm btn-acc" onclick="RENT.previewOwnerPdf(${i})">👁 添付明細を確認</button>
-          <button class="btn btn-sm" onclick="RENT.sendOne(${i})" style="background:#2c4f38;color:#fff;border-color:#2c4f38;">📤 このオーナーに送信</button>
-          <button class="btn btn-sm" onclick="RENT.draftOne(${i})">📝 下書き作成</button>
-          <button class="btn btn-sm" onclick="RENT.downloadOwnerPdf(${i})">📎 PDF書出し</button>
+          <button class="btn btn-sm btn-acc" onclick="RENT.previewOwnerPdf(${i})">添付明細を確認</button>
+          <button class="btn btn-sm" onclick="RENT.sendOne(${i})" style="background:#2c4f38;color:#fff;border-color:#2c4f38;">このオーナーに送信</button>
+          <button class="btn btn-sm" onclick="RENT.draftOne(${i})">下書き作成</button>
+          <button class="btn btn-sm" onclick="RENT.downloadOwnerPdf(${i})">PDF書出し</button>
           <button class="btn btn-sm" onclick="RENT.copyBody(${i})">本文コピー</button>
           ${sentSet.has(i)?`<button class="btn btn-sm btn-warn" onclick="RENT.unsendOne(${i})">↩ 未送信へ戻す</button>`:''}
           <button class="btn btn-sm btn-warn" onclick="RENT.removeFromList(${i})" title="この取込結果から外す（オーナー登録は消えません）">✕ 一覧から外す</button>
@@ -1008,24 +1008,24 @@ function renderPreview(){
             <span class="nm">${esc(d.owner)}</span>
             <span class="pill" style="background:#f3ead4;color:#8a6d2f;font-weight:800;">別管理</span>
             <span class="spacer"></span>
-            <span class="vac">${d.yearOnly?'📊 年間収支表':('PDF '+pageList.length+'ページ'+(monthStr?(' / '+esc(monthStr)):''))}</span>
+            <span class="vac">${d.yearOnly?'年間収支表':('PDF '+pageList.length+'ページ'+(monthStr?(' / '+esc(monthStr)):''))}</span>
             <button onclick="event.stopPropagation();RENT.unexcludeOwner('${esc(d.owner).replace(/'/g,"\\'")}')" title="別管理から外して通常の送信一覧に戻す"
               style="flex-shrink:0;margin-left:10px;border:1px solid #d9c9a8;background:#fff;color:#8a6d2f;font-size:.74rem;font-weight:800;padding:5px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">✕ 別管理から外す</button>
           </div>
           <div class="pv-body open" style="padding:10px 12px;">
             <div class="pv-meta">対象物件: <b>${propTxt||'—'}</b>　|　メール送信は行いません</div>
             ${pdfReady?`<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:#eef4fb;border:1px solid #cfe0f3;font-size:.82rem;">
-              <b style="color:#1565c0;">📥 いま取り込んでいる明細：${esc(monthLabel)}</b>
+              <b style="color:#1565c0;">いま取り込んでいる明細：${esc(monthLabel)}</b>
               <span id="${monthStatId}" style="margin-left:8px;font-weight:700;color:var(--rt-muted);">蓄積状況を確認中…</span>
             </div>`:''}
             <div class="pv-actions" style="margin-top:8px;">
-              <button class="btn btn-sm btn-acc" onclick="RENT.previewOwnerPdf(${i})" ${pdfReady?'':'disabled'}>👁 明細を確認</button>
-              <button class="btn btn-sm" onclick="RENT.accumulateOwnerMonth(${i})" ${pdfReady?'':'disabled'} style="background:#1565c0;color:#fff;border-color:#1565c0;">➕ ${pdfReady?esc(monthLabel):'この月'}を蓄積</button>
-              <button class="btn btn-sm" onclick="RENT.accumulateOwnerYear(${i})" style="background:#8a6d2f;color:#fff;border-color:#8a6d2f;">📊 年間収支表を蓄積</button>
-              <button class="btn btn-sm" onclick="RENT.downloadOwnerPdf(${i})" ${pdfReady?'':'disabled'}>💾 この月をPCに保存</button>
+              <button class="btn btn-sm btn-acc" onclick="RENT.previewOwnerPdf(${i})" ${pdfReady?'':'disabled'}>明細を確認</button>
+              <button class="btn btn-sm" onclick="RENT.accumulateOwnerMonth(${i})" ${pdfReady?'':'disabled'} style="background:#1565c0;color:#fff;border-color:#1565c0;">${pdfReady?esc(monthLabel):'この月'}を蓄積</button>
+              <button class="btn btn-sm" onclick="RENT.accumulateOwnerYear(${i})" style="background:#8a6d2f;color:#fff;border-color:#8a6d2f;">年間収支表を蓄積</button>
+              <button class="btn btn-sm" onclick="RENT.downloadOwnerPdf(${i})" ${pdfReady?'':'disabled'}>この月をPCに保存</button>
             </div>
             ${pdfReady?'':'<div style="font-size:.76rem;color:var(--warn);font-weight:700;margin-top:6px;">※ 蓄積・保存するには上の枠に明細PDFを取り込んでください。</div>'}
-            <div style="margin-top:10px;font-size:.78rem;font-weight:800;color:#8a6d2f;">📚 共用Driveに蓄積済みの明細（年ごと）</div>
+            <div style="margin-top:10px;font-size:.78rem;font-weight:800;color:#8a6d2f;">共用Driveに蓄積済みの明細（年ごと）</div>
             <div id="${accumId}" style="margin-top:4px;"><div style="font-size:.76rem;color:var(--rt-muted);">読み込み中…</div></div>
             <div class="pdf-preview" id="pdfprev-${i}"></div>
           </div>
@@ -1111,8 +1111,8 @@ function updateCheckCount(){
   const n=checkedIndexes().length;
   const db=document.getElementById("rent-btn-draft");
   const sb=document.getElementById("rent-btn-send");
-  if(db) db.textContent = n? `📝 選択 ${n} 件の下書きを作成` : "📝 下書きを作成";
-  if(sb) sb.textContent = n? `📤 選択 ${n} 件を一斉送信` : "📤 一斉送信";
+  if(db) db.textContent = n? `選択 ${n} 件の下書きを作成` : "下書きを作成";
+  if(sb) sb.textContent = n? `選択 ${n} 件を一斉送信` : "一斉送信";
 }
  
 /* 全選択トグル(メール登録済み=有効なものだけ) */
@@ -1312,7 +1312,7 @@ async function previewOwnerPdf(i){
       const url=URL.createObjectURL(blob);
       const pages = isIRE ? pdfDoc.getPageCount() : [...new Set(d.props.flatMap(p=>p.pages))].length;
       const capName = isIRE ? `月額明細_全オーナー.pdf（${pages}ページ・全オーナー分）` : `${esc(d.owner)}_明細.pdf（${pages}ページ）`;
-      html+=`<div class="pdf-cap">📎 ${capName} — このPDFが添付されます</div>
+      html+=`<div class="pdf-cap">${capName} — このPDFが添付されます</div>
         <iframe src="${url}#toolbar=1" title="明細プレビュー"></iframe>`;
     }
   }
@@ -1324,7 +1324,7 @@ async function previewOwnerPdf(i){
       for(let k=0;k<bin.length;k++) arr[k]=bin.charCodeAt(k);
       const yblob=new Blob([arr],{type:"application/pdf"});
       const yurl=URL.createObjectURL(yblob);
-      html+=`<div class="pdf-cap" style="background:#f7efdc;color:#8a6d2f;margin-top:10px;">📊 ${esc(d.owner)}_年間収支表.pdf — このPDFも添付されます（<a href="${yurl}" target="_blank" style="color:#8a6d2f;text-decoration:underline;">別タブで開く</a>）</div>
+      html+=`<div class="pdf-cap" style="background:#f7efdc;color:#8a6d2f;margin-top:10px;">${esc(d.owner)}_年間収支表.pdf — このPDFも添付されます（<a href="${yurl}" target="_blank" style="color:#8a6d2f;text-decoration:underline;">別タブで開く</a>）</div>
         <iframe src="${yurl}#toolbar=1" title="年間収支表プレビュー" style="width:100%;min-height:400px;"></iframe>`;
     }catch(e){ html+=`<div class="pdf-cap" style="background:#fdecea;color:#c0392b;">⚠ 年間PDF表示エラー: ${esc(e.message)}</div>`; }
   } else {
@@ -1579,8 +1579,8 @@ async function renderExAccumInto(containerId,ownerName,cardIdx){
       <div style="font-weight:800;color:#8a6d2f;font-size:.82rem;margin-bottom:4px;">${y}年 <span style="font-weight:600;color:var(--rt-muted);">（月次 ${cnt}/12 ・ ${info.hasYear?'年間あり':'年間なし'}）</span></div>
       <div>${cells.join('')} ${yChip}</div>
       <div style="margin-top:8px;">
-        <button class="btn btn-sm" onclick="RENT.mergeYearForOwner('${esc(ownerName)}','${y}')" style="background:#8a6d2f;color:#fff;border-color:#8a6d2f;">🖨 ${y}年分を1つのPDFにまとめる（${cnt+(info.hasYear?1:0)}件）</button>
-        <button class="btn btn-sm btn-warn" onclick="RENT.deleteExYear('${esc(ownerName)}','${y}')" title="この年の蓄積をすべて削除">🗑 ${y}年分を削除</button>
+        <button class="btn btn-sm" onclick="RENT.mergeYearForOwner('${esc(ownerName)}','${y}')" style="background:#8a6d2f;color:#fff;border-color:#8a6d2f;">${y}年分を1つのPDFにまとめる（${cnt+(info.hasYear?1:0)}件）</button>
+        <button class="btn btn-sm btn-warn" onclick="RENT.deleteExYear('${esc(ownerName)}','${y}')" title="この年の蓄積をすべて削除">${y}年分を削除</button>
         ${yearEnd?'<span style="font-size:.72rem;color:#2c6e49;font-weight:700;margin-left:6px;">年末まとめOK</span>':'<span style="font-size:.72rem;color:var(--rt-muted);margin-left:6px;">※いつでもまとめられます（自動解禁:12/20〜）</span>'}
       </div>
     </div>`;
