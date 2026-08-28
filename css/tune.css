@@ -2473,3 +2473,39 @@ body:has(#bstat-modal.active) #pv-side a[data-k="kanban"]{
 body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
   background:rgba(255,255,255,.16);color:#fff;font-weight:600;
 }
+
+
+/* ============================================================
+   pv-owner-swipe : オーナーカードを左へスワイプするとゴミ箱が出る
+     ・カードを .ow-row で包み、そのうしろにゴミ箱を敷いています
+     ・カードは指の動きに合わせて左へずれます
+     ・パソコンでは指で触れないので、これまでどおりカードを開いて
+       いちばん下の「このオーナーを削除する」から消せます
+   このブロックを消せば、スワイプの見た目だけ元に戻ります。
+   ============================================================ */
+#ownerCards .ow-row{
+  position:relative;
+  display:flex;          /* 中のカードを行いっぱいの高さにするため */
+  min-width:0;
+}
+#ownerCards .ow-trash{
+  position:absolute; top:0; right:0; bottom:0; width:88px;
+  display:flex; align-items:center; justify-content:center;
+  margin:0; padding:0; border:0; border-radius:16px;
+  background:#b0362c; color:#fff; cursor:pointer;
+}
+#ownerCards .ow-trash:active{ background:#8f2b23; }
+
+#ownerCards .ow-card{
+  position:relative; z-index:1;   /* ゴミ箱の上にかぶせる */
+  width:100%;
+  touch-action:pan-y;             /* 縦スクロールは今までどおり */
+  transition:transform .22s cubic-bezier(.22,1,.36,1), box-shadow .26s;
+}
+/* 指で触る端末では、押した跡が残って浮いたままになるのを止めます */
+@media (hover:none){
+  #ownerCards .ow-card:hover{ transform:none; box-shadow:none; }
+}
+@media (max-width:860px){
+  #ownerCards .ow-trash{ border-radius:14px; }
+}
