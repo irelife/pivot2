@@ -923,6 +923,12 @@ function generateShoudakuPrint(data){
 // 書類を画面内オーバーレイで表示(印刷時は書類だけを残し、後ろの本体は隠す)
 // ==============================
 function showDocOverlay(html, title){
+  // iPhone / iPad は、はじめから見やすい画面で出します。
+  // (黒い帯の画面をもう一枚重ねると、押す回数が増えるため)
+  if(window.PV_IS_IOS && window.PV_PRINT_HTML){
+    window.PV_PRINT_HTML(html, String(title||'').replace(/[^ぁ-んァ-ヶ一-龠A-Za-z0-9]/g,''));
+    return;
+  }
   closeDocOverlay();
   let styleHtml = '';
   const styleMatches = html.match(/<style[^>]*>[\s\S]*?<\/style>/gi);
