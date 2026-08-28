@@ -1268,6 +1268,32 @@ function switchApp(which){
     }catch(e){}
   }
 
+  /* 用紙より中身の背が低いときに、本文の幅をせまくして
+     （＝相対的に文字を大きくして）用紙の高さいっぱいまで使います。
+     スマホで出したPDFが「上に寄って下が真っ白」になるのを防ぎます。
+     幅を戻すのは呼び出し側（_buildPdf の最後）です。 */
+  function _growToPage(doc, el, cw, ch){
+    try{
+      var body = doc.body;
+      var full = Math.round(cw * 96 / 25.4);          // 用紙の中身の幅(画面の点)
+      var target = ch / cw;                            // 用紙の 高さ÷幅
+      function ratioAt(px){
+        body.style.width = px + 'px';
+        var h = Math.max(el.scrollHeight, el.getBoundingClientRect().height);
+        return px > 0 ? (h / px) : 0;
+      }
+      if(ratioAt(full) >= target * 0.95){ body.style.width = full + 'px'; return full; }
+      var lo = Math.round(full * 0.72), hi = full, best = full;   // 広げすぎない上限は約1.4倍
+      if(ratioAt(lo) < target){ body.style.width = lo + 'px'; return lo; }
+      for(var i = 0; i < 6; i++){                      // 二分探索でちょうどの幅を探します
+        var mid = Math.round((lo + hi) / 2);
+        if(ratioAt(mid) >= target){ best = mid; lo = mid; } else { hi = mid; }
+      }
+      body.style.width = best + 'px';
+      return best;
+    }catch(e){ return 0; }
+  }
+
   /* --- ⑥ PDF を作る --- */
   function _crop(win, cv, y, h){
     var c = win.document.createElement('canvas');
@@ -1293,7 +1319,9 @@ function switchApp(which){
         function step(){
           if(i >= pages.length) return pdf.output('blob');
           var el = pages[i++];
-          var w  = Math.max(el.scrollWidth, el.getBoundingClientRect().width) || doc.body.scrollWidth;
+          // 1枚ものは、用紙の高さいっぱいまで使うように幅を調整します
+          var w  = found.fixed ? _growToPage(doc, el, cw, ch) : 0;
+          if(!w) w = Math.max(el.scrollWidth, el.getBoundingClientRect().width) || doc.body.scrollWidth;
           return win.html2canvas(el, {
             scale: 2, backgroundColor:'#ffffff', useCORS:true, logging:false,
             width: w, windowWidth: w         // 用紙の幅で描く(画面の幅ではない)
@@ -1324,8 +1352,13 @@ function switchApp(which){
         }
         return step();
       })
-      .then(function(blob){ _fit(fr, contentMm); return blob; })
-      .catch(function(e){ _fit(fr, contentMm); throw e; });
+      .then(function(blob){ _restoreWidth(doc); _fit(fr, contentMm); return blob; })
+      .catch(function(e){ _restoreWidth(doc); _fit(fr, contentMm); throw e; });
+  }
+
+  // _growToPage で変えた本文の幅を、画面表示用に戻します
+  function _restoreWidth(doc){
+    try{ if(doc && doc.body) doc.body.style.width = ''; }catch(e){}
   }
 
   /* --- ⑦ 出来た PDF を共有シートへ渡す(メール添付・ファイル保存など) --- */
