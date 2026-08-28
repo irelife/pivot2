@@ -1513,3 +1513,47 @@ function switchApp(which){
   }
   window.addEventListener('load', _apply);
 })();
+
+
+/* ============================================================
+   pv-scroll-reset : 区画一覧の横スクロールを、いつも左端から始める
+     ・物件を開いたとき／別の物件に移ったとき、前に見ていた位置が
+       残っていて「区画番号が見えない」状態から始まることがあったため、
+       開くたびに左端へ戻します。
+     ★HTML・JS の中身には触れず、開いたことを見張って戻すだけです。
+   ============================================================ */
+(function(){
+  function _resetSpotScroll(){
+    try{
+      var w = document.getElementById('spots-table-wrap');
+      if(!w) return;
+      w.scrollLeft = 0;
+      // 下のつまみ(スライダー)の位置も合わせます
+      try{ w.dispatchEvent(new Event('scroll')); }catch(e){}
+    }catch(e){}
+  }
+
+  function _watch(){
+    var m = document.getElementById('modal');
+    if(!m || m._pvScrollWatched) return;
+    m._pvScrollWatched = 1;
+    var was = m.classList.contains('active');
+    try{
+      new MutationObserver(function(){
+        var now = m.classList.contains('active');
+        if(now && !was){                       // いま開いた
+          setTimeout(_resetSpotScroll, 0);
+          setTimeout(_resetSpotScroll, 250);   // 表の描き終わりを待ってもう一度
+        }
+        was = now;
+      }).observe(m, { attributes:true, attributeFilter:['class'] });
+    }catch(e){}
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _watch);
+  }else{
+    _watch();
+  }
+  window.addEventListener('load', _watch);
+})();
