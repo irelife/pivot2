@@ -1220,7 +1220,11 @@ function switchApp(which){
     return { els: [doc.body], fixed: false };
   }
 
-  /* --- ⑤ 用紙の幅で組み立てて、画面の幅に合わせて縮める --- */
+  /* --- ⑤ 用紙の幅で組み立てて、画面の幅に合わせて縮める ---
+     縮小には transform を使います。以前は zoom を使っていましたが、
+     iPhone の Safari では zoom をかけると文字の位置がずれて
+     重なって表示されるためです。transform なら、組み上がった見た目を
+     そのまま小さく映すだけなので崩れません。 */
   function _layout(fr, box){
     try{
       var d = fr.contentDocument;
@@ -1229,16 +1233,34 @@ function switchApp(which){
       var base = d.getElementById('pv-base');
       if(!base){ base = d.createElement('style'); base.id = 'pv-base';
                  (d.head || d.documentElement).insertBefore(base, (d.head||d.documentElement).firstChild); }
-      base.textContent = 'html{background:#fff;}' +
-        'body{margin:0 auto;padding:0;background:#fff;width:' + contentMm + 'mm;}' +
+      base.textContent = 'html{background:#fff;overflow-x:hidden;}' +
+        'body{margin:0;padding:0;background:#fff;width:' + contentMm + 'mm;}' +
         'img{max-width:100%;}';
+      _fit(fr, contentMm);
+    }catch(e){}
+  }
+  // 画面の幅に合わせて縮める（PDFを作るときは _unfit で原寸に戻します）
+  function _fit(fr, contentMm){
+    try{
+      var d = fr.contentDocument;
+      if(!d || !d.body) return;
+      _unfit(fr);                                     // いったん原寸に戻して測る
       var px = contentMm * 96 / 25.4;                 // 中身の幅(画面の点)
       var k  = fr.clientWidth / px;
-      if(k > 1) k = 1;
-      var fit = d.getElementById('pv-fit');
-      if(!fit){ fit = d.createElement('style'); fit.id = 'pv-fit'; (d.head || d.documentElement).appendChild(fit); }
-      // 画面で見るときだけ縮めます。PDFを作るときは一時的に外します。
-      fit.textContent = '@media screen{ html{ zoom:' + k.toFixed(4) + '; } }';
+      if(!(k > 0) || k >= 1) return;                  // 収まっているなら何もしない
+      var h = d.body.scrollHeight;                    // 原寸の高さ
+      d.body.style.transformOrigin = '0 0';
+      d.body.style.transform = 'scale(' + k.toFixed(4) + ')';
+      d.documentElement.style.height = Math.ceil(h * k) + 'px';
+    }catch(e){}
+  }
+  function _unfit(fr){
+    try{
+      var d = fr.contentDocument;
+      if(!d || !d.body) return;
+      d.body.style.transform = '';
+      d.body.style.transformOrigin = '';
+      d.documentElement.style.height = '';
     }catch(e){}
   }
 
@@ -1251,11 +1273,9 @@ function switchApp(which){
   }
   function _buildPdf(fr, box){
     var win = fr.contentWindow, doc = fr.contentDocument;
-    // 画面用の縮小を「消して」原寸に戻します。disabled では戻りきらない
-    // 端末があったため、中身を空にして確実に外します。
-    var fit = doc.getElementById('pv-fit');
-    var fitCss = fit ? fit.textContent : '';
-    if(fit) fit.textContent = '';
+    // 画面用の縮小を外して原寸に戻します（PDFは原寸で作ります）
+    _unfit(fr);
+    var contentMm = box.wmm - box.ml - box.mr;
     var jsPDF, pdf;
     var cw = box.wmm - box.ml - box.mr;                // 中身の幅(mm)
     var ch = box.hmm - box.mt - box.mb;                // 中身の高さ(mm)
@@ -1300,8 +1320,8 @@ function switchApp(which){
         }
         return step();
       })
-      .then(function(blob){ if(fit) fit.textContent = fitCss; return blob; })
-      .catch(function(e){ if(fit) fit.textContent = fitCss; throw e; });
+      .then(function(blob){ _fit(fr, contentMm); return blob; })
+      .catch(function(e){ _fit(fr, contentMm); throw e; });
   }
 
   /* --- ⑦ 出来た PDF を共有シートへ渡す(メール添付・ファイル保存など) --- */
@@ -1395,7 +1415,17 @@ function switchApp(which){
         });
     };
 
-    fr.onload = function(){ _layout(fr, box); };
+    // 書類じたいが「読み込めたら印刷する」を持っている場合は任せます(二重に出さない)
+    var selfPrint = /window\.print\s*\(/.test(String(html));
+    fr.onload = function(){
+      _layout(fr, box);
+      // 画像の読み込みで高さが変わることがあるので、少し後にもう一度合わせます
+      setTimeout(function(){ _layout(fr, box); }, 600);
+      if(!selfPrint && !_isIOS) setTimeout(function(){
+        try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){}
+      }, 400);
+    };
+
     if('srcdoc' in fr){ fr.srcdoc = html; }
     else{ var dd = fr.contentWindow.document; dd.open(); dd.write(html); dd.close(); }
   };
@@ -1431,4 +1461,51 @@ function switchApp(which){
     _patchDocPrint();
   }
   window.addEventListener('load', _patchDocPrint);
+})();
+
+
+/* ============================================================
+   pv-danger-guard : 取り返しのつかない操作の前に、文字の入力を求める
+     ・⬆️ 全データをクラウドへ送信  … 手元の内容でクラウドを上書き
+     ・⬇️ クラウドから読込         … クラウドの内容で手元を上書き
+   どちらも押し間違いでデータを失う操作なので、
+   決められた文字を打たないと進めないようにします。
+   （画面側では、この2つを「復旧用の操作」としてたたんであります）
+   ★もとの処理には触れていません。手前に確認を1枚はさむだけです。
+   ============================================================ */
+(function(){
+  function _guard(fnName, word, msg){
+    var orig = window[fnName];
+    if(typeof orig !== 'function') return;
+    if(orig._pvGuarded) return;
+    var wrapped = function(){
+      var ans = window.prompt(msg + '\n\n続ける場合は「' + word + '」と入力して OK を押してください。');
+      if(ans === null){ return; }                       // キャンセル
+      if(String(ans).trim() !== word){
+        alert('入力が違うため、中止しました。\n（何も変わっていません）');
+        return;
+      }
+      return orig.apply(this, arguments);
+    };
+    wrapped._pvGuarded = 1;
+    window[fnName] = wrapped;
+  }
+
+  function _apply(){
+    _guard('cloudSaveAll', '送信',
+      'この端末の内容で、クラウドのデータを上書きします。\n' +
+      'クラウドにある正しいデータが失われることがあります。\n\n' +
+      'ふだんは自動で同期されているので、この操作は必要ありません。');
+    _guard('cloudLoadAll', '読込',
+      'クラウドの内容で、この端末のデータを上書きします。\n' +
+      'この端末で入力した内容が失われることがあります。\n\n' +
+      'ふだんは自動で同期されているので、この操作は必要ありません。');
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _apply);
+  }else{
+    _apply();
+  }
+  window.addEventListener('load', _apply);
 })();
