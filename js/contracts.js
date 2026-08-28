@@ -1829,8 +1829,12 @@ function exportBrokerStatsPdf(){
   ${digRows || '<tr><td colspan="5" class="c">該当なし</td></tr>'}
 </table>
 </body></html>`;
- 
+  // iPhone / iPad は別ウィンドウでの印刷が働かないので、
+  // この画面の中に重ねて出します（js/core.js の PV_PRINT_HTML）。
+  // パソコンと Android は、これまでどおり別ウィンドウのままです。
+  if(window.PV_IS_IOS && window.PV_PRINT_HTML){ window.PV_PRINT_HTML(html); return; }
   const w = window.open('', '_blank');
+
   if(!w){ alert('ポップアップがブロックされました。このサイトのポップアップを許可してください。'); return; }
   w.document.write(html); w.document.close();
   setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} }, 500);
