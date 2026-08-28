@@ -468,21 +468,20 @@
           <input type="number" id="f-count" min="0" max="200" value="0" onchange="regenSpots()">
         </div>
       </div>
-      <div style="font-size:10.5px;color:#666;margin:-8px 0 12px 0;line-height:1.6;">
-        メイン住所に棟ラベル(例: A、北棟)を付けると、その棟の区画にこの住所が紐づきます。<br>
-        　 別棟がある場合は下の「棟マスター」に追加してください。
-      </div>
- 
-      <!-- 棟別住所(マンション併設の駐車場で棟ごとに住所が違う場合) -->
-      <div id="tou-addr-section" style="margin-bottom:14px;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
-          <label style="font-size:12px;font-weight:700;margin:0;">■ 棟マスター(任意・別棟がある場合)</label>
-          <button type="button" class="btn btn-outline btn-sm" onclick="addTouAddr()" style="font-size:11px;padding:3px 10px;">+ 棟を追加</button>
-          <span style="font-size:10.5px;color:#666;">※ メインと合わせて、区画一覧の「棟」欄プルダウンに表示されます</span>
+ 　　　<!-- 棟マスター(同じ物件に別棟がある場合) -->
+      <div id="tou-addr-section" class="tou-master" style="margin-bottom:16px;">
+        <div class="tou-master-head">
+          <div class="tou-master-title">棟マスター</div>
+          <button type="button" class="tou-master-add" onclick="addTouAddr()">＋ 棟を追加</button>
+        </div>
+        <div class="tou-master-lead">
+          同じ物件に <b>別棟（A棟・B棟・北棟 など）がある場合は、必ずここに登録してください。</b><br>
+          登録すると、区画一覧の「棟」欄で棟を選べるようになり、棟ごとの住所も正しく印刷されます。<br>
+          メイン住所に棟ラベル（例: A、北棟）を付けると、その棟の区画にメイン住所が紐づきます。
         </div>
         <div id="tou-addr-list"></div>
       </div>
- 
+
       <!-- 配置図 + 区画 左右並びレイアウト -->
       <div class="spot-layout-row">
         <!-- 左側: 配置図 -->
