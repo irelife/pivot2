@@ -1251,3 +1251,321 @@ function switchApp(which){
   }
   window.addEventListener('load', _patchDocPrint);
 })();
+
+
+/* ============================================================
+   iPhone / iPad で「CSV・PDF が出せない」を直す   pv-ios-export
+     ・iPhone の Safari は、ふつうの「ダウンロード」を無視して
+       ファイルを画面に映すだけで終わってしまいます。
+       そこで iPhone のときだけ「共有シート」を出し、
+       そこから「"ファイル"に保存」やメール送信を選べるようにします。
+     ・ホーム画面から開いたアプリでは、iOS は印刷そのものを
+       受け付けません（window.print が何もしません）。
+       そこで「印刷」ではなく、その場で PDF ファイルを作り、
+       共有シートに渡します。メールに添付できます。
+     ・書類は用紙の幅（A4横・A3横・A4縦）で組み立ててから
+       画面の幅に合わせて縮めるので、見た目と PDF が一致します。
+     ★パソコンと Android の動きは、これまでと一切変わりません。
+     ★他のファイル(contracts.js など)は書き換えず、
+       ここから横取りして差し替えています。
+   ============================================================ */
+(function(){
+  // iPad は「Macintosh」と名乗るので、指で触れるかどうかも見ます
+  var _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  window.PV_IS_IOS = _isIOS;
+
+  // PDF を作るための部品。押したときに初めて読み込みます(ふだんは重くなりません)
+  var PV_CDN = {
+    h2c:   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+    jspdf: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+  };
+  try{ if(window.PV_CDN_OVERRIDE){ PV_CDN = window.PV_CDN_OVERRIDE; } }catch(e){}
+
+  /* --- ① 作ったファイルの中身を覚えておく ---
+     ダウンロード用のリンクは「blob:...」という置き場所しか持っていません。
+     あとで共有シートに渡せるよう、中身そのものを控えておきます。 */
+  var _keep = {};
+  var _create = URL.createObjectURL;
+  var _revoke = URL.revokeObjectURL;
+  URL.createObjectURL = function(b){
+    var u = _create.call(URL, b);
+    try{ if(b instanceof Blob) _keep[u] = b; }catch(e){}
+    return u;
+  };
+  URL.revokeObjectURL = function(u){
+    // 共有シートが読み終わる前に捨てないよう、少し置いてから忘れます
+    setTimeout(function(){ try{ delete _keep[u]; }catch(e){} }, 30000);
+    return _revoke.call(URL, u);
+  };
+
+  /* --- ② 「保存」の押しかたを iPhone のやり方に差し替える ---
+     CSV・PDF・バックアップJSON など、すべての保存がここを通ります。 */
+  var _click = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function(){
+    if(_isIOS){
+      var name = this.getAttribute('download');
+      var b = name ? _keep[this.href] : null;
+      if(b && typeof File === 'function' && navigator.canShare){
+        try{
+          var f = new File([b], name, {type: b.type || 'application/octet-stream'});
+          if(navigator.canShare({files:[f]})){
+            // 「"ファイル"に保存」「メールで送信」などが選べます
+            navigator.share({files:[f], title:name}).catch(function(){});
+            return;
+          }
+        }catch(e){ /* だめならふつうのやり方に戻します */ }
+      }
+    }
+    return _click.apply(this, arguments);
+  };
+
+  /* --- ③ 部品(html2canvas / jsPDF)の読み込み --- */
+  function _loadInto(win, url){
+    return new Promise(function(res, rej){
+      try{
+        var d = win.document;
+        var s = d.createElement('script');
+        s.src = url;
+        s.onload  = function(){ res(); };
+        s.onerror = function(){ rej(new Error('部品を読み込めませんでした')); };
+        (d.head || d.documentElement).appendChild(s);
+      }catch(e){ rej(e); }
+    });
+  }
+
+  /* --- ④ 書類の「用紙」を読み取る ---
+     書類のCSSに書いてある @page{size:A4 landscape; margin:8mm 12mm;} を見ます。 */
+  function _toMm(v){
+    var n = parseFloat(v) || 0;
+    if(/mm$/.test(v)) return n;
+    if(/cm$/.test(v)) return n * 10;
+    if(/in$/.test(v)) return n * 25.4;
+    if(/pt$/.test(v)) return n * 25.4 / 72;
+    if(/px$/.test(v)) return n * 25.4 / 96;
+    return n;
+  }
+  function _pageBox(css){
+    css = String(css || '');
+    var m = /@page[^{]*\{[^}]*size\s*:\s*([a-z0-9]+)\s*(landscape|portrait)?/i.exec(css);
+    var fmt = m ? m[1].toLowerCase() : 'a4';
+    var ori = (m && m[2]) ? m[2].toLowerCase() : 'portrait';
+    var mm = ({a3:[297,420], a4:[210,297], a5:[148,210], b4:[257,364], b5:[182,257]})[fmt] || [210,297];
+    var box = {
+      fmt: fmt, ori: ori,
+      wmm: (ori === 'landscape' ? mm[1] : mm[0]),
+      hmm: (ori === 'landscape' ? mm[0] : mm[1]),
+      mt: 10, mr: 10, mb: 10, ml: 10
+    };
+    var g = /@page[^{]*\{[^}]*margin\s*:\s*([^;}]+)/i.exec(css);
+    if(g){
+      var p = g[1].trim().split(/\s+/).map(_toMm);
+      if(p.length === 1){ box.mt = box.mr = box.mb = box.ml = p[0]; }
+      else if(p.length === 2){ box.mt = box.mb = p[0]; box.mr = box.ml = p[1]; }
+      else if(p.length === 3){ box.mt = p[0]; box.mr = box.ml = p[1]; box.mb = p[2]; }
+      else { box.mt = p[0]; box.mr = p[1]; box.mb = p[2]; box.ml = p[3]; }
+    }
+    return box;
+  }
+  // 書類の中の「1枚ずつ」を探す。承諾書は2枚、契約書・請求書は1枚。
+  function _pagesIn(doc){
+    var l = doc.querySelectorAll('.page');
+    if(l.length) return [].slice.call(l);
+    l = doc.querySelectorAll('.sheet');
+    if(l.length) return [].slice.call(l);
+    return [doc.body];
+  }
+
+  /* --- ⑤ 用紙の幅で組み立てて、画面の幅に合わせて縮める --- */
+  function _layout(fr, box){
+    try{
+      var d = fr.contentDocument;
+      if(!d || !d.body) return;
+      var contentMm = box.wmm - box.ml - box.mr;      // 中身の幅(mm)
+      var base = d.getElementById('pv-base');
+      if(!base){ base = d.createElement('style'); base.id = 'pv-base';
+                 (d.head || d.documentElement).insertBefore(base, (d.head||d.documentElement).firstChild); }
+      base.textContent = 'html{background:#fff;}' +
+        'body{margin:0 auto;padding:0;background:#fff;width:' + contentMm + 'mm;}' +
+        'img{max-width:100%;}';
+      var px = contentMm * 96 / 25.4;                 // 中身の幅(画面の点)
+      var k  = fr.clientWidth / px;
+      if(k > 1) k = 1;
+      var fit = d.getElementById('pv-fit');
+      if(!fit){ fit = d.createElement('style'); fit.id = 'pv-fit'; (d.head || d.documentElement).appendChild(fit); }
+      // 画面で見るときだけ縮めます。PDFを作るときは一時的に外します。
+      fit.textContent = '@media screen{ html{ zoom:' + k.toFixed(4) + '; } }';
+    }catch(e){}
+  }
+
+  /* --- ⑥ PDF を作る --- */
+  function _crop(win, cv, y, h){
+    var c = win.document.createElement('canvas');
+    c.width = cv.width; c.height = h;
+    c.getContext('2d').drawImage(cv, 0, y, cv.width, h, 0, 0, cv.width, h);
+    return c;
+  }
+  function _buildPdf(fr, box){
+    var win = fr.contentWindow, doc = fr.contentDocument;
+    // 画面用の縮小を「消して」原寸に戻します。disabled では戻りきらない
+    // 端末があったため、中身を空にして確実に外します。
+    var fit = doc.getElementById('pv-fit');
+    var fitCss = fit ? fit.textContent : '';
+    if(fit) fit.textContent = '';
+    var jsPDF, pdf;
+    var cw = box.wmm - box.ml - box.mr;                // 中身の幅(mm)
+    var ch = box.hmm - box.mt - box.mb;                // 中身の高さ(mm)
+    return Promise.resolve()
+      .then(function(){ return win.html2canvas ? null : _loadInto(win, PV_CDN.h2c); })
+      .then(function(){ return window.jspdf   ? null : _loadInto(window, PV_CDN.jspdf); })
+      .then(function(){
+        jsPDF = window.jspdf.jsPDF;
+        pdf = new jsPDF({ unit:'mm', format: box.fmt, orientation: box.ori });
+        var pages = _pagesIn(doc), i = 0, first = true;
+        function step(){
+          if(i >= pages.length) return pdf.output('blob');
+          var el = pages[i++];
+          var w  = Math.max(el.scrollWidth, el.getBoundingClientRect().width) || doc.body.scrollWidth;
+          return win.html2canvas(el, {
+            scale: 2, backgroundColor:'#ffffff', useCORS:true, logging:false,
+            width: w, windowWidth: w         // 用紙の幅で描く(画面の幅ではない)
+          }).then(function(cv){
+            var full = cw * cv.height / cv.width;      // 原寸なら何mmになるか
+            if(full <= ch + 1){
+              if(!first) pdf.addPage(box.fmt, box.ori);
+              first = false;
+              pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', box.ml, box.mt, cw, full);
+            }else{
+              // 1枚に収まらないときは、用紙の高さで切り分けます
+              var slice = Math.floor(cv.width * ch / cw), y = 0;
+              while(y < cv.height){
+                var h = Math.min(slice, cv.height - y);
+                if(!first) pdf.addPage(box.fmt, box.ori);
+                first = false;
+                pdf.addImage(_crop(win, cv, y, h).toDataURL('image/jpeg', 0.92),
+                             'JPEG', box.ml, box.mt, cw, cw * h / cv.width);
+                y += h;
+              }
+            }
+            return step();
+          });
+        }
+        return step();
+      })
+      .then(function(blob){ if(fit) fit.textContent = fitCss; return blob; })
+      .catch(function(e){ if(fit) fit.textContent = fitCss; throw e; });
+  }
+
+  /* --- ⑦ 出来た PDF を共有シートへ渡す(メール添付・ファイル保存など) --- */
+  function _sharePdf(blob, name){
+    var f = null;
+    try{ f = new File([blob], name, {type:'application/pdf'}); }catch(e){}
+    if(f && navigator.canShare && navigator.canShare({files:[f]})){
+      return navigator.share({files:[f], title:name}).catch(function(err){
+        if(err && err.name === 'AbortError') return;   // 利用者が閉じただけ
+        _download(blob, name);
+      });
+    }
+    _download(blob, name);
+    return Promise.resolve();
+  }
+  function _download(blob, name){
+    var u = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = u; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 30000);
+  }
+
+  /* --- ⑧ 書類を画面いっぱいに出す。ここから PDF を作ります --- */
+  window.PV_PRINT_HTML = function(html, name){
+    var old = document.getElementById('pv-print-ov');
+    if(old && old.parentNode) old.parentNode.removeChild(old);
+
+    var css = (String(html).match(/<style[^>]*>[\s\S]*?<\/style>/gi) || []).join('\n');
+    var box = _pageBox(css);
+    var title = (/<title[^>]*>([^<]*)<\/title>/i.exec(String(html)) || [])[1] || '';
+    var d = new Date(), p = function(n){ return ('0' + n).slice(-2); };
+    var fname = (name || title || '書類').replace(/[\\\/:*?"<>|\s]+/g, '_') +
+                '_' + d.getFullYear() + p(d.getMonth()+1) + p(d.getDate()) + '.pdf';
+
+    var ov = document.createElement('div');
+    ov.id = 'pv-print-ov';
+    ov.setAttribute('style','position:fixed;top:0;right:0;bottom:0;left:0;z-index:100000;'+
+      'background:#fff;display:flex;flex-direction:column;');
+
+    var bar = document.createElement('div');
+    bar.setAttribute('style','flex:0 0 auto;display:flex;gap:10px;justify-content:space-between;'+
+      'align-items:center;padding:10px 12px;background:#1f3a5f;'+
+      'padding-top:calc(10px + env(safe-area-inset-top, 0px));');
+    var bs = 'font-size:15px;font-weight:700;padding:10px 16px;border:0;border-radius:9px;cursor:pointer;font-family:inherit;';
+
+    var close = document.createElement('button');
+    close.type = 'button'; close.textContent = '✕ 閉じる';
+    close.setAttribute('style', bs + 'background:rgba(255,255,255,.18);color:#fff;');
+
+    var go = document.createElement('button');
+    go.type = 'button'; go.textContent = '📄 PDFにする';
+    go.setAttribute('style', bs + 'background:#fff;color:#1f3a5f;');
+
+    bar.appendChild(close); bar.appendChild(go);
+
+    var fr = document.createElement('iframe');
+    fr.setAttribute('style','flex:1 1 auto;width:100%;border:0;background:#fff;');
+
+    ov.appendChild(bar); ov.appendChild(fr);
+    document.body.appendChild(ov);
+
+    close.onclick = function(){ if(ov.parentNode) ov.parentNode.removeChild(ov); };
+
+    go.onclick = function(){
+      if(go.disabled) return;
+      go.disabled = true; go.textContent = '⏳ 作成中…'; go.style.opacity = '.7';
+      _buildPdf(fr, box)
+        .then(function(blob){ return _sharePdf(blob, fname); })
+        .catch(function(e){
+          alert('PDFを作れませんでした。\n' + ((e && e.message) || '') +
+                '\n\n電波の届く場所で、もう一度お試しください。');
+        })
+        .then(function(){
+          go.disabled = false; go.textContent = '📄 PDFにする'; go.style.opacity = '1';
+        });
+    };
+
+    fr.onload = function(){ _layout(fr, box); };
+    if('srcdoc' in fr){ fr.srcdoc = html; }
+    else{ var dd = fr.contentWindow.document; dd.open(); dd.write(html); dd.close(); }
+  };
+
+  /* --- ⑨ 承諾書・契約書・請求書の「PDF保存 / 印刷」を差し替える ---
+     いまは書類をアプリの画面の上に重ねて、そのまま印刷しています。
+     iPhone ではその印刷が働かないので、上の画面に移して PDF を作ります。
+     ★パソコンは今までどおりです。 */
+  function _patchDocPrint(){
+    if(typeof window.printDocOverlay !== 'function') return;
+    if(window.printDocOverlay._pvPatched) return;
+    var _orig = window.printDocOverlay;
+    var f = function(){
+      var c = _isIOS ? document.getElementById('doc-ov-content') : null;
+      if(c && window.PV_PRINT_HTML){
+        var t = document.querySelector('#doc-overlay .doc-ov-title');
+        var nm = t ? t.textContent.replace(/[^　-鿿A-Za-z0-9]/g, '') : '書類';
+        // 書類の見た目(style)と中身を、そのまま上の画面へ移します
+        window.PV_PRINT_HTML(
+          '<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">' +
+          '<title>' + nm + '</title></head><body>' +
+          c.innerHTML + '</body></html>', nm);
+        return;
+      }
+      return _orig.apply(this, arguments);
+    };
+    f._pvPatched = 1;
+    window.printDocOverlay = f;
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _patchDocPrint);
+  }else{
+    _patchDocPrint();
+  }
+  window.addEventListener('load', _patchDocPrint);
+})();
