@@ -203,7 +203,7 @@ function runAutoSwitch(userTriggered){
     }
   });
 
-  const msg = '📢 本日までに到来した切替対象が ' + targets.length + ' 件あります。\n\n' +
+  const msg = '本日までに到来した切替対象が ' + targets.length + ' 件あります。\n\n' +
               lines.join('\n') + '\n\n' +
               '予約到来分は、前契約者を退去済にして、予約者を使用中に切り替えます。\n今すぐ切替しますか?';
 
@@ -447,7 +447,7 @@ function deleteBldFromList(id){
   delete all[id];
   const ok = saveAll(all);
   if(ok){
-    showToast('🗑️ 削除しました');
+    showToast('削除しました');
     renderAll();
   }
 }
@@ -904,7 +904,7 @@ function generateShoudakuPrint(data){
     '<\/body><\/html>';
   // 承諾書は新しいタブで開いて印刷する(A4横2枚の改ページを確実にするため)
   try{
-    if(window.PV_IS_IOS){ showDocOverlay(html, '📋 保管場所使用承諾書'); return; }
+    if(window.PV_IS_IOS){ showDocOverlay(html, '保管場所使用承諾書'); return; }
     const w = window.open('', '_blank');
     if(w && w.document){
       w.document.open();
@@ -912,10 +912,10 @@ function generateShoudakuPrint(data){
       w.document.close();
     } else {
       // ポップアップがブロックされた場合はオーバーレイ表示にフォールバック
-      showDocOverlay(html, '📋 保管場所使用承諾書');
+      showDocOverlay(html, '保管場所使用承諾書');
     }
   }catch(e){
-    showDocOverlay(html, '📋 保管場所使用承諾書');
+    showDocOverlay(html, '保管場所使用承諾書');
   }
 }
 
@@ -943,7 +943,7 @@ function showDocOverlay(html, title){
     '<div class="doc-ov-bar">' +
       '<span class="doc-ov-title">' + (title || '書類') + '</span>' +
       '<div class="doc-ov-actions">' +
-        '<button type="button" class="doc-ov-btn doc-ov-print" onclick="printDocOverlay()">🖨 PDF保存 / 印刷</button>' +
+        '<button type="button" class="doc-ov-btn doc-ov-print" onclick="printDocOverlay()">PDF保存 / 印刷</button>' +
         '<button type="button" class="doc-ov-btn doc-ov-close" onclick="closeDocOverlay()">✕ 閉じる</button>' +
       '</div>' +
     '</div>' +
@@ -1207,7 +1207,7 @@ function generateKeiyakuPrint(data){
     '});' +
     '<\/scr'+'ipt>' +
     '<\/body><\/html>';
-  showDocOverlay(html, '📝 駐車場賃貸借契約書');
+  showDocOverlay(html, '駐車場賃貸借契約書');
 
 }
 
@@ -1752,7 +1752,7 @@ function generateSeikyuPrint(data){
     '});' +
     '<\/scr'+'ipt>' +
     '<\/body><\/html>';
-  showDocOverlay(html, '💴 請求書');
+  showDocOverlay(html, '請求書');
 
 }
 
@@ -3265,7 +3265,7 @@ function removeSpot(idx){
   renderSpotsTable(currentSpots);
 
   // 元に戻すトースト(5秒)
-  showUndoToast('🗑 ' + spotNo + ' ' + info + ' を削除', 5000);
+  showUndoToast('' + spotNo + ' ' + info + ' を削除', 5000);
 }
 
 // 削除を元に戻すトースト表示
@@ -3446,7 +3446,7 @@ function collectSpotsFromForm(){
 function saveBld(){
   // 画像アップロード中は保存させない(temp_ のまま保存される事故を防ぐ)
   if(_uploadingCount > 0){
-    showToast('☁️ 画像のクラウド保存中です。完了までお待ちください (' + _uploadingCount + '枚)');
+    showToast('画像のクラウド保存中です。完了までお待ちください (' + _uploadingCount + '枚)');
     return;
   }
   const name = document.getElementById('f-name').value.trim();
@@ -3580,7 +3580,7 @@ function deleteBld(){
   }
   delete all[currentEditId];
   if(saveAll(all)){
-    showToast('🗑️ 削除しました');
+    showToast('削除しました');
     _modalDirty = false;  // 削除済みなので未保存確認は不要
     closeModal();
     renderAll();
@@ -3611,7 +3611,7 @@ function downloadBackup(){
   a.download = 'PIVOT_backup_' + dt + '.json';
   a.click();
   URL.revokeObjectURL(url);
-  showToast('💾 バックアップをダウンロードしました（物件・契約）');
+  showToast('バックアップをダウンロードしました（物件・契約）');
 }
 
 // 緊急復元：起動時の自動退避（pivot_emergency_backup）から、直前の状態に戻す
@@ -3789,7 +3789,7 @@ function cacheImage(id, dataUrl){
 }
 
 // ==============================
-// 🩺 画像チェック(クラウド未保存 temp_ の洗い出し)
+// 画像チェック(クラウド未保存 temp_ の洗い出し)
 // ==============================
 function openImgDiagModal(){
   document.getElementById('img-diag-modal').classList.add('active');
@@ -3994,7 +3994,7 @@ function _layoutSlotHtml(slot){
   } else if(id.startsWith('temp_')){
     inner = '<div class="img-thumb-loading is-unsaved"><div>⚠ クラウド未保存</div><div>×で削除し<br>入れ直してください</div></div>';
   } else if(_imgFailed[id]){
-    inner = '<div class="img-thumb-loading is-error" onclick="event.stopPropagation();retryImage(\''+id+'\')"><div>⚠ 読込失敗</div><button class="img-thumb-retry-btn" onclick="event.stopPropagation();retryImage(\''+id+'\')">🔄 再試行</button></div>';
+    inner = '<div class="img-thumb-loading is-error" onclick="event.stopPropagation();retryImage(\''+id+'\')"><div>⚠ 読込失敗</div><button class="img-thumb-retry-btn" onclick="event.stopPropagation();retryImage(\''+id+'\')">再試行</button></div>';
   } else {
     inner = '<div class="img-thumb-loading">読込中...</div>';
   }
@@ -4066,7 +4066,7 @@ function renderPhotosArea(){
     } else if(_imgFailed[id]){
       inner = '<div class="img-thumb-loading is-error" onclick="event.stopPropagation();retryImage(\''+id+'\')">' +
         '<div>⚠ 読込失敗</div>' +
-        '<button class="img-thumb-retry-btn" onclick="event.stopPropagation();retryImage(\''+id+'\')">🔄 再試行</button>' +
+        '<button class="img-thumb-retry-btn" onclick="event.stopPropagation();retryImage(\''+id+'\')">再試行</button>' +
       '</div>';
     } else {
       inner = '<div class="img-thumb-loading">読込中...</div>';
@@ -4209,7 +4209,7 @@ async function onPhotoSelected(event){
 async function uploadLayoutFile(file, slot){
   const url = getCloudUrl();
   if(!url){
-    alert('クラウドURL が設定されていません。\n☁️ クラウド ボタンから設定してください。');
+    alert('クラウドURL が設定されていません。\nクラウド ボタンから設定してください。');
     return;
   }
   if(!currentEditId && !document.getElementById('f-name').value.trim()){
@@ -4268,7 +4268,7 @@ async function uploadLayoutInBackground(url, bldId, bldName, fileName, dataUrl, 
   _uploadingCount++;
   updateSaveBtnState();
   try {
-    showToast('☁️ バックアップ中...', true);
+    showToast('バックアップ中...', true);
     const r = await postToGas(url, {
       action: 'uploadImage',
       bldId: bldId,
@@ -4314,7 +4314,7 @@ async function uploadLayoutInBackground(url, bldId, bldName, fileName, dataUrl, 
 async function uploadImageOptimistic(file, kind){
   const url = getCloudUrl();
   if(!url){
-    alert('クラウドURL が設定されていません。\n☁️ クラウド ボタンから設定してください。');
+    alert('クラウドURL が設定されていません。\nクラウド ボタンから設定してください。');
     return;
   }
   if(!currentEditId && !document.getElementById('f-name').value.trim()){
@@ -4366,7 +4366,7 @@ function updateSaveBtnState(){
   if(_uploadingCount > 0){
     btn.disabled = true;
     btn.dataset.savingImg = '1';
-    btn.textContent = '☁️ 画像保存中… (' + _uploadingCount + '枚)';
+    btn.textContent = '画像保存中… (' + _uploadingCount + '枚)';
     btn.style.opacity = '0.5';
     btn.style.cursor = 'not-allowed';
   } else {
@@ -4383,7 +4383,7 @@ async function uploadInBackground(url, bldId, bldName, fileName, compressed, kin
   _uploadingCount++;
   updateSaveBtnState();
   try {
-    showToast('☁️ バックアップ中...', true);
+    showToast('バックアップ中...', true);
     const r = await postToGas(url, {
       action: 'uploadImage',
       bldId: bldId,
@@ -4481,7 +4481,7 @@ function removeLayoutSlot(event, slot){
   if(fileId && _currentImages.mime) delete _currentImages.mime[fileId];
   _modalDirty = true;  // 配置図を削除 → 未保存
   renderImageSection();
-  showToast('🗑️ 配置図を削除しました');
+  showToast('配置図を削除しました');
   if(fileId){ delete _imgCache[fileId]; idbDeleteImage(fileId); }
   if(fileId && url){
     postToGas(url, { action: 'deleteImage', fileId: fileId }).catch(e => {
@@ -4500,7 +4500,7 @@ function removePhoto(event, fileId){
   delete _currentImages.photo_urls[fileId];
   _modalDirty = true;  // 写真を削除 → 未保存
   renderImageSection();
-  showToast('🗑️ 写真を削除しました');
+  showToast('写真を削除しました');
   if(fileId){ delete _imgCache[fileId]; idbDeleteImage(fileId); }
   // サーバー側削除はバックグラウンドで実行(失敗しても無視)
   if(fileId && url){
@@ -4522,7 +4522,7 @@ function closeImgZoom(event){
 }
 
 // ==============================
-// 📥 CSV一括インポート機能
+// CSV一括インポート機能
 // ==============================
 const CSV_VALID_TYPES = ['並','縦','軽','機'];
 const CSV_VALID_STATUS = ['借','空','解','予','退','募停','申'];
@@ -4658,7 +4658,7 @@ function csvPreview(){
   const monthlyRevenue = spots.filter(s => s.status === '借').reduce((sum, s) => sum + (Number(s.price)||0), 0);
 
   html += '<div style="background:#f5f5f5;border:1px solid #ccc;padding:10px 14px;border-radius:4px;font-size:12px;margin-bottom:10px;line-height:1.8;">' +
-    '<strong>📊 集計</strong><br>' +
+    '<strong>集計</strong><br>' +
     '物件: <strong>' + escapeHtml(name||'(未入力)') + '</strong> ' + (addr ? '/ '+escapeHtml(addr) : '') + '<br>' +
     '区画総数: <strong>' + spots.length + '</strong>区画 (使用中:' + occupied + ' / 空き:' + vacant + ' / 解約中:' + cancelling + ')<br>' +
     '月額合計: <strong>¥' + total.toLocaleString() + '</strong> / 使用中分の月額: <strong>¥' + monthlyRevenue.toLocaleString() + '</strong>' +
