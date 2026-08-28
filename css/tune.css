@@ -2891,3 +2891,190 @@ body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
   #kb-view .lv-table th{ padding:0 11px 10px; font-size:11px; }
   #kb-view .lv-prop b{ font-size:15px; }
 }
+
+
+/* ============================================================
+   pv-issue-mono : 発行モーダル3つ(承諾書・契約書・請求書)を
+                   横長・モノクロのシンプルな作りにする
+     ・縦にずっと長くて何度もスクロールしていたので、幅を広げ、
+       入力欄を2列に並べて、1画面に収まる形にします。
+     ・青／紫／黄色の注意ボックスをやめ、白地＋黒の線だけにします。
+     ・自動で入る欄(グレーの箱)は、下線だけの控えめな見た目にして、
+       手で打つ欄がすぐ分かるようにします。
+   このブロックを消せば、いまの縦長・色付きに戻ります。
+   ============================================================ */
+
+/* ---- ① 横に広げる ---- */
+#shoudaku-modal > .modal,
+#keiyaku-modal  > .modal,
+#seikyu-modal   > .modal{
+  max-width:min(1160px, 96vw)!important;
+  width:min(1160px, 96vw);
+}
+
+/* ---- ② 中身を2列に並べる(見出し・表・図は横いっぱい) ---- */
+#shoudaku-modal .modal-body,
+#keiyaku-modal  .modal-body,
+#seikyu-modal   .modal-body{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0 34px;
+  align-content:start;
+  padding:22px 26px 26px;
+}
+#shoudaku-modal .modal-body > h4,
+#keiyaku-modal  .modal-body > h4,
+#seikyu-modal   .modal-body > h4,
+#shoudaku-modal .modal-body > div:not(.form-row),
+#keiyaku-modal  .modal-body > div:not(.form-row),
+#seikyu-modal   .modal-body > div:not(.form-row),
+#shoudaku-modal .modal-body > table,
+#keiyaku-modal  .modal-body > table,
+#seikyu-modal   .modal-body > table,
+#shoudaku-modal .modal-body > button,
+#keiyaku-modal  .modal-body > button,
+#seikyu-modal   .modal-body > button{
+  grid-column:1 / -1;
+}
+/* 請求項目のテンプレートボタン行も、横いっぱいに使います */
+#seikyu-modal .modal-body > .form-row[style*="flex-end"]{ grid-column:1 / -1; }
+/* その見出しの下に1行しか無いときは、半分だと窮屈なので横いっぱいに使います */
+#shoudaku-modal .modal-body > h4 + .form-row:has(+ h4),
+#keiyaku-modal  .modal-body > h4 + .form-row:has(+ h4),
+#seikyu-modal   .modal-body > h4 + .form-row:has(+ h4),
+#shoudaku-modal .modal-body > h4 + .form-row:last-child,
+#keiyaku-modal  .modal-body > h4 + .form-row:last-child,
+#seikyu-modal   .modal-body > h4 + .form-row:last-child,
+#seikyu-modal   .modal-body > .form-row:has(textarea){ grid-column:1 / -1; }
+
+#shoudaku-modal .modal-body > .form-row,
+#keiyaku-modal  .modal-body > .form-row,
+#seikyu-modal   .modal-body > .form-row{
+  margin-bottom:6px;
+  align-content:start;
+}
+
+/* ---- ③ 見出し ---- */
+#shoudaku-modal .modal-body > h4,
+#keiyaku-modal  .modal-body > h4,
+#seikyu-modal   .modal-body > h4{
+  font-size:13px!important;
+  font-weight:800!important;
+  letter-spacing:.16em!important;
+  color:#17171a;
+  margin:20px 0 12px!important;
+  padding-bottom:8px!important;
+  border-bottom:1px solid #17171a!important;
+}
+#shoudaku-modal .modal-body > h4:first-of-type,
+#keiyaku-modal  .modal-body > h4:first-of-type,
+#seikyu-modal   .modal-body > h4:first-of-type{ margin-top:6px!important; }
+
+/* ---- ④ いちばん上の色つき案内（青・紫・黄）は消します ----
+     「自動でセットされます／入力して印刷を開いてください」は
+     毎回同じ文で読まれないため、出しません。 */
+#shoudaku-modal .modal-body > div[style*="#f0f9ff"],
+#keiyaku-modal  .modal-body > div[style*="#f3e8ff"],
+#seikyu-modal   .modal-body > div[style*="#fef9c3"]{ display:none!important; }
+
+/* 承諾書の「所在図はマップのスクショを貼る」だけは操作の手順なので残し、
+   白地＋黒の細線にします。 */
+#shoudaku-modal .modal-body > div[style*="#fef9c3"]{
+  background:#fff!important;
+  border:0!important;
+  border-left:3px solid #17171a!important;
+  border-radius:0!important;
+  padding:2px 0 2px 14px!important;
+  margin-bottom:14px!important;
+  font-size:12.5px!important;
+  line-height:1.8!important;
+  color:#5c5c63!important;
+}
+
+/* ---- ⑤ 入力欄。下線だけのすっきりした形に ---- */
+#shoudaku-modal .form-field label,
+#keiyaku-modal  .form-field label,
+#seikyu-modal   .form-field label{
+  font-size:12px; font-weight:700; color:#17171a; letter-spacing:.02em;
+}
+#shoudaku-modal .form-field input,
+#shoudaku-modal .form-field select,
+#shoudaku-modal .form-field textarea,
+#keiyaku-modal  .form-field input,
+#keiyaku-modal  .form-field select,
+#keiyaku-modal  .form-field textarea,
+#seikyu-modal   .form-field input,
+#seikyu-modal   .form-field select,
+#seikyu-modal   .form-field textarea{
+  border:0!important;
+  border-bottom:1px solid #d6d6db!important;
+  border-radius:0!important;
+  background:transparent!important;
+  padding:9px 2px!important;
+  font-size:14.5px;
+  color:#17171a;
+}
+#shoudaku-modal .form-field input:focus,
+#keiyaku-modal  .form-field input:focus,
+#seikyu-modal   .form-field input:focus,
+#shoudaku-modal .form-field textarea:focus,
+#keiyaku-modal  .form-field textarea:focus,
+#seikyu-modal   .form-field textarea:focus,
+#shoudaku-modal .form-field select:focus,
+#keiyaku-modal  .form-field select:focus,
+#seikyu-modal   .form-field select:focus{
+  border-bottom:2px solid #17171a!important;
+  box-shadow:none!important;
+  outline:0;
+}
+/* 自動で入る欄は、うすい字＋点線にして「打たなくてよい」と分かるように */
+#shoudaku-modal .form-field input[readonly],
+#keiyaku-modal  .form-field input[readonly],
+#seikyu-modal   .form-field input[readonly]{
+  border-bottom:1px dotted #d6d6db!important;
+  color:#8a8a90!important;
+}
+
+/* ---- ⑥ 会社情報などの自動表示 ---- */
+#shoudaku-modal #sd-company-preview,
+#seikyu-modal   [style*="#f5f5f5"]{
+  background:#fafafa!important;
+  border:1px solid #ededf0!important;
+  border-radius:8px!important;
+  color:#5c5c63!important;
+}
+
+/* ---- ⑦ 所在図のドラッグ&ドロップ枠 ---- */
+#shoudaku-modal #sd-shozaizu-drop{
+  border:2px dashed #c8c8ce!important;
+  background:#fafafa!important;
+  color:#8a8a90!important;
+}
+#shoudaku-modal a[onclick*="openMapFromShoudaku"]{ color:#17171a!important; }
+/* 図の枠は少し低くして、1画面に収まりやすくします */
+#shoudaku-modal #sd-shozaizu-drop,
+#shoudaku-modal div[style*="#fafafa"]{ height:148px!important; }
+#shoudaku-modal #sd-shozaizu-preview{ max-height:130px!important; }
+#shoudaku-modal #sd-haichizu-preview{ max-height:138px!important; }
+
+/* ---- ⑧ 下のボタン ---- */
+#shoudaku-modal .modal-footer,
+#keiyaku-modal  .modal-footer,
+#seikyu-modal   .modal-footer{
+  padding:14px 26px 20px;
+  border-top:1px solid #ededf0;
+  gap:10px;
+}
+
+/* ---- ⑨ 幅がせまいときは1列に戻す ---- */
+@media (max-width:900px){
+  #shoudaku-modal .modal-body,
+  #keiyaku-modal  .modal-body,
+  #seikyu-modal   .modal-body{
+    grid-template-columns:1fr;
+    padding:16px;
+  }
+  #shoudaku-modal .modal-body > h4,
+  #keiyaku-modal  .modal-body > h4,
+  #seikyu-modal   .modal-body > h4{ margin:20px 0 12px!important; }
+}
