@@ -1052,8 +1052,10 @@
 <div class="img-zoom-overlay" id="img-zoom" onclick="closeImgZoom(event)">
   <button class="img-zoom-close" onclick="closeImgZoom(event)">×</button>
   <img id="img-zoom-target" src="" alt="">
+  <iframe id="img-zoom-pdf" src="about:blank" title="配置図PDF" style="display:none"></iframe>
+  <a id="img-zoom-open" href="#" target="_blank" rel="noopener" style="display:none">別のタブで開く</a>
 </div>
- 
+
 <!-- 画像チェック(診断)モーダル -->
 <div class="modal-overlay" id="img-diag-modal">
   <div class="modal" style="max-width:760px;">
