@@ -3619,3 +3619,37 @@ tr.sub-row td{font-size:13px;}
 [style*="font-size:.8rem"]{font-size:14px!important;}
 [style*="font-size:.92rem"]{font-size:15.5px!important;}
 
+
+/* ============================================================
+   pv-pdf-zoom : 配置図がPDFのときも、写真と同じように拡大する
+     ・PDFは <img> では出せないので、同じ黒い画面の中に
+       PDF用の枠(iframe)を置いて、画面いっぱいに表示します。
+     ・端末によってはPDFが枠内に出ないことがあるので、
+       「別のタブで開く」も下に出しておきます。
+   このブロックを消すと、PDFの枠が画面いっぱいになりません。
+   ============================================================ */
+#img-zoom #img-zoom-pdf{
+  width:min(1100px, 94vw);
+  height:88vh;
+  border:0;
+  border-radius:10px;
+  background:#fff;
+  box-shadow:0 12px 48px rgba(0,0,0,.45);
+}
+#img-zoom #img-zoom-open{
+  position:absolute;
+  left:50%;
+  bottom:14px;
+  transform:translateX(-50%);
+  padding:9px 20px;
+  border-radius:999px;
+  background:#fff;
+  color:#17171a;
+  font-size:14px;
+  font-weight:700;
+  text-decoration:none;
+  box-shadow:0 3px 12px rgba(0,0,0,.35);
+}
+@media (max-width:860px){
+  #img-zoom #img-zoom-pdf{ width:96vw; height:80vh; }
+}
