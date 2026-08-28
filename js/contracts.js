@@ -728,7 +728,7 @@ function renderCard(c){
     }catch(e){ notLinked = false; }
   }
   const notLinkedBadge = notLinked
-    ? '<div class="ct-notlinked" title="この契約は駐車場区画にまだ紐づけられていません。カードを開いて「🅿 紐づけ」を押してください。">⚠ 駐車場 未紐づけ</div>'
+    ? '<div class="ct-notlinked" title="この契約は駐車場区画にまだ紐づけられていません。カードを開いて「紐づけ」を押してください。">⚠ 駐車場 未紐づけ</div>'
     : '';
  
   const curName = (curIdx < 0) ? '未着手' : cur.name;
@@ -834,7 +834,7 @@ function renderCard(c){
             ' <span class="ct-stage-count">' + doneCount + '/' + totalCount + '</span>' +
           '</div>' +
         '</div>' +
-        (c.memo ? '<div class="ct-memo">📝 ' + esc(c.memo).replace(/\n/g,'<br>') + '</div>' : '') +
+        (c.memo ? '<div class="ct-memo">' + esc(c.memo).replace(/\n/g,'<br>') + '</div>' : '') +
       '</div>' +
     '</div>' +
     ((moveBtn || revertBtn) ? '<div class="ct-actions">' + revertBtn + moveBtn + '</div>' : '') +
@@ -1120,13 +1120,13 @@ function showPreview(id){
     (isPet ? '<img class="pv-pet" src="' + ICON_DOG + '" title="ペットあり" alt="ペット">' : '') +
     '<div class="pv-head">' + head + '</div>' +
     '<div class="pv-contractor">' + esc(c.contractor || '(契約者未入力)') + '</div>' +
-    (c.broker ? '<div class="pv-broker">🏢 ' + esc(c.broker) + '</div>' : '') +
+    (c.broker ? '<div class="pv-broker">' + esc(c.broker) + '</div>' : '') +
     '<div class="pv-meta">' + metaHtml + '</div>' +
-    '<div class="pv-section-title">🎒 獲得アイテム (' + gotCount + ' / ' + pvItems.length + ')</div>' +
+    '<div class="pv-section-title">獲得アイテム (' + gotCount + ' / ' + pvItems.length + ')</div>' +
     '<div class="pv-items">' + itemsBig + '</div>' +
     '<div class="pv-section-title">ステージ到達履歴</div>' +
     '<div class="pv-stages">' + stagesHtml + '</div>' +
-    (c.memo ? '<div class="pv-section-title">📝 備考</div><div class="pv-memo">' + esc(c.memo).replace(/\n/g,'<br>') + '</div>' : '') +
+    (c.memo ? '<div class="pv-section-title">備考</div><div class="pv-memo">' + esc(c.memo).replace(/\n/g,'<br>') + '</div>' : '') +
     '<button class="pv-edit-btn" onclick="KB.openSheet(\'' + id + '\')">編集する</button>';
  
   document.getElementById('preview-backdrop').classList.add('active');
@@ -1478,7 +1478,7 @@ function renderBrokerStats(){
   if(!fyValid && years.length > 1){
     const ys = years.slice().sort((a,b)=>a.year.localeCompare(b.year)); // 古い順
     const maxc = Math.max(1, ...ys.map(y=>y.count));
-    html += '<div class="ov-chart"><div class="ov-h">📅 年ごとの客付け件数</div><div class="ov-bars ov-year">';
+    html += '<div class="ov-chart"><div class="ov-h">年ごとの客付け件数</div><div class="ov-bars ov-year">';
     ys.forEach(y=>{
       const h = Math.round(y.count/maxc*100);
       html += '<div class="ovb" title="'+y.year+'年：'+y.count+'件'+(y.cancel?' / ｷｬﾝｾﾙ'+y.cancel:'')+'">'+
@@ -1496,7 +1496,7 @@ function renderBrokerStats(){
     const byYear = {};
     monthsAll.forEach(m => { const y = m.ym.slice(0,4); (byYear[y] = byYear[y] || []).push(m); });
     const yearKeys = Object.keys(byYear).sort();
-    html += '<div class="ov-chart"><div class="ov-h">📊 月ごとの客付け件数'
+    html += '<div class="ov-chart"><div class="ov-h">月ごとの客付け件数'
           + (fyValid ? '（'+fy+'年）' : '（年ごと）') + '</div>';
     const nowY = _now.getFullYear(), nowM = _now.getMonth()+1;
     yearKeys.forEach(y => {
@@ -1561,13 +1561,13 @@ function renderBrokerStats(){
           '<div class="mbar-col" data-tip-ym="'+k+'" data-tip-cnt="'+cnt+'" data-tip-props="'+esc(plist).replace(/"/g,'&quot;')+'"><span class="mbar-v">'+cnt+'</span><i style="height:'+Math.max(8,h)+'%"></i></div>'+
           '<span class="mbar-x">'+(isNow?'今月':lbl)+'</span></div>';
       }).join('');
-      monthChart = '<div class="bstat-months"><div class="bm-h">📊 月別の客付け（棒にカーソルで物件一覧）</div><div class="bm-chart">'+bars+'</div></div>';
+      monthChart = '<div class="bstat-months"><div class="bm-h">月別の客付け（棒にカーソルで物件一覧）</div><div class="bm-chart">'+bars+'</div></div>';
     }
     // よく客付けする物件 Best3
     let top3html = '';
     if(r.top3 && r.top3.length){
       const medals3 = ['🥇','🥈','🥉'];
-      top3html = '<div class="bstat-top3"><div class="bt3-h">🏆 よく客付けする物件</div><div class="bt3-list">' +
+      top3html = '<div class="bstat-top3"><div class="bt3-h">よく客付けする物件</div><div class="bt3-list">' +
         r.top3.map((t,ti)=>'<div class="bt3-item"><span class="bt3-rk">'+medals3[ti]+'</span><span class="bt3-nm">'+esc(t.name)+'</span><span class="bt3-ct">'+t.count+'件</span></div>').join('') +
         '</div></div>';
     }
@@ -1824,7 +1824,7 @@ function exportBrokerStatsPdf(){
   .noprint { position:fixed; top:10px; right:10px; }
   .noprint button { font-size:14px; font-weight:700; padding:8px 16px; border:none; border-radius:8px; background:#1f3a5f; color:#fff; cursor:pointer; }
 </style></head><body>
-<div class="noprint"><button onclick="window.print()">🖨 PDFとして保存 / 印刷</button></div>
+<div class="noprint"><button onclick="window.print()">PDFとして保存 / 印刷</button></div>
 <h1>客付業者 分析レポート</h1>
 <div class="sub">作成日：${dstr} ／ 集計期間：${period}（全客付け実績）${fyValid?'／年絞り込み: '+fy+'年':''}</div>
 <div class="rule"></div>
@@ -1898,7 +1898,7 @@ function renderDoneList(){
       '</div>' +
       (dDate ? '<div class="di-date">' + dateLabel + ' ' + dDate + '</div>' : '') +
       '<button class="di-back" onclick="KB.returnToBoard(event,\'' + c.id + '\')" title="一覧へ戻す">↩ 一覧へ戻す</button>' +
-      '<button class="di-del" onclick="KB.deleteFromDone(event,\'' + c.id + '\')" title="この契約を削除" style="border:none; background:#fdecec; color:#d32f2f; font-size:13px; font-weight:800; padding:8px 14px; border-radius:10px; cursor:pointer; font-family:inherit; white-space:nowrap; margin-left:8px;">🗑 削除</button>' +
+      '<button class="di-del" onclick="KB.deleteFromDone(event,\'' + c.id + '\')" title="この契約を削除" style="border:none; background:#fdecec; color:#d32f2f; font-size:13px; font-weight:800; padding:8px 14px; border-radius:10px; cursor:pointer; font-family:inherit; white-space:nowrap; margin-left:8px;">削除</button>' +
     '</div>';
   }).join('');
   updateDoneSelCount();
@@ -1961,7 +1961,7 @@ function updateDoneSelCount(){
   const checks = Array.from(document.querySelectorAll('#done-body .di-check'));
   const sel = checks.filter(ch => ch.checked).length;
   const delBtn = document.getElementById('done-del-selected');
-  if(delBtn){ delBtn.textContent = sel > 0 ? ('🗑 選択削除 (' + sel + ')') : '🗑 選択削除'; }
+  if(delBtn){ delBtn.textContent = sel > 0 ? ('選択削除 (' + sel + ')') : '選択削除'; }
   const csvBtn = document.getElementById('done-csv');
   if(csvBtn){ csvBtn.textContent = sel > 0 ? ('⬇ CSV出力 (' + sel + ')') : '⬇ CSV出力'; }
   const allBtn = document.getElementById('done-select-all');
@@ -3214,7 +3214,7 @@ function linkCurrentToSpot(){
     alert('紐づけ処理を実行しましたが、結果を判定できませんでした。区画が物件管理に登録されているかご確認ください。');
   }
 }
-// 🎉 完了お祝い演出(画面全体)
+// 完了お祝い演出(画面全体)
 function celebrateComplete(c){
   const name = (c.property || '') + (c.room ? ' ' + String(c.room).replace(/^P/i,'') + '号' : '');
   const ov = document.createElement('div');
