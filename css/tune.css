@@ -2729,3 +2729,44 @@ body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
   #ownerCards .ow-trash svg{ display:block; }
   #ownerCards .ow-trash::before{ content:none; }
 }
+
+
+/* ============================================================
+   pv-bstat-num : ランキングのグラフの「件数」を読める大きさにする
+     ・年ごと／月ごとの棒の上に出る数字が 11px で小さすぎたため、
+       大きく・濃くします。棒の高さや並びは変えていません。
+     ・色は付けず、黒の濃さだけで強弱を出しています。
+   このブロックを消せば元の大きさに戻ります。
+   ============================================================ */
+
+/* 棒の上に出る件数 */
+#bstat-body .ovb-v{
+  font-size:16px;
+  font-weight:800;
+  color:var(--pv-ink,#17171a);
+  letter-spacing:-.02em;
+}
+/* 年ごとのグラフは棒が太いので、さらに大きく */
+#bstat-body .ov-year .ovb-v{ font-size:20px; }
+
+/* 数字を大きくしたぶん、棒の上のすき間を広げます(棒がつぶれないよう背も少し高く) */
+#bstat-body .ovb-col{ padding-top:24px; height:112px; }
+#bstat-body .ov-year .ovb-col{ padding-top:28px; height:120px; }
+
+/* 棒の下のラベル(年・月)も、数字に負けない大きさに */
+#bstat-body .ovb-x{ font-size:11.5px; }
+#bstat-body .ov-year .ovb-x{ font-size:12.5px; }
+
+/* 「2025年 42 件」の見出し */
+#bstat-body .ovy-h{ font-size:14px; }
+#bstat-body .ovy-h b{ font-size:20px; }
+
+/* 業者カードの中の月別グラフも同じだけ大きく */
+#bstat-body .mbar-v{ font-size:14px; font-weight:800; }
+
+@media (max-width:860px){
+  #bstat-body .ovb-v{ font-size:14px; }
+  #bstat-body .ov-year .ovb-v{ font-size:18px; }
+  #bstat-body .ovy-h b{ font-size:18px; }
+  #bstat-body .mbar-v{ font-size:12.5px; }
+}
