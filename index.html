@@ -1011,11 +1011,30 @@
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
-        <button class="btn btn-outline btn-sm" onclick="testCloudPing()">🔌 接続テスト</button>
-        <button class="btn btn-sm" onclick="cloudSaveAll()" id="cloud-upload-btn">⬆️ 全データをクラウドへ送信</button>
-        <button class="btn btn-outline btn-sm" onclick="cloudLoadAll()" id="cloud-download-btn">⬇️ クラウドから読込</button>
-        <button class="btn btn-outline btn-sm" onclick="openLoginHistory()">📜 ログイン履歴を見る</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        <button class="btn btn-outline btn-sm" onclick="testCloudPing()">接続テスト</button>
+        <button class="btn btn-outline btn-sm" onclick="openLoginHistory()">ログイン履歴を見る</button>
       </div>
+      <!-- ここから下は、ふだん使わない操作です。
+           押し間違いを防ぐため、たたんだ状態にしてあります。
+           実行前に、決められた文字の入力も求めます(js/core.js の pv-danger-guard)。 -->
+      <details style="margin-top:14px;border:1px solid #e0b4b0;border-radius:10px;background:#fdf7f6;">
+        <summary style="cursor:pointer;padding:11px 13px;font-size:12.5px;font-weight:800;color:#b0362c;">
+          ⚠ 復旧用の操作（ふだんは開かないでください）
+        </summary>
+        <div style="padding:0 13px 13px;">
+          <div style="font-size:11.5px;line-height:1.75;color:#7a2b23;margin-bottom:10px;">
+            データは<b>自動で同期</b>されています。下の2つを押す必要はふだんありません。<br>
+            使うのは、<b>クラウドが壊れたとき</b>と<b>この端末のデータが消えたとき</b>だけです。<br>
+            押し間違えると、正しいデータが上書きされて<b>元に戻せなくなる</b>ことがあります。
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-sm" onclick="cloudSaveAll()" id="cloud-upload-btn">⬆️ 全データをクラウドへ送信</button>
+            <button class="btn btn-outline btn-sm" onclick="cloudLoadAll()" id="cloud-download-btn">⬇️ クラウドから読込</button>
+          </div>
+        </div>
+      </details>
+
       <div id="cloud-log" style="margin-top:14px;font-size:11px;padding:10px;background:#f5f5f5;border:1px solid #ddd;max-height:200px;overflow-y:auto;white-space:pre-wrap;line-height:1.5;display:none;"></div>
       <div style="margin-top:16px;padding:10px;background:#fef9c3;border:1px solid #ca8a04;font-size:12px;line-height:1.7;">
         <strong>📋 使い方:</strong><br>
