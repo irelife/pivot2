@@ -904,6 +904,7 @@ function generateShoudakuPrint(data){
     '<\/body><\/html>';
   // 承諾書は新しいタブで開いて印刷する(A4横2枚の改ページを確実にするため)
   try{
+    if(window.PV_IS_IOS){ showDocOverlay(html, '📋 保管場所使用承諾書'); return; }
     const w = window.open('', '_blank');
     if(w && w.document){
       w.document.open();
