@@ -2509,3 +2509,29 @@ body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
 @media (max-width:860px){
   #ownerCards .ow-trash{ border-radius:14px; }
 }
+
+
+/* ============================================================
+   pv-rent-tabs : オーナーメールのタブが途中で改行されるのを直す
+     「明細取込・送信」が「明細取／込・送信」のように
+     真ん中で折り返されていたので、折り返さないようにし、
+     スマホでは文字と余白を少し詰めて4つとも収まるようにします。
+   このブロックを消せば元に戻ります。
+   ============================================================ */
+#rent-view .tab{ white-space:nowrap; }
+
+@media (max-width:860px){
+  #rent-view .tabs{
+    flex-wrap:nowrap;          /* 縦に折り返さない */
+    overflow-x:auto;           /* それでも入らない機種では横に滑らせる */
+    -webkit-overflow-scrolling:touch;
+    gap:5px;
+    scrollbar-width:none;
+  }
+  #rent-view .tabs::-webkit-scrollbar{ display:none; }
+  #rent-view .tab{
+    flex:0 0 auto;             /* 幅を縮められて改行するのを防ぐ */
+    font-size:12.5px;
+    padding:9px 10px;
+  }
+}
