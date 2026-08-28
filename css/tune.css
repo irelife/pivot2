@@ -3078,3 +3078,67 @@ body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
   #keiyaku-modal  .modal-body > h4,
   #seikyu-modal   .modal-body > h4{ margin:20px 0 12px!important; }
 }
+
+
+/* ============================================================
+   pv-sheet-wide : 契約の編集を左右に広げ、獲得アイテムを正方形にする
+     ・シートの幅が 880px しかなく、アイテムが横に7個ぎっしり並んで
+       詰まって見えていました。幅を広げ、すき間を空けます。
+     ・アイテムは縦横おなじ長さ(正方形)のタイルにして、
+       アイコン・名前・日付を真ん中にそろえます。
+   このブロックを消せば、いまの幅・形に戻ります。
+   ============================================================ */
+
+/* ---- ① シートを左右に広げる ---- */
+#kb-view .sheet{
+  max-width:min(1320px, 96vw);
+}
+@media (min-width:1000px){
+  #kb-view .sheet-body{ padding:26px 36px; }
+}
+/* スマホは今までどおり画面いっぱいのままにします */
+@media (max-width:768px){
+  #kb-view .sheet{ max-width:100%; }
+}
+
+/* ---- ② 獲得アイテムを正方形のタイルに ---- */
+#kb-view .dd-grid{
+  gap:14px;
+  justify-content:flex-start;
+}
+#kb-view .dd-item{
+  width:calc((100% - 84px) / 7);
+  aspect-ratio:1 / 1;
+  padding:10px 8px;
+  justify-content:center;   /* 中身を上下まんなかに */
+  gap:6px;
+  border-radius:16px;
+}
+
+/* ---- ③ 正方形の中で、中身が縦にはみ出さないようにする ---- */
+#kb-view .dd-item .dd-label{
+  font-size:13.5px; line-height:1.25; text-align:center;
+  overflow-wrap:anywhere; word-break:normal;
+}
+#kb-view .dd-item .dd-note{ font-size:11.5px; line-height:1.2; text-align:center; }
+#kb-view .dd-item .dd-cycle-hint{ font-size:10.5px; line-height:1.2; }
+#kb-view .dd-item .dd-date-edit{ margin-top:1px; }
+
+/* ---- ④ 画面幅ごとの個数。1個が小さくなりすぎないようにします ---- */
+@media (max-width:1180px){
+  #kb-view .dd-item{ width:calc((100% - 70px) / 6); }
+}
+@media (max-width:1000px){
+  #kb-view .dd-item{ width:calc((100% - 56px) / 5); }
+}
+@media (max-width:860px){
+  #kb-view .dd-grid{ gap:10px; }
+  #kb-view .dd-item{
+    width:calc((100% - 30px) / 4);
+    aspect-ratio:1 / 1;
+    padding:8px 5px;
+  }
+}
+@media (max-width:520px){
+  #kb-view .dd-item{ width:calc((100% - 20px) / 3); }
+}
