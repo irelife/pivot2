@@ -2636,3 +2636,43 @@ body:has(#bstat-modal.active) #pv-side a[data-a="rank"]{
   #list .pref-body{grid-template-columns:1fr;gap:8px;padding:10px;}
   #list .pref-body .bld-card{min-height:0;padding:14px 44px 14px 16px;border-radius:12px;}
 }
+
+
+/* ============================================================
+   pv-tou-master : 「棟マスター」を見落とされないように大きくする
+     ・別棟がある物件で登録し忘れると、区画の棟が選べず住所も出ないため、
+       小さな注記ではなく、目に入る枠として出します。
+     ・色は付けず、白地＋黒の線だけで組んでいます。
+   このブロックを消せば、ふつうの見出しに戻ります。
+   ============================================================ */
+.tou-master{
+  border:1px solid #1a1a1c;
+  border-radius:10px;
+  background:#fff;
+  padding:16px 18px;
+}
+.tou-master-head{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  margin:0 0 10px 0;padding-bottom:10px;
+  border-bottom:1px solid #e3e3e6;
+}
+.tou-master-title{
+  font-size:17px;font-weight:800;letter-spacing:.06em;color:#111114;
+  margin:0;
+}
+.tou-master .tou-master-add{
+  font-size:13px;font-weight:700;padding:8px 18px;border-radius:999px;
+  background:#111114;color:#fff;border:0;cursor:pointer;line-height:1;
+}
+.tou-master .tou-master-add:hover{ background:#3a3a40; }
+.tou-master-lead{
+  font-size:13.5px;line-height:1.85;color:#3d3d42;margin-bottom:10px;
+}
+.tou-master-lead b{ color:#111114;font-weight:800;border-bottom:2px solid #111114; }
+
+@media (max-width:860px){
+  .tou-master{padding:13px 14px;}
+  .tou-master-title{font-size:16px;}
+  .tou-master-lead{font-size:13px;line-height:1.8;}
+  .tou-master .tou-master-add{width:100%;text-align:center;padding:10px 0;}
+}
