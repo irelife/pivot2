@@ -1,5 +1,5 @@
 /*************************************************************
- * オーナー一覧 Excel取込  owner-import-2026-08-29b
+ * オーナー一覧 Excel取込  owner-import-2026-08-29c
  *
  *  「家主基本情報一覧.xlsx」をそのまま読み込みます。
  *   ・所有者別      … 所有者／メールアドレス／物件
@@ -19,6 +19,10 @@
  *   ・同じ Excel から「物件一覧」にも登録できます（物件名・郵便番号・住所）。
  *     区画は0のまま。同じ名前の物件があれば、住所だけ直します。
  *     区画・配置図・写真には触りません。
+ *   ・「○○ A」「○○ B」「○○ 東」のように棟で分かれている物件は、
+ *       住所が同じ → A/B を外して 1つの物件にまとめます
+ *       住所が違う → 1つの物件にして、2つめ以降を「棟マスター」に入れます
+ *     （メイン住所には A の住所、棟マスターに B の住所が自動で入ります）
  *************************************************************/
 
 /* 物件名をカタカナ表記に直す。
@@ -196,6 +200,67 @@ function oiBuildPlan(map, info, owners){
   return { same, maybe, neu };
 }
 
+/* ===== 「○○ A」「○○ B」を1つの物件にまとめる =====
+   住所が同じなら A/B を外して1物件に。
+   住所が違うなら、1つめをメイン、2つめ以降を「棟マスター」に入れます。 */
+const OI_TOU_PATTERNS = [
+  /^(.*?)[\s]*([A-Za-zＡ-Ｚａ-ｚ])棟$/,          // ○○A棟
+  /^(.*?)[\s]*([東西南北])棟$/,                  // ○○東棟
+  /^(.*?)[\s]*[（(]([東西南北])[）)]$/,          // ○○（東）
+  /^(.*?)[\s]+([A-Za-zＡ-Ｚａ-ｚ])$/,            // ○○ A
+  /^(.*?)[\s]+([東西南北])$/,                    // ○○ 東
+  /^(.*?)[\s]*([東西南北])$/                     // ○○東
+];
+function oiSplitTou(name){
+  const n = String(name || "").trim();
+  for (let i = 0; i < OI_TOU_PATTERNS.length; i++){
+    const m = n.match(OI_TOU_PATTERNS[i]);
+    if (m && m[1].trim().length >= 2) return { base: m[1].trim(), tou: m[2] };
+  }
+  return { base: n, tou: "" };
+}
+function oiMergeTou(bldg){
+  const g = new Map();   // 本体の名前 → [{name, tou, zip, addr}]
+  bldg.forEach((v, name) => {
+    const s = oiSplitTou(name);
+    if (!g.has(s.base)) g.set(s.base, []);
+    g.get(s.base).push({ name: name, tou: s.tou, zip: v.zip || "", addr: v.addr || "" });
+  });
+  const out = new Map();
+  let merged = 0, toued = 0;
+  g.forEach((list, base) => {
+    if (list.length === 1){
+      const x = list[0];
+      out.set(x.name, { zip:x.zip, addr:x.addr, mainTou:"", tous:[] });
+      return;
+    }
+    // 棟の名前の順に並べます（A→B→C／東→西→南→北）
+    const ord = "東西南北";
+    list.sort((a, b) => {
+      const ia = ord.indexOf(a.tou), ib = ord.indexOf(b.tou);
+      if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+      return String(a.tou).localeCompare(String(b.tou), "ja");
+    });
+    const addrs = {};
+    list.forEach(x => { addrs[x.addr || ""] = 1; });
+    if (Object.keys(addrs).length === 1){
+      // 住所が同じ → A/B を外して1つに
+      out.set(base, { zip:list[0].zip, addr:list[0].addr, mainTou:"", tous:[] });
+      merged += list.length - 1;
+    } else {
+      // 住所が違う → 1つめをメイン、2つめ以降を棟マスターへ
+      const head = list[0], rest = list.slice(1);
+      out.set(base, {
+        zip: head.zip, addr: head.addr, mainTou: head.tou || "",
+        tous: rest.map(x => ({ tou: x.tou || "", zip: x.zip || "", addr: x.addr || "" }))
+      });
+      toued += rest.length;
+    }
+  });
+  out._merged = merged; out._toued = toued;
+  return out;
+}
+
 /* ===== 物件一覧（buildings.js の保存領域）への登録 =====
    ★ contracts.js / ownermail.js は自分の中に包まれているので、
      ここで見える loadAll / saveAll / renderAll は buildings.js のものです。 */
@@ -203,7 +268,8 @@ function oiBldKey(s){
   return String(s || "").normalize("NFKC").replace(/[\s　]/g, "").toLowerCase();
 }
 function oiCountBuildings(bldg){
-  const out = { total: bldg ? bldg.size : 0, add: 0, upd: 0 };
+  const out = { total: bldg ? bldg.size : 0, add: 0, upd: 0,
+                merged: (bldg && bldg._merged) || 0, toued: (bldg && bldg._toued) || 0 };
   if (!bldg || !bldg.size) return out;
   let all = {};
   try{ all = (typeof pbLoadAll === "function") ? (pbLoadAll() || {}) : {}; }catch(e){}
@@ -229,13 +295,18 @@ function oiApplyBuildings(bldg){
       const b = all[idx[k]];
       if (v.addr) b.addr = v.addr;      // 住所だけ直します
       if (v.zip)  b.zip  = v.zip;
+      if (v.mainTou && !b.main_tou) b.main_tou = v.mainTou;
+      // 棟マスターは、まだ登録が無いときだけ入れます（手で直した分を消さないため）
+      if (v.tous && v.tous.length && !(Array.isArray(b.tou_addrs) && b.tou_addrs.length)){
+        b.tou_addrs = v.tous.slice();
+      }
       upd++;                            // 区画・配置図・写真はそのまま
     } else {
       const id = "bld_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
       all[id] = {
         id: id, name: name, zip: v.zip || "", addr: v.addr || "",
-        spots: [], main_tou: "", layout_id: "", layout2_id: "",
-        mime: {}, photo_ids: [], tou_addrs: []
+        spots: [], main_tou: v.mainTou || "", layout_id: "", layout2_id: "",
+        mime: {}, photo_ids: [], tou_addrs: (v.tous || []).slice()
       };
       idx[k] = id;
       add++;
@@ -291,6 +362,8 @@ function oiShowPreview(plan, owners){
         ? '<div class="oi-bld"><label><input type="checkbox" id="oi-bld-on" checked>' +
             '<b>物件一覧にも登録する</b>' +
             '<span>新しく作る ' + plan.bldgStat.add + '件 ／ 住所だけ直す ' + plan.bldgStat.upd + '件' +
+            (plan.bldgStat.merged ? '<br>「○○ A」「○○ B」で住所が同じ ' + plan.bldgStat.merged + '件は、A/Bを外して1つにまとめます。' : '') +
+            (plan.bldgStat.toued  ? '<br>住所が違う棟 ' + plan.bldgStat.toued + '件は、「棟マスター」に住所ごと登録します。' : '') +
             '<br>区画は0のまま。すでにある物件の区画・配置図・写真には触りません。</span>' +
           '</label></div>'
         : '') +
@@ -397,7 +470,7 @@ async function oiImportWorkbook(file){
     const { map, info, bldg } = await oiReadWorkbook(file);
     if (map.size === 0){ say('<span style="color:#c00">オーナーが1件も読み取れませんでした。</span>'); return; }
     const plan = oiBuildPlan(map, info, C.owners);
-    plan.bldg = bldg || new Map();
+    plan.bldg = oiMergeTou(bldg || new Map());
     plan.bldgStat = oiCountBuildings(plan.bldg);
     say('突き合わせました。内容を確認してください。');
     oiShowPreview(plan, C.owners);
