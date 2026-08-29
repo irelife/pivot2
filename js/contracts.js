@@ -1438,7 +1438,8 @@ function computeBrokerStats(){
     OKAYAMA_HISTORY_RAW.forEach(a => {
       const ob = String(a[2] || '').trim(); if(!ob) return;
       const oh = { property:a[0], room:a[1], broker:ob, staff:a[3],
-                   contractDate:a[4], applyDate:a[5], status:a[6] };
+                   contractDate:/^\d{4}-\d{2}-\d{2}$/.test(a[4] || '') ? a[4] : '',
+                   applyDate:a[5], status:a[6] };
       const ow = _histWhen(oh);
       if(fyValid && ow.year !== fy) return;
       const oRoom = oh.room ? String(oh.room).replace(/^P/i,'').replace(/\.0$/,'') : '';
