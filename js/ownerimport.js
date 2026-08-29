@@ -1,5 +1,5 @@
 /*************************************************************
- * オーナー一覧 Excel取込  owner-import-2026-08-29a
+ * オーナー一覧 Excel取込  owner-import-2026-08-29b
  *
  *  「家主基本情報一覧.xlsx」をそのまま読み込みます。
  *   ・所有者別      … 所有者／メールアドレス／物件
@@ -16,6 +16,9 @@
  *     1件ずつ「同じ／別」を選べます。
  *   ・物件はどのモードでも消しません（足すだけ）。
  *     エリアの違う物件を持つオーナーでも、今の物件は残ります。
+ *   ・同じ Excel から「物件一覧」にも登録できます（物件名・郵便番号・住所）。
+ *     区画は0のまま。同じ名前の物件があれば、住所だけ直します。
+ *     区画・配置図・写真には触りません。
  *************************************************************/
 
 /* 物件名をカタカナ表記に直す。
@@ -102,9 +105,12 @@ async function oiReadWorkbook(file){
   const cName = oiFindCol(headO, "所有者", "家主");
   const cMail = oiFindCol(headO, "メール");
   const cProp = oiFindCol(headO, "物件", "物　件");
+  const cZip  = oiFindCol(headO, "郵便");
+  const cAddr = oiFindCol(headO, "住所");
   if (cName < 0) throw new Error("「所有者」の列が見つかりません。シートを確認してください。");
 
-  const map = new Map();   // key → {name, email, props:Set}
+  const map  = new Map();  // key → {name, email, props:Set}
+  const bldg = new Map();  // 物件名 → {zip, addr}
   for (let i = hO + 1; i < rowsO.length; i++){
     const r = rowsO[i] || [];
     const nameRaw = String(r[cName] || "").trim();
@@ -116,7 +122,14 @@ async function oiReadWorkbook(file){
     const mail = cMail >= 0 ? String(r[cMail] || "").trim() : "";
     if (mail && !e.email) e.email = mail;
     const p = cProp >= 0 ? oiPropName(r[cProp]) : "";
-    if (p) e.props.add(p);
+    if (p){
+      e.props.add(p);
+      // 物件一覧に登録するための郵便番号・住所（この行の物件のもの）
+      const z = cZip  >= 0 ? String(r[cZip]  || "").trim() : "";
+      const a = cAddr >= 0 ? String(r[cAddr] || "").trim() : "";
+      if (!bldg.has(p)) bldg.set(p, { zip:z, addr:a });
+      else { const g = bldg.get(p); if (!g.zip && z) g.zip = z; if (!g.addr && a) g.addr = a; }
+    }
   }
 
   /* --- 家主基本情報：住所・TEL など --- */
@@ -156,7 +169,7 @@ async function oiReadWorkbook(file){
       }
     }
   }
-  return { map, info };
+  return { map, info, bldg };
 }
 
 /* ===== ② 今のオーナー一覧と突き合わせる（まだ書き換えません） ===== */
@@ -181,6 +194,56 @@ function oiBuildPlan(map, info, owners){
     neu.push(item);
   });
   return { same, maybe, neu };
+}
+
+/* ===== 物件一覧（buildings.js の保存領域）への登録 =====
+   ★ contracts.js / ownermail.js は自分の中に包まれているので、
+     ここで見える loadAll / saveAll / renderAll は buildings.js のものです。 */
+function oiBldKey(s){
+  return String(s || "").normalize("NFKC").replace(/[\s　]/g, "").toLowerCase();
+}
+function oiCountBuildings(bldg){
+  const out = { total: bldg ? bldg.size : 0, add: 0, upd: 0 };
+  if (!bldg || !bldg.size) return out;
+  let all = {};
+  try{ all = (typeof pbLoadAll === "function") ? (pbLoadAll() || {}) : {}; }catch(e){}
+  const have = new Set(Object.values(all).map(b => oiBldKey((b || {}).name)));
+  bldg.forEach((v, name) => { if (have.has(oiBldKey(name))) out.upd++; else out.add++; });
+  return out;
+}
+function oiApplyBuildings(bldg){
+  if (!bldg || !bldg.size) return { add:0, upd:0, ok:true };
+  if (typeof pbLoadAll !== "function" || typeof saveAll !== "function"){
+    return { add:0, upd:0, ok:false };
+  }
+  const all = pbLoadAll() || {};
+  const idx = {};
+  Object.keys(all).forEach(k => {
+    const n = oiBldKey((all[k] || {}).name);
+    if (n && !(n in idx)) idx[n] = k;
+  });
+  let add = 0, upd = 0;
+  bldg.forEach((v, name) => {
+    const k = oiBldKey(name);
+    if (idx[k]){
+      const b = all[idx[k]];
+      if (v.addr) b.addr = v.addr;      // 住所だけ直します
+      if (v.zip)  b.zip  = v.zip;
+      upd++;                            // 区画・配置図・写真はそのまま
+    } else {
+      const id = "bld_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+      all[id] = {
+        id: id, name: name, zip: v.zip || "", addr: v.addr || "",
+        spots: [], main_tou: "", layout_id: "", layout2_id: "",
+        mime: {}, photo_ids: [], tou_addrs: []
+      };
+      idx[k] = id;
+      add++;
+    }
+  });
+  saveAll(all);
+  try{ if (typeof renderAll === "function") renderAll(); }catch(e){}
+  return { add, upd, ok:true };
 }
 
 /* ===== ③ 突き合わせの結果を見せる ===== */
@@ -224,6 +287,13 @@ function oiShowPreview(plan, owners){
         '<label><input type="radio" name="oimode" value="full">' +
           '<b>連絡先も全部更新する</b><span>メール・住所・TEL・FAX・インボイス番号などを書き換えます</span></label>' +
       '</div>' +
+      (plan.bldgStat && plan.bldgStat.total
+        ? '<div class="oi-bld"><label><input type="checkbox" id="oi-bld-on" checked>' +
+            '<b>物件一覧にも登録する</b>' +
+            '<span>新しく作る ' + plan.bldgStat.add + '件 ／ 住所だけ直す ' + plan.bldgStat.upd + '件' +
+            '<br>区画は0のまま。すでにある物件の区画・配置図・写真には触りません。</span>' +
+          '</label></div>'
+        : '') +
       (plan.maybe.length
         ? '<div class="oi-sec">同じか迷うもの（1件ずつ選んでください）</div>' +
           '<div class="oi-list oi-maybe-list">' + plan.maybe.map(maybeRow).join('') + '</div>'
@@ -245,13 +315,14 @@ function oiShowPreview(plan, owners){
       const el = ov.querySelector('input[name="oim' + i + '"]:checked');
       return (el && el.value === "new") ? "new" : "same";
     });
+    const bldOn = !!(ov.querySelector("#oi-bld-on") || {}).checked;
     ov.remove();
-    oiApply(plan, mode, pick);
+    oiApply(plan, mode, pick, bldOn);
   };
 }
 
 /* ===== ④ 実際に取り込む ===== */
-function oiApply(plan, mode, pick){
+function oiApply(plan, mode, pick, bldOn){
   const C = window.RENT_CORE;
   if (!C) return;
   const owners = C.owners;
@@ -298,12 +369,20 @@ function oiApply(plan, mode, pick){
   });
   plan.neu.forEach(x => { makeNew(x); added++; });
 
+  // 物件一覧にも登録する（チェックが入っているときだけ）
+  let bres = { add:0, upd:0, ok:true };
+  if (bldOn && plan.bldg && plan.bldg.size) bres = oiApplyBuildings(plan.bldg);
+
   const noMail = owners.filter(o => !String(o.email || "").trim()).length;
   C.save(); C.render(); C.flash();
   say('取り込みました　<b>新規 ' + added + '件</b>／物件を足した ' + updated + '件'
     + (mode === "propsonly" ? '　<span style="color:#555;">※連絡先は触っていません</span>' : '')
     + (mode === "addr" ? '　<span style="color:#555;">※住所だけ更新しました</span>' : '')
-    + (noMail ? '　<span style="color:#c0392b;font-weight:700;">メール未入力 ' + noMail + '件</span>' : ''));
+    + (noMail ? '　<span style="color:#c0392b;font-weight:700;">メール未入力 ' + noMail + '件</span>' : '')
+    + ((bres.add || bres.upd)
+        ? '<br><span style="color:#17171a;">物件一覧：新規 <b>' + bres.add + '件</b>／住所を直した ' + bres.upd + '件</span>'
+        : '')
+    + ((bldOn && !bres.ok) ? '<br><span style="color:#c00;">物件一覧には登録できませんでした（物件画面の準備ができていません）</span>' : ''));
   C.toast("オーナー情報を取り込みました（新規 " + added + " / 更新 " + updated + "）");
 }
 
@@ -315,9 +394,11 @@ async function oiImportWorkbook(file){
   const say = (t) => { if (stat) stat.innerHTML = t; };
   say("読み込み中…");
   try{
-    const { map, info } = await oiReadWorkbook(file);
+    const { map, info, bldg } = await oiReadWorkbook(file);
     if (map.size === 0){ say('<span style="color:#c00">オーナーが1件も読み取れませんでした。</span>'); return; }
     const plan = oiBuildPlan(map, info, C.owners);
+    plan.bldg = bldg || new Map();
+    plan.bldgStat = oiCountBuildings(plan.bldg);
     say('突き合わせました。内容を確認してください。');
     oiShowPreview(plan, C.owners);
   } catch (err){
@@ -355,6 +436,10 @@ async function oiImportWorkbook(file){
     "#oi-prev .oi-mode label{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:14px;cursor:pointer;}",
     "#oi-prev .oi-mode b{font-weight:800;color:#17171a;}",
     "#oi-prev .oi-mode span{font-size:12.5px;color:#8a8a90;flex:1 0 100%;padding-left:24px;}",
+    "#oi-prev .oi-bld{padding:12px 20px;border-top:1px solid #ededf0;background:#fafafa;}",
+    "#oi-prev .oi-bld label{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:14px;cursor:pointer;}",
+    "#oi-prev .oi-bld b{font-weight:800;color:#17171a;}",
+    "#oi-prev .oi-bld span{font-size:12.5px;color:#8a8a90;flex:1 0 100%;padding-left:24px;line-height:1.8;}",
     "#oi-prev .oi-sec{padding:12px 20px 6px;font-size:12.5px;font-weight:800;color:#8a8a90;",
     "  letter-spacing:.08em;border-top:1px solid #ededf0;}",
     "#oi-prev .oi-list{overflow-y:auto;max-height:24vh;padding:0 20px 8px;}",
