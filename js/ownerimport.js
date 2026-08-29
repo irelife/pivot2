@@ -29,16 +29,23 @@ function oiPropName(raw){
   const src = String(raw || "").trim();
   if (!src) return "";
   if (OI_NAME_FIX[src]) return OI_NAME_FIX[src];
-  let s = src.replace(/^\(\d+\)\s*/, "").replace(/　/g, " ").trim();
+  let s = src.replace(/^\(\d+\)\s*/, "").trim();
   const m = s.match(/[（(]([^）)]+)[）)]\s*$/);
-  if (!m) return s.replace(/\s+/g, "");
-  let kana = m[1].normalize("NFKC").replace(/\s+/g, "");
-  const head = s.slice(0, m.index).trim();
-  const tail = head.split(/\s+/).slice(1).filter(t => {
-    if (/^[A-Za-z]+$/.test(t)) return t === t.toUpperCase() && t.length >= 3;
-    return true;
-  });
-  return kana + tail.join("");
+  const head = m ? s.slice(0, m.index).trim() : s;
+  /* ★カッコの中をカナ名として採るのは、
+     カッコの前がローマ字のとき（＝古い書式 "Amenity（アメニティ）"）だけにします。
+     こうしないと「シルヴィア　（東）」が「東」になってしまいます。
+     すでに整えてある名前は、書いてあるとおりに使います。 */
+  if (m && /[A-Za-z]/.test(head)){
+    const kana = m[1].normalize("NFKC").replace(/\s+/g, "");
+    const tail = head.replace(/　/g, " ").split(/\s+/).slice(1).filter(t => {
+      if (/^[A-Za-z]+$/.test(t)) return t === t.toUpperCase() && t.length >= 3;
+      return true;
+    });
+    return kana + tail.join("");
+  }
+  // 全角スペースは半角に、続いた空白は1つに、前後は詰める（それ以外は変えません）
+  return s.replace(/　/g, " ").replace(/\s+/g, " ").trim();
 }
 
 /* 突き合わせ用に名前をそろえる（空白・全半角・敬称のゆれを吸収） */
@@ -209,10 +216,13 @@ function oiShowPreview(plan, owners){
         '<div><b>' + nProp + '</b><span>足される物件</span></div>' +
       '</div>' +
       '<div class="oi-mode">' +
-        '<label><input type="radio" name="oimode" value="propsonly" checked>' +
-          '<b>物件だけ足す</b><span>今あるオーナーのメール・住所・TELには触りません（おすすめ）</span></label>' +
+        '<label><input type="radio" name="oimode" value="addr" checked>' +
+          '<b>物件を足す ＋ 住所を更新</b>' +
+          '<span>郵便番号と住所だけ Excel の内容にします。メール・TEL・FAX は触りません（おすすめ）</span></label>' +
+        '<label><input type="radio" name="oimode" value="propsonly">' +
+          '<b>物件だけ足す</b><span>今あるオーナーの連絡先には一切触りません</span></label>' +
         '<label><input type="radio" name="oimode" value="full">' +
-          '<b>連絡先も更新する</b><span>メール・住所・TEL などを Excel の内容に書き換えます</span></label>' +
+          '<b>連絡先も全部更新する</b><span>メール・住所・TEL・FAX・インボイス番号などを書き換えます</span></label>' +
       '</div>' +
       (plan.maybe.length
         ? '<div class="oi-sec">同じか迷うもの（1件ずつ選んでください）</div>' +
@@ -230,7 +240,7 @@ function oiShowPreview(plan, owners){
   document.body.appendChild(ov);
   ov.querySelector(".oi-cancel").onclick = () => ov.remove();
   ov.querySelector(".oi-ok").onclick = () => {
-    const mode = (ov.querySelector('input[name="oimode"]:checked') || {}).value || "propsonly";
+    const mode = (ov.querySelector('input[name="oimode"]:checked') || {}).value || "addr";
     const pick = plan.maybe.map((x, i) => {
       const el = ov.querySelector('input[name="oim' + i + '"]:checked');
       return (el && el.value === "new") ? "new" : "same";
@@ -270,9 +280,12 @@ function oiApply(plan, mode, pick){
     const o = owners[x.at];
     if (!o) { makeNew(x); return; }
     addProps(o, x.props);
-    if (mode === "full"){
+    const b = x.base || {};
+    if (mode === "addr"){
+      // 郵便番号と住所だけ。メール・TEL などは触りません。
+      ["zip","addr"].forEach(f => { if (b[f]) o[f] = b[f]; });
+    } else if (mode === "full"){
       if (x.email) o.email = x.email;                    // 空欄では上書きしません
-      const b = x.base || {};
       FIELDS.forEach(f => { if (b[f]) o[f] = b[f]; });
     }
   };
@@ -289,6 +302,7 @@ function oiApply(plan, mode, pick){
   C.save(); C.render(); C.flash();
   say('取り込みました　<b>新規 ' + added + '件</b>／物件を足した ' + updated + '件'
     + (mode === "propsonly" ? '　<span style="color:#555;">※連絡先は触っていません</span>' : '')
+    + (mode === "addr" ? '　<span style="color:#555;">※住所だけ更新しました</span>' : '')
     + (noMail ? '　<span style="color:#c0392b;font-weight:700;">メール未入力 ' + noMail + '件</span>' : ''));
   C.toast("オーナー情報を取り込みました（新規 " + added + " / 更新 " + updated + "）");
 }
