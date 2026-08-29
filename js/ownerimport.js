@@ -1,5 +1,5 @@
 /*************************************************************
- * オーナー一覧 Excel取込  owner-import-2026-08-29d
+ * オーナー一覧 Excel取込  owner-import-2026-08-29e
  *
  *  「家主基本情報一覧.xlsx」をそのまま読み込みます。
  *   ・所有者別      … 所有者／メールアドレス／物件
@@ -33,6 +33,13 @@
  *   ・住所からどちらか判定できない物件は、名前を一覧で出します。
  *     初期状態では取り込みません（勝手に片方へ入れません）。
  *   ・オーナーはエリアで分けません。どちらの端末にも全部入ります。
+ *
+ *  ★2026-08-29e 追加
+ *   ・「前に取り込んだ分を消してから、入れ直す」ができます。
+ *     消すのは、この Excel に載っている名前の物件のうち
+ *       区画が0件 ／ 契約が1件も無い ／ 配置図も写真も無い
+ *     ものだけです。手で作った物件・使っている物件は消しません。
+ *     初期状態ではチェックが入っていません（勝手に消しません）。
  *************************************************************/
 
 /* 物件名をカタカナ表記に直す。
@@ -323,23 +330,77 @@ function oiAreaBuckets(bldg){
   });
   return b;
 }
-function oiCountBuildings(bldg){
+function oiCountBuildings(bldg, delList){
   let merged = 0, toued = 0;
   if (bldg) bldg.forEach(v => { merged += (v.dropped || 0); toued += ((v.tous || []).length); });
   const out = { total: bldg ? bldg.size : 0, add: 0, upd: 0, merged: merged, toued: toued };
   if (!bldg || !bldg.size) return out;
   let all = {};
   try{ all = (typeof pbLoadAll === "function") ? (pbLoadAll() || {}) : {}; }catch(e){}
+  if (delList && delList.length){
+    all = Object.assign({}, all);
+    delList.forEach(x => { delete all[x.id]; });
+  }
   const have = new Set(Object.values(all).map(b => oiBldKey((b || {}).name)));
   bldg.forEach((v, name) => { if (have.has(oiBldKey(name))) out.upd++; else out.add++; });
   return out;
 }
-function oiApplyBuildings(bldg){
-  if (!bldg || !bldg.size) return { add:0, upd:0, ok:true };
+/* ===== 前に取り込んだ分を片づける =====
+   消してよいのは、この Excel に出てくる名前の物件のうち
+     ・区画が0件
+     ・契約(進行中・履歴とも)に名前が出てこない
+     ・配置図・写真が無い
+   ものだけです。手で作った物件や、使っている物件は対象外にします。 */
+function oiContractPropNames(){
+  const out = new Set();
+  let ct = null;
+  try{ ct = JSON.parse(localStorage.getItem(ctKey()) || "{}"); }catch(e){ ct = null; }
+  const walk = (o, d) => {
+    if (!o || d > 6) return;
+    if (Array.isArray(o)) { o.forEach(x => walk(x, d + 1)); return; }
+    if (typeof o !== "object") return;
+    if (o.property) out.add(oiBldKey(o.property));
+    Object.keys(o).forEach(k => { const v = o[k]; if (v && typeof v === "object") walk(v, d + 1); });
+  };
+  walk(ct, 0);
+  return out;
+}
+function oiCleanupTargets(rawKeys){
+  const out = [];
+  if (!rawKeys || !rawKeys.size) return out;
+  if (typeof pbLoadAll !== "function") return out;
+  let all = {};
+  try{ all = pbLoadAll() || {}; }catch(e){ return out; }
+  const inUse = oiContractPropNames();
+  Object.keys(all).forEach(id => {
+    const b = all[id] || {};
+    const k = oiBldKey(b.name);
+    if (!rawKeys.has(k)) return;                                   // Excel に無い名前 → 触らない
+    if ((b.spots || []).length) return;                            // 区画がある → 触らない
+    if (inUse.has(k)) return;                                      // 契約がある → 触らない
+    if (b.layout_id || b.layout2_id) return;                       // 配置図がある → 触らない
+    if ((b.photo_ids || []).length) return;                        // 写真がある → 触らない
+    out.push({ id: id, name: b.name, addr: b.addr || "" });
+  });
+  out.sort((a, b) => String(a.name).localeCompare(String(b.name), "ja"));
+  return out;
+}
+function oiRawKeySet(plan){
+  const s = new Set();
+  try{ (plan.bldgRaw || new Map()).forEach((v, n) => s.add(oiBldKey(n))); }catch(e){}
+  try{ (plan.bldg    || new Map()).forEach((v, n) => s.add(oiBldKey(n))); }catch(e){}
+  return s;
+}
+function oiApplyBuildings(bldg, delIds){
   if (typeof pbLoadAll !== "function" || typeof saveAll !== "function"){
-    return { add:0, upd:0, ok:false };
+    return { add:0, upd:0, del:0, ok:false };
   }
+  if ((!bldg || !bldg.size) && !(delIds && delIds.length)) return { add:0, upd:0, del:0, ok:true };
   const all = pbLoadAll() || {};
+  let del = 0;
+  if (delIds && delIds.length){
+    delIds.forEach(id => { if (all[id]){ delete all[id]; del++; } });
+  }
   const idx = {};
   Object.keys(all).forEach(k => {
     const n = oiBldKey((all[k] || {}).name);
@@ -371,7 +432,7 @@ function oiApplyBuildings(bldg){
   });
   saveAll(all);
   try{ if (typeof renderAll === "function") renderAll(); }catch(e){}
-  return { add, upd, ok:true };
+  return { add, upd, del: del, ok:true };
 }
 
 /* ===== ③ 突き合わせの結果を見せる ===== */
@@ -390,6 +451,7 @@ function oiShowPreview(plan, owners){
     '<span class="oi-sub">物件 ' + x.props.length + '件' + (x.email ? ' ／ ' + oiEsc(x.email) : '') + '</span></div>';
   const bk  = oiAreaBuckets(plan.bldg);
   const def = oiDefaultArea();
+  const cl  = oiCleanupTargets(oiRawKeySet(plan));
   const maybeRow = (x, i) =>
     '<div class="oi-r oi-maybe">' +
       '<div class="oi-nm">' + oiEsc(x.name) + '<span class="oi-sub">（Excel）物件 ' + x.props.length + '件</span></div>' +
@@ -437,6 +499,17 @@ function oiShowPreview(plan, owners){
                 : '') +
             '</div>' +
             '<div class="oi-bld-stat" id="oi-bld-stat"></div>' +
+            (cl.length
+              ? '<div class="oi-clean"><label><input type="checkbox" id="oi-clean-on">' +
+                  '<b>先に、前に取り込んだ分を消してから入れ直す</b> <em>' + cl.length + '件</em></label>' +
+                  '<div class="oi-clean-note">この Excel に載っている物件のうち、' +
+                    '<u>区画0件・契約なし・配置図なし・写真なし</u>のものだけを消します。' +
+                    '手で作った物件や、使っている物件は消しません。</div>' +
+                  '<div class="oi-clean-list">' +
+                    cl.map(x => '<div>' + oiEsc(x.name) + (x.addr ? '　<span>' + oiEsc(x.addr) + '</span>' : '') + '</div>').join('') +
+                  '</div>' +
+                '</div>'
+              : '') +
           '</div>'
         : '') +
       (plan.maybe.length
@@ -461,8 +534,10 @@ function oiShowPreview(plan, owners){
     const box = ov.querySelector("#oi-bld-stat");
     if (!box) return;
     const sub = oiFilterBldg(plan.bldg, curArea(), curUnk());
-    const st  = oiCountBuildings(sub);
+    const clean = !!(ov.querySelector("#oi-clean-on") || {}).checked;
+    const st  = oiCountBuildings(sub, clean ? cl : null);
     box.innerHTML =
+      (clean ? '先に <b>' + cl.length + '件</b> 消してから、' : '') +
       '新しく作る <b>' + st.add + '件</b> ／ 住所だけ直す ' + st.upd + '件' +
       (st.merged ? '<br>「○○ A」「○○ B」で住所が同じ ' + st.merged + '件は、A/Bを外して1つにまとめます。' : '') +
       (st.toued  ? '<br>住所が違う棟 ' + st.toued + '件は、「棟マスター」に住所ごと登録します。' : '') +
@@ -471,6 +546,7 @@ function oiShowPreview(plan, owners){
   }
   Array.prototype.forEach.call(ov.querySelectorAll('input[name="oiarea"]'), el => { el.onchange = refreshBldStat; });
   const unkEl = ov.querySelector("#oi-unk-on"); if (unkEl) unkEl.onchange = refreshBldStat;
+  const clEl  = ov.querySelector("#oi-clean-on"); if (clEl) clEl.onchange = refreshBldStat;
   const bldOnEl = ov.querySelector("#oi-bld-on");
   if (bldOnEl) bldOnEl.onchange = () => {
     const a = ov.querySelector(".oi-area");
@@ -489,13 +565,15 @@ function oiShowPreview(plan, owners){
     });
     const bldOn = !!(ov.querySelector("#oi-bld-on") || {}).checked;
     const area  = curArea(), unk = curUnk();
+    const dels  = (ov.querySelector("#oi-clean-on") || {}).checked ? cl : [];
+    if (dels.length && !confirm('先に ' + dels.length + ' 件の物件を消してから登録し直します。\n\n（区画0件・契約なし・配置図なし・写真なしのものだけです）\n\nよろしいですか？')) return;
     ov.remove();
-    oiApply(plan, mode, pick, bldOn, area, unk);
+    oiApply(plan, mode, pick, bldOn, area, unk, dels);
   };
 }
 
 /* ===== ④ 実際に取り込む ===== */
-function oiApply(plan, mode, pick, bldOn, area, withUnknown){
+function oiApply(plan, mode, pick, bldOn, area, withUnknown, dels){
   const C = window.RENT_CORE;
   if (!C) return;
   const owners = C.owners;
@@ -543,10 +621,10 @@ function oiApply(plan, mode, pick, bldOn, area, withUnknown){
   plan.neu.forEach(x => { makeNew(x); added++; });
 
   // 物件一覧にも登録する（チェックが入っているときだけ）
-  let bres = { add:0, upd:0, ok:true };
+  let bres = { add:0, upd:0, del:0, ok:true };
   if (bldOn && plan.bldg && plan.bldg.size){
     const sub = oiFilterBldg(plan.bldg, area || "all", !!withUnknown);
-    bres = oiApplyBuildings(sub);
+    bres = oiApplyBuildings(sub, (dels || []).map(x => x.id));
   }
 
   const noMail = owners.filter(o => !String(o.email || "").trim()).length;
@@ -558,7 +636,8 @@ function oiApply(plan, mode, pick, bldOn, area, withUnknown){
     + ((bres.add || bres.upd)
         ? '<br><span style="color:#17171a;">物件一覧（' +
             (area === "hiroshima" ? "広島エリア" : area === "okayama" ? "岡山エリア" : "全部") +
-            '）：新規 <b>' + bres.add + '件</b>／住所を直した ' + bres.upd + '件</span>'
+            '）：' + (bres.del ? '消した ' + bres.del + '件／' : '') +
+            '新規 <b>' + bres.add + '件</b>／住所を直した ' + bres.upd + '件</span>'
         : '')
     + ((bldOn && !bres.ok) ? '<br><span style="color:#c00;">物件一覧には登録できませんでした（物件画面の準備ができていません）</span>' : ''));
   C.toast("オーナー情報を取り込みました（新規 " + added + " / 更新 " + updated + "）");
@@ -575,6 +654,7 @@ async function oiImportWorkbook(file){
     const { map, info, bldg } = await oiReadWorkbook(file);
     if (map.size === 0){ say('<span style="color:#c00">オーナーが1件も読み取れませんでした。</span>'); return; }
     const plan = oiBuildPlan(map, info, C.owners);
+    plan.bldgRaw = bldg || new Map();
     plan.bldg = oiMergeTou(bldg || new Map());
     plan.bldgStat = oiCountBuildings(plan.bldg);
     say('突き合わせました。内容を確認してください。');
@@ -628,6 +708,12 @@ async function oiImportWorkbook(file){
     "#oi-prev .oi-unk-list{max-height:88px;overflow-y:auto;margin:6px 0 0 22px;font-size:12px;color:#8a8a90;line-height:1.7;}",
     "#oi-prev .oi-bld-stat{margin:10px 0 0 24px;font-size:12.5px;color:#8a8a90;line-height:1.8;}",
     "#oi-prev .oi-bld-stat b{color:#17171a;}",
+    "#oi-prev .oi-clean{margin:10px 0 0 24px;padding:10px 12px;border:1.5px solid #17171a;border-radius:10px;background:#fff;}",
+    "#oi-prev .oi-clean label{display:flex;align-items:baseline;gap:8px;font-size:14px;cursor:pointer;}",
+    "#oi-prev .oi-clean em{font-style:normal;font-weight:800;margin-left:auto;}",
+    "#oi-prev .oi-clean-note{font-size:12px;color:#8a8a90;margin:6px 0 0 22px;line-height:1.7;}",
+    "#oi-prev .oi-clean-list{max-height:96px;overflow-y:auto;margin:6px 0 0 22px;font-size:12px;color:#3d3d42;line-height:1.7;}",
+    "#oi-prev .oi-clean-list span{color:#a8a8ae;}",
     "#oi-prev .oi-bld span{font-size:12.5px;color:#8a8a90;flex:1 0 100%;padding-left:24px;line-height:1.8;}",
     "#oi-prev .oi-sec{padding:12px 20px 6px;font-size:12.5px;font-weight:800;color:#8a8a90;",
     "  letter-spacing:.08em;border-top:1px solid #ededf0;}",
