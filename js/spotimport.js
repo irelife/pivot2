@@ -1,5 +1,5 @@
 /*************************************************************
- * 区画・契約 Excel一括取込  spot-import-2026-08-29a
+ * 区画・契約 Excel一括取込  spot-import-2026-08-29b
  *
  *  Excel を1枚ドロップすると、全物件の区画をまとめて入れます。
  *  1行 ＝ 1区画。シート「区画一覧」（無ければ先頭のシート）を読みます。
@@ -11,6 +11,10 @@
  *  ・Excel にある区画は、その内容で書き換えます
  *  ・PIVOT に無い物件名の行は取り込まず、一覧で出します
  *  ・取り込む前に必ず確認画面を出します
+ *
+ *  ★2026-08-29b 追加
+ *   ・PIVOT に無い物件名を、そのまま新しい物件として作れます。
+ *     （確認画面のチェックを入れたときだけ。初期状態は入っていません）
  *************************************************************/
 
 const SI_TYPES  = ['並','縦','軽','機'];
@@ -125,12 +129,12 @@ function siPlan(list){
   Object.keys(all).forEach(id => { const k = siKey((all[id] || {}).name); if(k && !(k in idx)) idx[k] = id; });
 
   const hit = new Map();     // 物件ID → { name, rows:Map(区画番号→行), add:[], upd:[] }
-  const miss = new Map();    // 見つからない物件名 → 件数
+  const miss = new Map();    // 見つからない物件名 → その行
   const dup = [];            // 同じ物件・同じ区画番号が2行以上
   const seen = {};
   list.forEach(r => {
     const id = idx[siKey(r.prop)];
-    if(!id){ miss.set(r.prop, (miss.get(r.prop) || 0) + 1); return; }
+    if(!id){ if(!miss.has(r.prop)) miss.set(r.prop, []); miss.get(r.prop).push(r); return; }
     const dk = id + '#' + r.no;
     if(seen[dk]){ dup.push(r.prop + ' の ' + r.no + '番（Excelの' + seen[dk] + '行目と' + r.row + '行目）'); }
     seen[dk] = r.row;
@@ -148,9 +152,27 @@ function siPlan(list){
 }
 
 /* ===== 実際に入れる ===== */
-function siApply(plan){
+let _siSeq = 0;
+function siNewBuilding(all, name){
+  let id = '';
+  do { id = 'bld_' + Date.now() + '_' + (_siSeq++) + '_' + Math.floor(Math.random() * 100000); } while (all[id]);
+  all[id] = { id:id, name:name, zip:'', addr:'', spots:[], main_tou:'',
+              layout_id:'', layout2_id:'', mime:{}, photo_ids:[], tou_addrs:[] };
+  return id;
+}
+function siApply(plan, makeMissing){
   const all = plan.all;
-  let addN = 0, updN = 0, bldN = 0;
+  let addN = 0, updN = 0, bldN = 0, newB = 0;
+  if(makeMissing && plan.miss.size){
+    plan.miss.forEach((rows, name) => {
+      const id = siNewBuilding(all, name);
+      newB++;
+      const v = { name:name, rows:new Map(), add:[], upd:[] };
+      rows.forEach(r => v.rows.set(r.no, r));
+      v.rows.forEach(r => v.add.push(r));
+      plan.hit.set(id, v);
+    });
+  }
   plan.hit.forEach((v, id) => {
     const b = all[id]; if(!b) return;
     const spots = Array.isArray(b.spots) ? b.spots.slice() : [];
@@ -177,7 +199,7 @@ function siApply(plan){
   });
   if(typeof saveAll === 'function') saveAll(all);
   try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
-  return { addN, updN, bldN };
+  return { addN, updN, bldN, newB };
 }
 
 /* ===== 画面 ===== */
@@ -231,7 +253,7 @@ async function siLoad(file){
 function siPreview(plan, rows, bad){
   let addN = 0, updN = 0;
   plan.hit.forEach(v => { addN += v.add.length; updN += v.upd.length; });
-  let missN = 0; plan.miss.forEach(n => { missN += n; });
+  let missN = 0; plan.miss.forEach(v => { missN += v.length; });
   const list = [];
   plan.hit.forEach(v => list.push(v));
   list.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ja'));
@@ -247,7 +269,11 @@ function siPreview(plan, rows, bad){
     (plan.miss.size
       ? '<div class="si-sec si-warn">PIVOT に無い物件名 ' + plan.miss.size + '件（' + missN + '行）… 取り込みません</div>' +
         '<div class="si-list">' + Array.from(plan.miss.keys()).map(n =>
-            '<div>' + siEsc(n) + ' <span>' + plan.miss.get(n) + '行</span></div>').join('') + '</div>'
+            '<div>' + siEsc(n) + ' <span>' + plan.miss.get(n).length + '行</span></div>').join('') + '</div>' +
+        '<div class="si-mk"><label><input type="checkbox" id="si-mk-on">' +
+          '<b>この物件を新しく作って登録する</b>' +
+          '<span>PIVOT に無い ' + plan.miss.size + '件を、Excelの名前のまま物件一覧に追加します。' +
+          '住所は空欄なので、あとで入れてください。</span></label></div>'
       : '') +
     (plan.dup.length
       ? '<div class="si-sec si-warn">同じ区画番号が2回以上出てきます ' + plan.dup.length + '件（あとの行が勝ちます）</div>' +
@@ -268,8 +294,12 @@ function siPreview(plan, rows, bad){
     '</div>';
   res.querySelector('.si-cancel').onclick = siClose;
   res.querySelector('.si-ok').onclick = () => {
-    if(!confirm('物件 ' + plan.hit.size + '件に、区画を新しく ' + addN + '件つくり、' + updN + '件を書き換えます。\n\nよろしいですか？')) return;
-    const r = siApply(plan);
+    const mk0 = !!(res.querySelector('#si-mk-on') || {}).checked;
+    if(!confirm('物件 ' + (plan.hit.size + (mk0 ? plan.miss.size : 0)) + '件に、区画を入れます。' +
+                (mk0 ? '\n（うち ' + plan.miss.size + '件は新しく作ります）' : '') +
+                '\n\nよろしいですか？')) return;
+    const mk = !!(res.querySelector('#si-mk-on') || {}).checked;
+    const r = siApply(plan, mk);
     res.innerHTML = '<div class="si-done">✅ 取り込みました<br>物件 <b>' + r.bldN + '件</b> ／ 区画を新しく <b>' + r.addN + '件</b> ／ 書き換え <b>' + r.updN + '件</b></div>' +
       '<div class="si-foot"><button type="button" class="si-ok">閉じる</button></div>';
     res.querySelector('.si-ok').onclick = siClose;
@@ -305,6 +335,10 @@ function siPreview(plan, rows, bad){
     '#si-ov .si-list>div{padding:7px 0;border-bottom:1px solid #f2f2f5;font-weight:700;color:#17171a;}',
     '#si-ov .si-list span{font-size:12.5px;color:#8a8a90;font-weight:600;margin-left:8px;}',
     '#si-ov .si-none{color:#a8a8ae;font-size:13px;}',
+    '#si-ov .si-mk{margin:8px 0 0;padding:10px 12px;border:1.5px solid #17171a;border-radius:10px;}',
+    '#si-ov .si-mk label{display:flex;align-items:baseline;gap:8px;font-size:14px;cursor:pointer;flex-wrap:wrap;}',
+    '#si-ov .si-mk b{font-weight:800;color:#17171a;}',
+    '#si-ov .si-mk span{flex:1 0 100%;padding-left:22px;font-size:12px;color:#8a8a90;line-height:1.7;}',
     '#si-ov .si-note{font-size:12.5px;color:#8a8a90;margin-top:12px;line-height:1.7;}',
     '#si-ov .si-done{padding:24px 0;text-align:center;font-size:15px;font-weight:700;color:#17171a;line-height:2;}',
     '#si-ov .si-foot{margin-top:14px;padding-top:14px;border-top:1px solid #ededf0;display:flex;gap:10px;justify-content:flex-end;}',
