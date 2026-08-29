@@ -1,5 +1,5 @@
 /*************************************************************
- * オーナー一覧 Excel取込  owner-import-2026-08-29c
+ * オーナー一覧 Excel取込  owner-import-2026-08-29d
  *
  *  「家主基本情報一覧.xlsx」をそのまま読み込みます。
  *   ・所有者別      … 所有者／メールアドレス／物件
@@ -23,6 +23,16 @@
  *       住所が同じ → A/B を外して 1つの物件にまとめます
  *       住所が違う → 1つの物件にして、2つめ以降を「棟マスター」に入れます
  *     （メイン住所には A の住所、棟マスターに B の住所が自動で入ります）
+ *
+ *  ★2026-08-29d 追加
+ *   ・物件を「エリア」で振り分けて登録できます。
+ *       広島エリア … 広島県 ＋ 倉敷市老松町 ＋ 総社市   → PIVOT2 へ
+ *       岡山エリア … 上記以外の岡山県                   → PIVOT3 へ
+ *     開いているのが PIVOT3 なら「岡山エリア」が、
+ *     それ以外なら「広島エリア」が最初から選ばれます。
+ *   ・住所からどちらか判定できない物件は、名前を一覧で出します。
+ *     初期状態では取り込みません（勝手に片方へ入れません）。
+ *   ・オーナーはエリアで分けません。どちらの端末にも全部入ります。
  *************************************************************/
 
 /* 物件名をカタカナ表記に直す。
@@ -231,7 +241,7 @@ function oiMergeTou(bldg){
   g.forEach((list, base) => {
     if (list.length === 1){
       const x = list[0];
-      out.set(x.name, { zip:x.zip, addr:x.addr, mainTou:"", tous:[] });
+      out.set(x.name, { zip:x.zip, addr:x.addr, mainTou:"", tous:[], dropped:0 });
       return;
     }
     // 棟の名前の順に並べます（A→B→C／東→西→南→北）
@@ -245,14 +255,15 @@ function oiMergeTou(bldg){
     list.forEach(x => { addrs[x.addr || ""] = 1; });
     if (Object.keys(addrs).length === 1){
       // 住所が同じ → A/B を外して1つに
-      out.set(base, { zip:list[0].zip, addr:list[0].addr, mainTou:"", tous:[] });
+      out.set(base, { zip:list[0].zip, addr:list[0].addr, mainTou:"", tous:[], dropped:list.length - 1 });
       merged += list.length - 1;
     } else {
       // 住所が違う → 1つめをメイン、2つめ以降を棟マスターへ
       const head = list[0], rest = list.slice(1);
       out.set(base, {
         zip: head.zip, addr: head.addr, mainTou: head.tou || "",
-        tous: rest.map(x => ({ tou: x.tou || "", zip: x.zip || "", addr: x.addr || "" }))
+        tous: rest.map(x => ({ tou: x.tou || "", zip: x.zip || "", addr: x.addr || "" })),
+        dropped: 0
       });
       toued += rest.length;
     }
@@ -267,9 +278,55 @@ function oiMergeTou(bldg){
 function oiBldKey(s){
   return String(s || "").normalize("NFKC").replace(/[\s　]/g, "").toLowerCase();
 }
+/* ===== エリアの判定 =====
+   広島エリア … 住所に「広島県」／「倉敷市老松町」／「総社市」が入っているもの
+   岡山エリア … 上記以外で「岡山県」が入っているもの
+   判定できない … どちらにも当てはまらないもの（勝手に振り分けません） */
+const OI_AREA_HIROSHIMA = ["広島県", "倉敷市老松町", "総社市"];
+const OI_AREA_OKAYAMA   = ["岡山県"];
+function oiNorm(s){ return String(s || "").normalize("NFKC").replace(/[\s　]/g, ""); }
+function oiAreaOf(addr){
+  const a = oiNorm(addr);
+  if (!a) return "unknown";
+  for (let i = 0; i < OI_AREA_HIROSHIMA.length; i++){
+    if (a.indexOf(oiNorm(OI_AREA_HIROSHIMA[i])) >= 0) return "hiroshima";
+  }
+  for (let i = 0; i < OI_AREA_OKAYAMA.length; i++){
+    if (a.indexOf(oiNorm(OI_AREA_OKAYAMA[i])) >= 0) return "okayama";
+  }
+  return "unknown";
+}
+/* この端末はどちら向きか（URL に pivot3 が入っていれば岡山） */
+function oiDefaultArea(){
+  try{ if (String(location.pathname || "").toLowerCase().indexOf("pivot3") >= 0) return "okayama"; }catch(e){}
+  return "hiroshima";
+}
+/* 選んだエリアの物件だけを取り出す */
+function oiFilterBldg(bldg, area, withUnknown){
+  const out = new Map();
+  if (!bldg) return out;
+  bldg.forEach((v, name) => {
+    const a = oiAreaOf(v.addr);
+    if (area === "all") { out.set(name, v); return; }
+    if (a === area) { out.set(name, v); return; }
+    if (a === "unknown" && withUnknown) out.set(name, v);
+  });
+  return out;
+}
+function oiAreaBuckets(bldg){
+  const b = { hiroshima: 0, okayama: 0, unknown: 0, unknownNames: [] };
+  if (!bldg) return b;
+  bldg.forEach((v, name) => {
+    const a = oiAreaOf(v.addr);
+    b[a]++;
+    if (a === "unknown") b.unknownNames.push(name + (v.addr ? "（" + v.addr + "）" : "（住所が空欄）"));
+  });
+  return b;
+}
 function oiCountBuildings(bldg){
-  const out = { total: bldg ? bldg.size : 0, add: 0, upd: 0,
-                merged: (bldg && bldg._merged) || 0, toued: (bldg && bldg._toued) || 0 };
+  let merged = 0, toued = 0;
+  if (bldg) bldg.forEach(v => { merged += (v.dropped || 0); toued += ((v.tous || []).length); });
+  const out = { total: bldg ? bldg.size : 0, add: 0, upd: 0, merged: merged, toued: toued };
   if (!bldg || !bldg.size) return out;
   let all = {};
   try{ all = (typeof pbLoadAll === "function") ? (pbLoadAll() || {}) : {}; }catch(e){}
@@ -331,6 +388,8 @@ function oiShowPreview(plan, owners){
   const row = (x, cls) =>
     '<div class="oi-r ' + cls + '"><span class="oi-nm">' + oiEsc(x.name) + '</span>' +
     '<span class="oi-sub">物件 ' + x.props.length + '件' + (x.email ? ' ／ ' + oiEsc(x.email) : '') + '</span></div>';
+  const bk  = oiAreaBuckets(plan.bldg);
+  const def = oiDefaultArea();
   const maybeRow = (x, i) =>
     '<div class="oi-r oi-maybe">' +
       '<div class="oi-nm">' + oiEsc(x.name) + '<span class="oi-sub">（Excel）物件 ' + x.props.length + '件</span></div>' +
@@ -359,13 +418,26 @@ function oiShowPreview(plan, owners){
           '<b>連絡先も全部更新する</b><span>メール・住所・TEL・FAX・インボイス番号などを書き換えます</span></label>' +
       '</div>' +
       (plan.bldgStat && plan.bldgStat.total
-        ? '<div class="oi-bld"><label><input type="checkbox" id="oi-bld-on" checked>' +
-            '<b>物件一覧にも登録する</b>' +
-            '<span>新しく作る ' + plan.bldgStat.add + '件 ／ 住所だけ直す ' + plan.bldgStat.upd + '件' +
-            (plan.bldgStat.merged ? '<br>「○○ A」「○○ B」で住所が同じ ' + plan.bldgStat.merged + '件は、A/Bを外して1つにまとめます。' : '') +
-            (plan.bldgStat.toued  ? '<br>住所が違う棟 ' + plan.bldgStat.toued + '件は、「棟マスター」に住所ごと登録します。' : '') +
-            '<br>区画は0のまま。すでにある物件の区画・配置図・写真には触りません。</span>' +
-          '</label></div>'
+        ? '<div class="oi-bld">' +
+            '<label class="oi-bld-top"><input type="checkbox" id="oi-bld-on" checked>' +
+              '<b>物件一覧にも登録する</b></label>' +
+            '<div class="oi-area">' +
+              '<div class="oi-area-t">この端末に入れるエリア</div>' +
+              '<label><input type="radio" name="oiarea" value="hiroshima"' + (def === 'hiroshima' ? ' checked' : '') + '>' +
+                '広島エリア <i>広島県 ＋ 倉敷市老松町 ＋ 総社市</i> <b>' + bk.hiroshima + '件</b></label>' +
+              '<label><input type="radio" name="oiarea" value="okayama"' + (def === 'okayama' ? ' checked' : '') + '>' +
+                '岡山エリア <i>上記をのぞく岡山県</i> <b>' + bk.okayama + '件</b></label>' +
+              '<label><input type="radio" name="oiarea" value="all">' +
+                '全部（振り分けない） <b>' + (bk.hiroshima + bk.okayama + bk.unknown) + '件</b></label>' +
+              (bk.unknown
+                ? '<div class="oi-unk"><label><input type="checkbox" id="oi-unk-on">' +
+                    '住所からエリアを判定できない <b>' + bk.unknown + '件</b> も入れる</label>' +
+                    '<div class="oi-unk-list">' + bk.unknownNames.map(n => '<div>' + oiEsc(n) + '</div>').join('') + '</div>' +
+                  '</div>'
+                : '') +
+            '</div>' +
+            '<div class="oi-bld-stat" id="oi-bld-stat"></div>' +
+          '</div>'
         : '') +
       (plan.maybe.length
         ? '<div class="oi-sec">同じか迷うもの（1件ずつ選んでください）</div>' +
@@ -381,6 +453,33 @@ function oiShowPreview(plan, owners){
       '</div>' +
     '</div>';
   document.body.appendChild(ov);
+
+  /* 選んだエリアに合わせて、件数の説明を書き直します */
+  const curArea = () => (ov.querySelector('input[name="oiarea"]:checked') || {}).value || def;
+  const curUnk  = () => !!(ov.querySelector("#oi-unk-on") || {}).checked;
+  function refreshBldStat(){
+    const box = ov.querySelector("#oi-bld-stat");
+    if (!box) return;
+    const sub = oiFilterBldg(plan.bldg, curArea(), curUnk());
+    const st  = oiCountBuildings(sub);
+    box.innerHTML =
+      '新しく作る <b>' + st.add + '件</b> ／ 住所だけ直す ' + st.upd + '件' +
+      (st.merged ? '<br>「○○ A」「○○ B」で住所が同じ ' + st.merged + '件は、A/Bを外して1つにまとめます。' : '') +
+      (st.toued  ? '<br>住所が違う棟 ' + st.toued + '件は、「棟マスター」に住所ごと登録します。' : '') +
+      '<br>区画は0のまま。すでにある物件の区画・配置図・写真には触りません。' +
+      '<br>オーナーはエリアで分けません。上の人数がそのまま入ります。';
+  }
+  Array.prototype.forEach.call(ov.querySelectorAll('input[name="oiarea"]'), el => { el.onchange = refreshBldStat; });
+  const unkEl = ov.querySelector("#oi-unk-on"); if (unkEl) unkEl.onchange = refreshBldStat;
+  const bldOnEl = ov.querySelector("#oi-bld-on");
+  if (bldOnEl) bldOnEl.onchange = () => {
+    const a = ov.querySelector(".oi-area");
+    if (a) a.style.opacity = bldOnEl.checked ? "1" : ".35";
+    const st = ov.querySelector("#oi-bld-stat");
+    if (st) st.style.opacity = bldOnEl.checked ? "1" : ".35";
+  };
+  refreshBldStat();
+
   ov.querySelector(".oi-cancel").onclick = () => ov.remove();
   ov.querySelector(".oi-ok").onclick = () => {
     const mode = (ov.querySelector('input[name="oimode"]:checked') || {}).value || "addr";
@@ -389,13 +488,14 @@ function oiShowPreview(plan, owners){
       return (el && el.value === "new") ? "new" : "same";
     });
     const bldOn = !!(ov.querySelector("#oi-bld-on") || {}).checked;
+    const area  = curArea(), unk = curUnk();
     ov.remove();
-    oiApply(plan, mode, pick, bldOn);
+    oiApply(plan, mode, pick, bldOn, area, unk);
   };
 }
 
 /* ===== ④ 実際に取り込む ===== */
-function oiApply(plan, mode, pick, bldOn){
+function oiApply(plan, mode, pick, bldOn, area, withUnknown){
   const C = window.RENT_CORE;
   if (!C) return;
   const owners = C.owners;
@@ -444,7 +544,10 @@ function oiApply(plan, mode, pick, bldOn){
 
   // 物件一覧にも登録する（チェックが入っているときだけ）
   let bres = { add:0, upd:0, ok:true };
-  if (bldOn && plan.bldg && plan.bldg.size) bres = oiApplyBuildings(plan.bldg);
+  if (bldOn && plan.bldg && plan.bldg.size){
+    const sub = oiFilterBldg(plan.bldg, area || "all", !!withUnknown);
+    bres = oiApplyBuildings(sub);
+  }
 
   const noMail = owners.filter(o => !String(o.email || "").trim()).length;
   C.save(); C.render(); C.flash();
@@ -453,7 +556,9 @@ function oiApply(plan, mode, pick, bldOn){
     + (mode === "addr" ? '　<span style="color:#555;">※住所だけ更新しました</span>' : '')
     + (noMail ? '　<span style="color:#c0392b;font-weight:700;">メール未入力 ' + noMail + '件</span>' : '')
     + ((bres.add || bres.upd)
-        ? '<br><span style="color:#17171a;">物件一覧：新規 <b>' + bres.add + '件</b>／住所を直した ' + bres.upd + '件</span>'
+        ? '<br><span style="color:#17171a;">物件一覧（' +
+            (area === "hiroshima" ? "広島エリア" : area === "okayama" ? "岡山エリア" : "全部") +
+            '）：新規 <b>' + bres.add + '件</b>／住所を直した ' + bres.upd + '件</span>'
         : '')
     + ((bldOn && !bres.ok) ? '<br><span style="color:#c00;">物件一覧には登録できませんでした（物件画面の準備ができていません）</span>' : ''));
   C.toast("オーナー情報を取り込みました（新規 " + added + " / 更新 " + updated + "）");
@@ -512,6 +617,17 @@ async function oiImportWorkbook(file){
     "#oi-prev .oi-bld{padding:12px 20px;border-top:1px solid #ededf0;background:#fafafa;}",
     "#oi-prev .oi-bld label{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:14px;cursor:pointer;}",
     "#oi-prev .oi-bld b{font-weight:800;color:#17171a;}",
+    "#oi-prev .oi-bld-top b{font-size:14.5px;}",
+    "#oi-prev .oi-area{margin:10px 0 0 24px;padding:10px 12px;border:1px solid #e3e3e6;border-radius:10px;background:#fff;}",
+    "#oi-prev .oi-area-t{font-size:12px;font-weight:800;color:#8a8a90;letter-spacing:.08em;margin-bottom:6px;}",
+    "#oi-prev .oi-area label{display:flex;align-items:baseline;gap:7px;font-size:13.5px;padding:3px 0;}",
+    "#oi-prev .oi-area i{font-style:normal;font-size:12px;color:#8a8a90;}",
+    "#oi-prev .oi-area>label>b{margin-left:auto;font-size:14px;}",
+    "#oi-prev .oi-unk{margin-top:8px;padding-top:8px;border-top:1px solid #ededf0;}",
+    "#oi-prev .oi-unk label{font-size:13px;color:#3d3d42;}",
+    "#oi-prev .oi-unk-list{max-height:88px;overflow-y:auto;margin:6px 0 0 22px;font-size:12px;color:#8a8a90;line-height:1.7;}",
+    "#oi-prev .oi-bld-stat{margin:10px 0 0 24px;font-size:12.5px;color:#8a8a90;line-height:1.8;}",
+    "#oi-prev .oi-bld-stat b{color:#17171a;}",
     "#oi-prev .oi-bld span{font-size:12.5px;color:#8a8a90;flex:1 0 100%;padding-left:24px;line-height:1.8;}",
     "#oi-prev .oi-sec{padding:12px 20px 6px;font-size:12.5px;font-weight:800;color:#8a8a90;",
     "  letter-spacing:.08em;border-top:1px solid #ededf0;}",
