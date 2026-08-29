@@ -978,7 +978,10 @@ async function cloudSaveAll(){
   cloudLog('送信中... ('+bldCount+'物件)');
  
   try {
-    const r = await postToGas(url, { action: 'save', payload: { buildings: all } });
+　  let _ct = {}; try{ _ct = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){ _ct = {}; }
+    let _ow = []; try{ _ow = JSON.parse(localStorage.getItem(insPrefix() + 'rent_owner_send_owners_v1') || '[]'); }catch(e){ _ow = []; }
+    const _mt = (typeof touchLocalMtime === 'function') ? touchLocalMtime() : Date.now();
+    const r = await postToGas(url, { action: 'save', payload: { buildings: all, contracts: _ct, owners: _ow, mtime: _mt } });
     if(r.ok){
       cloudLog('送信成功: 物件 '+r.buildingCount+'件 / 区画 '+r.spotCount+'件', 'success');
       cloudLog('  → スプレッドシートを確認してください', 'success');
