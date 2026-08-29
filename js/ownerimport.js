@@ -1,5 +1,5 @@
 /*************************************************************
- * オーナー一覧 Excel取込  owner-import-2026-08-29e
+ * オーナー一覧 Excel取込  owner-import-2026-08-29f
  *
  *  「家主基本情報一覧.xlsx」をそのまま読み込みます。
  *   ・所有者別      … 所有者／メールアドレス／物件
@@ -40,6 +40,11 @@
  *       区画が0件 ／ 契約が1件も無い ／ 配置図も写真も無い
  *     ものだけです。手で作った物件・使っている物件は消しません。
  *     初期状態ではチェックが入っていません（勝手に消しません）。
+ *
+ *  ★2026-08-29f 修正
+ *   ・一度にたくさんの物件を作ると、物件のIDがまれにぶつかって
+ *     1件消えることがありました（120件入れて119件になる現象）。
+ *     IDに通し番号を足し、重複したら作り直すようにしました。
  *************************************************************/
 
 /* 物件名をカタカナ表記に直す。
@@ -391,6 +396,7 @@ function oiRawKeySet(plan){
   try{ (plan.bldg    || new Map()).forEach((v, n) => s.add(oiBldKey(n))); }catch(e){}
   return s;
 }
+let _oiSeq = 0;
 function oiApplyBuildings(bldg, delIds){
   if (typeof pbLoadAll !== "function" || typeof saveAll !== "function"){
     return { add:0, upd:0, del:0, ok:false };
@@ -420,7 +426,12 @@ function oiApplyBuildings(bldg, delIds){
       }
       upd++;                            // 区画・配置図・写真はそのまま
     } else {
-      const id = "bld_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+      // ★同じミリ秒で連続して作ると id がぶつかることがあるので、
+      //   通し番号を付けたうえで、すでにある id なら作り直します。
+      let id = "";
+      do {
+        id = "bld_" + Date.now() + "_" + (_oiSeq++) + "_" + Math.floor(Math.random() * 100000);
+      } while (all[id]);
       all[id] = {
         id: id, name: name, zip: v.zip || "", addr: v.addr || "",
         spots: [], main_tou: v.mainTou || "", layout_id: "", layout2_id: "",
