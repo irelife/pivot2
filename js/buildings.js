@@ -340,6 +340,116 @@ function markAddrManual(addrId){
 // ==============================
 function renderAll(){
   renderList();
+  try{ renderSwitchNotice(); }catch(e){}
+}
+
+/* ==================================================================
+ * 切替のお知らせ（見逃し防止）
+ *   ・予約日/解約日が「今日まで」＝ まだ切り替えていない分（切替待ち）
+ *   ・予約日/解約日が「3日以内に来る」分（まもなく）
+ *   を、物件ごとの箇条書きで出します。
+ *   ★件数が多くても場所を取らないよう、閉じると1行になります。
+ *     開いたときも、画面の45%までで中がスクロールします。
+ *   このブロックと renderAll の呼び出しを消せば、無くなります。
+ * ================================================================== */
+const SW_NOTICE_DAYS = 3;                 // 何日前から知らせるか
+function _swKey(){ return (typeof insPrefix === 'function' ? insPrefix() : 'pivot_') + 'sw_open'; }
+function _swDateAdd(str, n){
+  const d = new Date(str + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+// 今日まで＋これから3日以内の切替を集めます
+function findSwitchNotices(){
+  const all = loadAll();
+  const today = todayStr();
+  const limit = _swDateAdd(today, SW_NOTICE_DAYS);
+  const rows = [];
+  Object.values(all).forEach(b => {
+    (b.spots||[]).forEach((s, i) => {
+      const spotNo = 'P' + String(s.no || (i+1)).padStart(2,'0');
+      if(s.status === '解' && s.end_date){
+        const n = normalizeDate(s.end_date);
+        if(n && n <= limit) rows.push({ kind:'退去済', bld:b.name, spot:spotNo,
+          user:(s.user || '(使用者なし)'), date:n, due:(n <= today) });
+      }
+      if(s.res_user && s.res_date){
+        const n = normalizeDate(s.res_date);
+        if(n && n <= limit) rows.push({ kind:'使用中', bld:b.name, spot:spotNo,
+          user:s.res_user, date:n, due:(n <= today) });
+      }
+    });
+  });
+  // 到来済みを先に、あとは日付の早い順
+  rows.sort((a,b) => (a.due === b.due) ? a.date.localeCompare(b.date) : (a.due ? -1 : 1));
+  return rows;
+}
+function _swBox(){
+  let el = document.getElementById('switch-notice');
+  if(el) return el;
+  const host = document.getElementById('pivot-view');
+  if(!host) return null;
+  el = document.createElement('div');
+  el.id = 'switch-notice';
+  el.className = 'sw-notice';
+  host.insertBefore(el, host.firstChild);
+  return el;
+}
+function toggleSwitchNotice(){
+  const el = document.getElementById('switch-notice');
+  if(!el) return;
+  const open = !el.classList.contains('sw-open');
+  el.classList.toggle('sw-open', open);
+  try{ localStorage.setItem(_swKey(), open ? '1' : '0'); }catch(e){}
+  const c = el.querySelector('.sw-caret'); if(c) c.textContent = open ? '▴' : '▾';
+}
+function renderSwitchNotice(){
+  const el = _swBox();
+  if(!el) return;
+  const rows = findSwitchNotices();
+  if(rows.length === 0){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  const due  = rows.filter(r => r.due).length;
+  const soon = rows.length - due;
+  // 開くか閉じるか：前に選んだ状態を覚えます。初回は3件までなら開く。
+  let open;
+  try{ const v = localStorage.getItem(_swKey()); open = (v === null) ? (rows.length <= 3) : (v === '1'); }
+  catch(e){ open = rows.length <= 3; }
+  const md = (d) => d ? (parseInt(d.slice(5,7),10) + '/' + parseInt(d.slice(8,10),10)) : '';
+  const today = todayStr();
+  const left = (d) => {
+    if(d <= today) return '到来済';
+    const a = new Date(d + 'T00:00:00'), b = new Date(today + 'T00:00:00');
+    const n = Math.round((a - b) / 86400000);
+    return (n === 1) ? '明日' : ('あと' + n + '日');
+  };
+  const rowHtml = (r) => '<div class="sw-row' + (r.due ? ' due' : '') + '">' +
+      '<span class="sw-dot"></span>' +
+      '<span class="sw-bld">' + escapeHtml(r.bld) + '</span>' +
+      '<span class="sw-spot">' + escapeHtml(r.spot) + '</span>' +
+      '<span class="sw-user">' + escapeHtml(r.user) + '</span>' +
+      '<span class="sw-arrow">→ ' + r.kind + '</span>' +
+      '<span class="sw-date">' + md(r.date) + '</span>' +
+      '<span class="sw-left">' + left(r.date) + '</span>' +
+    '</div>';
+  const SHOW = 3;                                     // 閉じているときに見せる件数
+  const head =
+    '<button type="button" class="sw-head" onclick="toggleSwitchNotice()">' +
+      '<span class="sw-ttl">切替のお知らせ</span>' +
+      (due  ? '<span class="sw-cnt sw-due">切替待ち ' + due + '</span>' : '') +
+      (soon ? '<span class="sw-cnt sw-soon">' + SW_NOTICE_DAYS + '日以内 ' + soon + '</span>' : '') +
+      '<span class="sw-caret">' + (open ? '▴' : '▾') + '</span>' +
+    '</button>';
+  const list = '<div class="sw-list">' + rows.map(rowHtml).join('') + '</div>';
+  const peek = '<div class="sw-peek">' + rows.slice(0, SHOW).map(rowHtml).join('') +
+    (rows.length > SHOW ? '<div class="sw-more">ほか ' + (rows.length - SHOW) + '件（押すと全部出ます）</div>' : '') +
+    '</div>';
+  const act = due
+    ? '<div class="sw-act"><button type="button" class="sw-go" onclick="runAutoSwitch(true)">' +
+      '今すぐ切り替える（' + due + '件）</button></div>'
+    : '';
+  el.className = 'sw-notice' + (open ? ' sw-open' : '');
+  el.innerHTML = head + peek + list + act;
 }
 // 住所から都道府県を判定
 function prefOf(b){
