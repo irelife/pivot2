@@ -138,7 +138,6 @@ function _ownerHit(o){
    物件名の末尾の「A棟／B棟／第2棟／A館」などを落とし、
    残った基準名の種類を数えます。 */
 function _bldBase(name){
-function _bldBase(name){
   var s = String(name||'').trim();
   try{ s = s.normalize('NFKC'); }catch(e){}   // Ａ棟 → A棟 ／ （東） → (東) に統一
   // ⓪「（東）」「(西)」のようなカッコ書きの棟を落とす
