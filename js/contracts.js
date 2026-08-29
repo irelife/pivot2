@@ -1389,7 +1389,13 @@ function computeBrokerStats(){
     });
   }catch(e){}
   (typeof BROKER_HISTORY !== 'undefined' ? BROKER_HISTORY : []).forEach(h => {
-    const broker = (h.broker || '').trim(); if(!broker) return;
+    /* 元データの打ち間違いをここで直します（直したいものが増えたら、ここに足してください） */
+    let _hb = String(h.broker || '').trim();
+    if(/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}/.test(_hb)) _hb = '';        // 業者名の欄に日付が入っていた
+    if(/^(名義変更|更新|再契約|自動更新)$/.test(_hb)) _hb = '';      // 業者ではない（客付けではないので数えない）
+    _hb = _hb.replace(/[\s　]*見ない点[\s　]*$/, '');                 // 店舗名の打ち間違い。会社名だけで数える
+    const broker = _hb.trim(); if(!broker) return;
+
     if(!_myBld[String(h.property || '').replace(/[\s　]+/g, '')]) return;  // 自分の物件だけ
 
     const w = _histWhen(h);
