@@ -1402,8 +1402,25 @@ function computeBrokerStats(){
     if(fyValid && w.year !== fy) return;
     const roomNo = h.room ? String(h.room).replace(/^P/i,'').replace(/\.0$/,'') : '';
     const bldg = (h.property||'(物件未入力)').trim();
-    add(broker, w, bldg + (roomNo ? ' '+roomNo+'号' : ''), bldg, h.staff, _cancelKind(h.status));
+        add(broker, w, bldg + (roomNo ? ' '+roomNo+'号' : ''), bldg, h.staff, _cancelKind(h.status));
   });
+
+  /* 岡山（PIVOT3）の契約履歴  js/history-okayama.js
+     このExcelの物件名はローマ字で、物件一覧のカタカナ名と書き方が違います。
+     取り違えると集計が壊れるので、物件でのしぼり込みはしません。
+     ファイルを置いていない端末（PIVOT2）では、何も起きません。 */
+  if(typeof OKAYAMA_HISTORY_RAW !== 'undefined'){
+    OKAYAMA_HISTORY_RAW.forEach(a => {
+      const ob = String(a[2] || '').trim(); if(!ob) return;
+      const oh = { property:a[0], room:a[1], broker:ob, staff:a[3],
+                   contractDate:a[4], applyDate:a[5], status:a[6] };
+      const ow = _histWhen(oh);
+      if(fyValid && ow.year !== fy) return;
+      const oRoom = oh.room ? String(oh.room).replace(/^P/i,'').replace(/\.0$/,'') : '';
+      const oBldg = (oh.property || '(物件未入力)').trim();
+      add(ob, ow, oBldg + (oRoom ? ' '+oRoom+'号' : ''), oBldg, oh.staff, _cancelKind(oh.status));
+    });
+  }
  
   const rows = Object.values(map);
   rows.forEach(r => {
