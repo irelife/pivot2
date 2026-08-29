@@ -1282,12 +1282,17 @@ function switchApp(which){
         var h = Math.max(el.scrollHeight, el.getBoundingClientRect().height);
         return px > 0 ? (h / px) : 0;
       }
-      if(ratioAt(full) >= target * 0.95){ body.style.width = full + 'px'; return full; }
-      var lo = Math.round(full * 0.72), hi = full, best = full;   // 広げすぎない上限は約1.4倍
-      if(ratioAt(lo) < target){ body.style.width = lo + 'px'; return lo; }
-      for(var i = 0; i < 6; i++){                      // 二分探索でちょうどの幅を探します
+      // 組む幅をせまくすると背が高く、広くすると背が低くなります。
+      // 用紙より背が高くならない範囲で、いちばんせまい幅(＝いちばん大きい文字)を選びます。
+      //   背が高いまま貼ると、高さに合わせて縮められ、左右に大きな余白ができます。
+      var lo = Math.round(full * 0.72);                // これ以上は文字を大きくしない
+      var hi = Math.round(full * 1.80);                // これ以上は文字を小さくしない
+      if(ratioAt(lo) <= target){ body.style.width = lo + 'px'; return lo; }
+      if(ratioAt(hi) >  target){ body.style.width = hi + 'px'; return hi; }
+      var best = hi;
+      for(var i = 0; i < 9; i++){                      // 二分探索でちょうどの幅を探します
         var mid = Math.round((lo + hi) / 2);
-        if(ratioAt(mid) >= target){ best = mid; lo = mid; } else { hi = mid; }
+        if(ratioAt(mid) <= target){ best = mid; hi = mid; } else { lo = mid; }
       }
       body.style.width = best + 'px';
       return best;
@@ -1452,13 +1457,71 @@ function switchApp(which){
         });
     };
 
+    /* ===== スマホ(iPhone/iPad)は、確認画面を出さずにそのままPDFを作ります =====
+       ・スマホでは印刷ができないので、印刷ボタンは出しません。
+       ・確認画面の見え方は実際のPDFと少しずれる(画面幅に合わせて縮めているため)ので、
+         かえって紛らわしく、出しません。中身は白い画面で隠します。
+       ・出来上がったら「保存・共有」を押してもらいます。
+         iPhone の決まりで、共有メニューは“指で押した直後”でないと開けないためです。 */
+    var cover = null;
+    function _coverHtml(icon, main, sub){
+      return '<div style="max-width:280px;">' +
+             '<div style="font-size:38px;line-height:1.2;margin-bottom:12px;">' + icon + '</div>' +
+             '<div style="font-size:17px;font-weight:700;color:#222;">' + main + '</div>' +
+             (sub ? '<div style="font-size:13px;color:#888;margin-top:8px;line-height:1.8;">' + sub + '</div>' : '') +
+             '<div id="pv-cover-act" style="margin-top:20px;"></div></div>';
+    }
+    function _makePdfNow(){
+      cover.innerHTML = _coverHtml('📄', 'PDFを作っています…', 'そのままお待ちください');
+      _buildPdf(fr, box)
+        .then(function(blob){
+          cover.innerHTML = _coverHtml('✅', 'PDFができました', fname);
+          var save = document.createElement('button');
+          save.type = 'button'; save.textContent = '📤 保存・共有';
+          save.setAttribute('style', bs + 'background:#1f3a5f;color:#fff;font-size:17px;padding:14px 26px;');
+          save.onclick = function(){
+            _sharePdf(blob, fname).then(function(){
+              if(ov.parentNode) ov.parentNode.removeChild(ov);
+            });
+          };
+          cover.querySelector('#pv-cover-act').appendChild(save);
+        })
+        .catch(function(e){
+          cover.innerHTML = _coverHtml('⚠️', 'PDFを作れませんでした',
+            ((e && e.message) ? String(e.message).replace(/[<>]/g,'') : '') + '<br>電波の届く場所でお試しください');
+          var again = document.createElement('button');
+          again.type = 'button'; again.textContent = 'もう一度';
+          again.setAttribute('style', bs + 'background:#1f3a5f;color:#fff;font-size:16px;padding:13px 24px;');
+          again.onclick = _makePdfNow;
+          cover.querySelector('#pv-cover-act').appendChild(again);
+        });
+    }
+    if(_isIOS){
+      pr.style.display = 'none';                  // 印刷ボタンは出しません
+      go.style.display = 'none';                  // PDFボタンも要りません(自動で作ります)
+      cover = document.createElement('div');
+      cover.setAttribute('style','position:absolute;top:0;right:0;bottom:0;left:0;background:#fff;'+
+        'display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;'+
+        'font-family:inherit;');
+      cover.innerHTML = _coverHtml('📄', 'PDFを作っています…', 'そのままお待ちください');
+      ov.appendChild(cover);
+      // 上の「✕ 閉じる」は白い画面より前に出しておきます(いつでも閉じられるように)
+      bar.style.position = 'relative';
+      bar.style.zIndex = '2';
+    }
+
     // 書類じたいが「読み込めたら印刷する」を持っている場合は任せます(二重に出さない)
     var selfPrint = /window\.print\s*\(/.test(String(html));
     fr.onload = function(){
       _layout(fr, box);
       // 画像の読み込みで高さが変わることがあるので、少し後にもう一度合わせます
       setTimeout(function(){ _layout(fr, box); }, 600);
-      if(!selfPrint && !_isIOS) setTimeout(function(){
+      if(_isIOS){
+        // 中身が組み上がるのを待ってから、そのままPDFを作り始めます
+        setTimeout(function(){ _makePdfNow(); }, 800);
+        return;
+      }
+      if(!selfPrint) setTimeout(function(){
         try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){}
       }, 400);
     };
