@@ -1,5 +1,5 @@
 /*************************************************************
- * オーナー一覧 Excel取込  owner-import-2026-08-29f
+ * オーナー一覧 Excel取込  owner-import-2026-08-29g
  *
  *  「家主基本情報一覧.xlsx」をそのまま読み込みます。
  *   ・所有者別      … 所有者／メールアドレス／物件
@@ -23,6 +23,8 @@
  *       住所が同じ → A/B を外して 1つの物件にまとめます
  *       住所が違う → 1つの物件にして、2つめ以降を「棟マスター」に入れます
  *     （メイン住所には A の住所、棟マスターに B の住所が自動で入ります）
+ *     ただし ★オーナーが違う棟どうしは、まとめません★
+ *     （まとめてしまうと、オーナー明細が片方にしか出なくなるためです）
  *
  *  ★2026-08-29d 追加
  *   ・物件を「エリア」で振り分けて登録できます。
@@ -153,8 +155,9 @@ async function oiReadWorkbook(file){
       // 物件一覧に登録するための郵便番号・住所（この行の物件のもの）
       const z = cZip  >= 0 ? String(r[cZip]  || "").trim() : "";
       const a = cAddr >= 0 ? String(r[cAddr] || "").trim() : "";
-      if (!bldg.has(p)) bldg.set(p, { zip:z, addr:a });
-      else { const g = bldg.get(p); if (!g.zip && z) g.zip = z; if (!g.addr && a) g.addr = a; }
+      // どのオーナーの物件かも覚えます（棟をまとめてよいかの判断に使います）
+      if (!bldg.has(p)) bldg.set(p, { zip:z, addr:a, owner:k });
+      else { const g = bldg.get(p); if (!g.zip && z) g.zip = z; if (!g.addr && a) g.addr = a; if (!g.owner) g.owner = k; }
     }
   }
 
@@ -246,7 +249,7 @@ function oiMergeTou(bldg){
   bldg.forEach((v, name) => {
     const s = oiSplitTou(name);
     if (!g.has(s.base)) g.set(s.base, []);
-    g.get(s.base).push({ name: name, tou: s.tou, zip: v.zip || "", addr: v.addr || "" });
+    g.get(s.base).push({ name: name, tou: s.tou, zip: v.zip || "", addr: v.addr || "", owner: v.owner || "" });
   });
   const out = new Map();
   let merged = 0, toued = 0;
@@ -263,6 +266,15 @@ function oiMergeTou(bldg){
       if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
       return String(a.tou).localeCompare(String(b.tou), "ja");
     });
+    /* オーナーが違う棟どうしは、ぜったいにまとめません。
+       まとめると、オーナー明細が片方のオーナーにしか出なくなります。
+       （例：フォンターナ A ＝ 有限会社flos ／ フォンターナ B ＝ 山尾組有限会社） */
+    const owners = {};
+    list.forEach(x => { owners[x.owner || ""] = 1; });
+    if (Object.keys(owners).length > 1){
+      list.forEach(x => out.set(x.name, { zip:x.zip, addr:x.addr, mainTou:"", tous:[], dropped:0 }));
+      return;
+    }
     const addrs = {};
     list.forEach(x => { addrs[x.addr || ""] = 1; });
     if (Object.keys(addrs).length === 1){
