@@ -138,17 +138,24 @@ function _ownerHit(o){
    物件名の末尾の「A棟／B棟／第2棟／A館」などを落とし、
    残った基準名の種類を数えます。 */
 function _bldBase(name){
+function _bldBase(name){
   var s = String(name||'').trim();
-  try{ s = s.normalize('NFKC'); }catch(e){}   // Ａ棟 → A棟 に統一
+  try{ s = s.normalize('NFKC'); }catch(e){}   // Ａ棟 → A棟 ／ （東） → (東) に統一
+  // ⓪「（東）」「(西)」のようなカッコ書きの棟を落とす
+  s = s.replace(/[（(][東西南北A-Za-z0-9]{1,3}[）)]$/, '');
+  // ⓪'「可知戸建　北」のように、空白のうしろが東西南北1字なら落とす。
+  //    空白が無い「オプティマス医大南」は物件名そのものなので残します。
+  s = s.replace(/[\s　]+[東西南北]$/, '');
   s = s.replace(/[\s　]+/g, '');              // 空白を詰める
-  // ①「A棟」「B館」「第2棟」などを落とす
-  s = s.replace(/(第?[0-9A-Za-z一二三四五六七八九十]{1,3})?[棟館]$/, '');
+  // ①「A棟」「B館」「東棟」「第2棟」などを落とす
+  s = s.replace(/(第?[0-9A-Za-z一二三四五六七八九十東西南北]{1,3})?[棟館]$/, '');
   // ②「棟」の字がない「ハイサニーA」「ピラ芳翠B」も落とす。
   //    末尾が大文字1字で、その手前が英字でないときだけ。
   //    （"KUSADO HOUSE" の E や "seto house East" は残ります）
   if(/[A-Z]$/.test(s) && !/[A-Za-z][A-Z]$/.test(s)) s = s.slice(0, -1);
   return s.toLowerCase();
 }
+
 function _ownerProps(o){
   if(o.properties && o.properties.length) return o.properties.filter(Boolean);
   return o.property ? [o.property] : [];
