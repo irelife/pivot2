@@ -45,11 +45,16 @@
     background:#fff; color:#17171A;
   }
   #pvc-find input:focus{ outline:2px solid #17171A; outline-offset:-2px; }
-  #pvc-edit{
+  #pvc-edit,
+  #pvc-map{
     flex:0 0 auto; appearance:none; cursor:pointer; font-family:inherit;
     font-size:12px; font-weight:700; padding:0 14px; border-radius:10px;
     border:1px solid #C9C9CE; background:#fff; color:#3F3F46;
   }
+  /* 地図ボタン。押すと この物件の住所を Google マップで開きます。
+     スマホだけに出ます（このファイルは760px以下でしか効きません）。 */
+  #pvc-map{ padding:0 11px; }
+  #pvc-map::before{ content:"📍"; margin-right:3px; }
   .modal-body.pvc-edit-on #pvc-edit{ background:#17171A; border-color:#17171A; color:#fff; }
   #pvc-empty{
     display:none; padding:18px 4px; text-align:center;
