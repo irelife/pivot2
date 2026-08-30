@@ -159,13 +159,22 @@
 /* ===========================================================
    スマホで物件を見るときの画面（Googleマップと同じ組み立て）
 
-   ・配置図を画面いっぱいに敷きます
+   ・配置図（または現地写真）を画面いっぱいに敷きます
    ・物件情報と区画一覧は、下から引き上げるシートに入れます
 
    いまある HTML の id は1つも変えません。
    .modal-body と .modal-footer を、新しく作る #pv-sheet の中へ
    「移すだけ」なので、保存・編集・印刷の動きはそのままです。
    760px より広い画面では、何もしません（パソコンは今までどおり）。
+
+   v5 で直したところ
+   ・配置図が無くて「現地写真」しか入れていない物件でも、
+     上に敷いて、上に貼りつけられるようにしました。
+   ・画像が2枚以上あるときは ‹ › で切り替えられるようにしました。
+   ・シートが下がらなくなる（読もうとすると勝手に上まで戻る）のを
+     直しました。自分で下げたあとは、勝手に上がりません。
+   ・つまみを大きくして、いちばん上のときは「▼ 下げる」と出します。
+   ・中身をいちばん上まで戻した状態で下へなぞると、1段下がります。
    =========================================================== */
 (function(){
   'use strict';
@@ -176,9 +185,13 @@
 
   var on = false, idx = 1;
   var modal, box, header, body, footer, sheet, stage, grip, gripName, hint, obs;
-  var pin, pinImg, pinch;
+  var pin, pinImg, pinLabel, pinPrev, pinNext, pinch;
+  var stageNav, stageNavLabel;
+  var shots = [], cur = 0, curName = '';
+  var userSnapped = false;   /* 自分で下げたあとは、勝手に上げません */
 
   function q(s, r){ return (r || document).querySelector(s); }
+  function qa(s, r){ return (r || document).querySelectorAll(s); }
 
   /* ---------- 組み立て ---------- */
   function build(){
@@ -193,6 +206,15 @@
     stage = document.createElement('div');
     stage.id = 'pv-stage';
     box.insertBefore(stage, box.firstChild);
+
+    stageNav = document.createElement('div');
+    stageNav.id = 'pv-stage-nav';
+    stageNav.innerHTML =
+      '<button type="button" data-pv-step="-1" aria-label="前の画像">‹</button>' +
+      '<b></b>' +
+      '<button type="button" data-pv-step="1" aria-label="次の画像">›</button>';
+    stageNavLabel = q('b', stageNav);
+    box.appendChild(stageNav);
 
     hint = document.createElement('div');
     hint.id = 'pv-hint';
@@ -210,15 +232,24 @@
     grip.innerHTML = '<i></i><b id="pv-grip-name"></b>';
     gripName = q('#pv-grip-name', grip);
 
-    /* 区画を見るときに、配置図を上に貼りつけておく板。
+    /* 区画を見るときに、配置図（または写真）を上に貼りつけておく板。
        いちばん上まで上げたときだけ出ます（CSSで切り替え）。 */
     pin = document.createElement('div');
     pin.id = 'pv-pin';
     pin.innerHTML =
-      '<div class="pv-pin-bar"><span>配置図</span>' +
-      '<button type="button" id="pv-pin-fold">たたむ</button></div>' +
+      '<div class="pv-pin-bar">' +
+        '<span id="pv-pin-label">配置図</span>' +
+        '<div class="pv-pin-btns">' +
+          '<button type="button" id="pv-pin-prev" aria-label="前の画像">‹</button>' +
+          '<button type="button" id="pv-pin-next" aria-label="次の画像">›</button>' +
+          '<button type="button" id="pv-pin-fold">たたむ</button>' +
+        '</div>' +
+      '</div>' +
       '<div class="pv-pin-view"><img alt="配置図"></div>';
-    pinImg = pin.querySelector('img');
+    pinImg   = q('img', pin);
+    pinLabel = q('#pv-pin-label', pin);
+    pinPrev  = q('#pv-pin-prev', pin);
+    pinNext  = q('#pv-pin-next', pin);
     body.insertBefore(pin, body.firstChild);
 
     sheet.appendChild(grip);
@@ -234,28 +265,45 @@
     grip.addEventListener('click', onTap);
     stage.addEventListener('click', onStageTap);
 
-    var area = document.getElementById('layout-area');
-    if(area && window.MutationObserver){
+    stageNav.addEventListener('click', function(e){
+      var b = e.target.closest ? e.target.closest('button') : null;
+      if(!b) return;
+      e.stopPropagation();
+      step(parseInt(b.getAttribute('data-pv-step'), 10) || 1);
+    });
+    pinPrev.addEventListener('click', function(){ step(-1); });
+    pinNext.addEventListener('click', function(){ step(1); });
+
+    if(window.MutationObserver){
       obs = new MutationObserver(syncStage);
-      obs.observe(area, { childList:true, subtree:true, attributes:true, attributeFilter:['src'] });
+      ['layout-area', 'photos-area'].forEach(function(id){
+        var a = document.getElementById(id);
+        if(a) obs.observe(a, { childList:true, subtree:true, attributes:true, attributeFilter:['src'] });
+      });
     }
     var nameEl = document.getElementById('f-name');
     if(nameEl) nameEl.addEventListener('input', syncName);
 
     /* 中身をスクロールしはじめたら、シートをいちばん上まで伸ばします。
-       つまみを引き上げなくても読めるようにするためです（地図アプリと同じ）。 */
+       ただし、自分でつまみを下げたあとは伸ばしません（v5）。 */
     body.addEventListener('scroll', onBodyScroll, { passive:true });
 
-    pin.querySelector('#pv-pin-fold').addEventListener('click', function(){
+    /* 中身がいちばん上のときに下へなぞったら、1段下げます（v5） */
+    body.addEventListener('pointerdown', onBodyDown,  { passive:true });
+    body.addEventListener('pointermove', onBodyMove,  { passive:true });
+    body.addEventListener('pointerup',   onBodyEnd,   { passive:true });
+    body.addEventListener('pointercancel', onBodyEnd, { passive:true });
+
+    q('#pv-pin-fold', pin).addEventListener('click', function(){
       var folded = pin.classList.toggle('is-folded');
       this.textContent = folded ? 'ひらく' : 'たたむ';
       if(folded && pinch) pinch.reset();
     });
     if(typeof window.PVPinch === 'function'){
-      pinch = window.PVPinch(pinImg, { frame: pin.querySelector('.pv-pin-view'), scrollable: true });
+      pinch = window.PVPinch(pinImg, { frame: q('.pv-pin-view', pin), scrollable: true });
     }
 
-    snap('half', false);
+    snap('half');
     syncStage();
     syncName();
   }
@@ -269,51 +317,108 @@
     grip.removeEventListener('click', onTap);
     stage.removeEventListener('click', onStageTap);
     body.removeEventListener('scroll', onBodyScroll);
+    body.removeEventListener('pointerdown', onBodyDown);
+    body.removeEventListener('pointermove', onBodyMove);
+    body.removeEventListener('pointerup', onBodyEnd);
+    body.removeEventListener('pointercancel', onBodyEnd);
 
     box.appendChild(body);
     if(footer) box.appendChild(footer);
     if(pin && pin.parentNode) pin.parentNode.removeChild(pin);
     if(sheet && sheet.parentNode) sheet.parentNode.removeChild(sheet);
     if(stage && stage.parentNode) stage.parentNode.removeChild(stage);
+    if(stageNav && stageNav.parentNode) stageNav.parentNode.removeChild(stageNav);
     if(hint  && hint.parentNode)  hint.parentNode.removeChild(hint);
 
     modal.classList.remove('pv-ms', 'pv-dragging');
     modal.removeAttribute('data-pv-snap');
     modal.style.removeProperty('--pv-h');
     body.style.removeProperty('overflow-y');
-    sheet = stage = grip = gripName = hint = pin = pinImg = pinch = null;
+    sheet = stage = stageNav = stageNavLabel = grip = gripName = null;
+    hint = pin = pinImg = pinLabel = pinPrev = pinNext = pinch = null;
+    shots = []; cur = 0;
     on = false;
   }
 
-  /* ---------- 配置図をステージに映す ---------- */
-  function layoutSrc(){
-    var img = q('#layout-area .img-thumb img');
-    return img ? img.getAttribute('src') : '';
+  /* ---------- 上に映す画像を集める ----------
+     配置図が先、そのあとに現地写真。
+     配置図を入れていなくて写真だけの物件でも、ちゃんと映ります（v5）。 */
+  function collect(){
+    var out = [], i;
+    var L = qa('#layout-area .img-thumb img');
+    for(i = 0; i < L.length; i++){
+      out.push({ src: L[i].getAttribute('src') || '',
+                 label: '配置図' + (L.length > 1 ? ' ' + (i + 1) : '') });
+    }
+    var P = qa('#photos-area .img-thumb img');
+    for(i = 0; i < P.length; i++){
+      out.push({ src: P[i].getAttribute('src') || '',
+                 label: '現地写真 ' + (i + 1) });
+    }
+    return out.filter(function(s){ return !!s.src; });
   }
+
   function syncStage(){
     if(!on || !stage) return;
-    var src = layoutSrc();
-    if(src){
-      var cur = q('img', stage);
-      if(cur){ if(cur.getAttribute('src') !== src) cur.setAttribute('src', src); }
-      else { stage.innerHTML = '<img alt="配置図">'; q('img', stage).setAttribute('src', src); }
-      if(pinImg && pinImg.getAttribute('src') !== src) pinImg.setAttribute('src', src);
-      if(pin) pin.style.display = '';
-      if(hint) hint.style.display = '';
+    var keep = shots[cur] ? shots[cur].src : '';
+    shots = collect();
+
+    cur = 0;
+    for(var i = 0; i < shots.length; i++){ if(shots[i].src === keep){ cur = i; break; } }
+
+    if(!shots.length){
+      if(q('#layout-area .img-thumb-pdf')){
+        stage.innerHTML = '<div class="pv-stage-pdf">配置図はPDFです<br>下の配置図欄から開いてください</div>';
+      } else {
+        stage.innerHTML = '<div class="pv-stage-none">配置図も写真もまだ登録されていません。<br>下の「配置図」「現地写真」から追加できます。</div>';
+      }
+      if(hint) hint.style.display = 'none';
+      if(pin) pin.style.display = 'none';
+      if(stageNav) stageNav.style.display = 'none';
       return;
     }
-    if(q('#layout-area .img-thumb-pdf')){
-      stage.innerHTML = '<div class="pv-stage-pdf">配置図はPDFです<br>下の配置図欄から開いてください</div>';
-    } else {
-      stage.innerHTML = '<div class="pv-stage-none">配置図がまだ登録されていません。<br>下の「配置図」から追加できます。</div>';
-    }
-    if(hint) hint.style.display = 'none';
-    if(pin) pin.style.display = 'none';   // 配置図が無いときは板も出しません
+    show();
   }
+
+  function show(){
+    var s = shots[cur]; if(!s) return;
+    var img = q('img', stage);
+    if(!img){ stage.innerHTML = '<img alt="配置図">'; img = q('img', stage); }
+    if(img.getAttribute('src') !== s.src) img.setAttribute('src', s.src);
+
+    if(pinImg && pinImg.getAttribute('src') !== s.src){
+      pinImg.setAttribute('src', s.src);
+      if(pinch) pinch.reset();
+    }
+    if(pinLabel) pinLabel.textContent = s.label;
+    if(pin) pin.style.display = '';
+
+    var many = shots.length > 1;
+    if(pinPrev) pinPrev.style.display = many ? '' : 'none';
+    if(pinNext) pinNext.style.display = many ? '' : 'none';
+    if(stageNav){
+      stageNav.style.display = many ? '' : 'none';
+      if(stageNavLabel) stageNavLabel.textContent = (cur + 1) + ' / ' + shots.length;
+    }
+    if(hint) hint.style.display = '';
+  }
+
+  function step(d){
+    if(shots.length < 2) return;
+    cur = (cur + d + shots.length) % shots.length;
+    show();
+  }
+
+  function layoutSrc(){ return shots[cur] ? shots[cur].src : ''; }
+
   function syncName(){
-    if(!on || !gripName) return;
     var el = document.getElementById('f-name');
-    gripName.textContent = (el && el.value) ? el.value : '';
+    curName = (el && el.value) ? el.value : '';
+    syncGripLabel();
+  }
+  function syncGripLabel(){
+    if(!on || !gripName) return;
+    gripName.textContent = (SNAPS[idx] === 'full') ? '▼ 下げる' : curName;
   }
 
   /* ---------- 高さ ---------- */
@@ -323,9 +428,15 @@
     idx = SNAPS.indexOf(name); if(idx < 0) idx = 1;
     modal.setAttribute('data-pv-snap', name);
     modal.style.setProperty('--pv-h', h(name) + 'px');
+    syncGripLabel();
+  }
+  /* 人が動かしたとき。以後は勝手に上まで伸ばしません。 */
+  function snapByHand(name){
+    if(name !== 'full') userSnapped = true;
+    snap(name);
   }
 
-  /* ---------- 指で引き上げる ---------- */
+  /* ---------- つまみを指で引き上げる ---------- */
   var dragging = false, startY = 0, startH = 0, moved = 0;
 
   function onDown(e){
@@ -355,28 +466,58 @@
     grip.removeEventListener('pointerup', onUp);
     grip.removeEventListener('pointercancel', onUp);
 
-    var cur = parseFloat(getComputedStyle(modal).getPropertyValue('--pv-h')) || h('half');
+    var now = parseFloat(getComputedStyle(modal).getPropertyValue('--pv-h')) || h('half');
     var best = 'half', d = Infinity;
-    SNAPS.forEach(function(n){ var dd = Math.abs(h(n) - cur); if(dd < d){ d = dd; best = n; } });
-    snap(best);
+    SNAPS.forEach(function(n){ var dd = Math.abs(h(n) - now); if(dd < d){ d = dd; best = n; } });
+    snapByHand(best);
   }
+  /* つまみを軽くたたいたとき。
+     いちばん上のときは下へ、それ以外は上へ。行ったり来たりできます。 */
   function onTap(){
-    if(moved > 6){ moved = 0; return; }   // ドラッグの終わりはタップとして扱いません
-    snap(SNAPS[(idx + 1) % SNAPS.length]);
+    if(moved > 6){ moved = 0; return; }
+    if(SNAPS[idx] === 'full') snapByHand('half');
+    else snapByHand(SNAPS[Math.min(2, idx + 1)]);
   }
   function onKey(e){
-    if(e.key === 'ArrowUp'){   e.preventDefault(); snap(SNAPS[Math.min(2, idx + 1)]); }
-    if(e.key === 'ArrowDown'){ e.preventDefault(); snap(SNAPS[Math.max(0, idx - 1)]); }
-    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); snap(SNAPS[(idx + 1) % SNAPS.length]); }
+    if(e.key === 'ArrowUp'){   e.preventDefault(); snapByHand(SNAPS[Math.min(2, idx + 1)]); }
+    if(e.key === 'ArrowDown'){ e.preventDefault(); snapByHand(SNAPS[Math.max(0, idx - 1)]); }
+    if(e.key === 'Enter' || e.key === ' '){
+      e.preventDefault();
+      if(SNAPS[idx] === 'full') snapByHand('half'); else snapByHand(SNAPS[Math.min(2, idx + 1)]);
+    }
   }
 
-  /* ---------- 中身をスクロールしたら、いちばん上まで伸ばします ---------- */
+  /* ---------- 中身をスクロールしたら、いちばん上まで伸ばします ----------
+     v5: 自分で下げたあとは伸ばしません。
+     （前は、下げても読もうとした瞬間に上まで戻っていました） */
   function onBodyScroll(){
-    if(!on || dragging) return;
+    if(!on || dragging || userSnapped) return;
     if(body.scrollTop > 6 && SNAPS[idx] !== 'full') snap('full');
   }
 
-  /* ---------- 配置図をタップして拡大（いまある機能をそのまま使います） ---------- */
+  /* ---------- 中身がいちばん上のときに下へなぞると、1段下げます（v5） ---------- */
+  var bTrack = false, bStartY = 0;
+
+  function onBodyDown(e){
+    bTrack = false;
+    if(!on || dragging) return;
+    if(e.pointerType === 'mouse') return;
+    if(pin && pin.contains(e.target)) return;   /* 貼りつけた配置図は、つまんで拡大する場所 */
+    if(body.scrollTop > 2) return;
+    bTrack = true; bStartY = e.clientY;
+  }
+  function onBodyMove(e){
+    if(!bTrack) return;
+    var dy = e.clientY - bStartY;
+    if(dy < -4){ bTrack = false; return; }      /* 上へ動いたら、ふつうのスクロール */
+    if(dy > 56){
+      bTrack = false;
+      if(idx > 0) snapByHand(SNAPS[idx - 1]);
+    }
+  }
+  function onBodyEnd(){ bTrack = false; }
+
+  /* ---------- 上の画像をタップして拡大（いまある機能をそのまま使います） ---------- */
   function onStageTap(){
     var src = layoutSrc();
     if(src && typeof window.openImgZoom === 'function') window.openImgZoom(src);
@@ -393,12 +534,23 @@
     else if(MQ.addListener) MQ.addListener(refresh);
     window.addEventListener('resize', function(){ if(on && !dragging) snap(SNAPS[idx]); });
 
-    // 物件を開いたときに、配置図と物件名を映しなおします
+    // 物件を開いたときに、上の画像と物件名を映しなおします
     var m = document.getElementById('modal');
     if(m && window.MutationObserver){
       new MutationObserver(function(){
         if(!on) return;
-        if(m.classList.contains('active')){ snap('half'); syncStage(); syncName(); }
+        if(m.classList.contains('active')){
+          userSnapped = false;
+          cur = 0;
+          /* たたんだままだと「配置図が出ない」と見えるので、開き直します */
+          if(pin){
+            pin.classList.remove('is-folded');
+            var fb = q('#pv-pin-fold', pin);
+            if(fb) fb.textContent = 'たたむ';
+          }
+          if(pinch) pinch.reset();
+          snap('half'); syncStage(); syncName();
+        }
       }).observe(m, { attributes:true, attributeFilter:['class'] });
     }
   }
