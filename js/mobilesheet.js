@@ -536,7 +536,12 @@
   function onBodyEnd(){ bTrack = false; }
 
   /* ---------- 上の画像をタップして拡大（いまある機能をそのまま使います） ---------- */
-  function onStageTap(){
+  function onStageTap(e){
+    /* 配置図「そのもの」を押したときだけ、全画面にします。
+       まわりの黒いところは反応しません。
+       （上の「×」を押そうとして、少し外れたときに
+         全画面が開いてしまうのを防ぎます） */
+    if(!e || !e.target || e.target.tagName !== 'IMG') return;
     /* つまんで大きくしている間は、指を離しても全画面に飛ばしません */
     if(stagePinch && stagePinch.zoomed()) return;
     var src = layoutSrc();
