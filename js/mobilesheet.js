@@ -22,9 +22,16 @@
     var MIN = 1, MAX = 6;
     var pts = {}, n = 0, scale = 1, tx = 0, ty = 0;
     var startScale = 1, startDist = 0, startMid = null, startTx = 0, startTy = 0;
+    var baseC = null;                 // 変形していないときの中心（画面座標）
     var lastTap = 0, moved = 0;
 
     function frame(){ return opts.frame || img.parentNode || img; }
+    /* いまの見た目の中心から、変形していないときの中心を逆算します。
+       （中心を基準に拡大するので、拡大しても中心は動きません） */
+    function centerNow(){
+      var r = img.getBoundingClientRect();
+      return { x: r.left + r.width/2 - tx, y: r.top + r.height/2 - ty };
+    }
     function apply(){
       clamp();
       img.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
@@ -46,7 +53,7 @@
       if(ty < -my) ty = -my;
     }
     function reset(){
-      scale = 1; tx = 0; ty = 0; pts = {}; n = 0; startDist = 0;
+      scale = 1; tx = 0; ty = 0; pts = {}; n = 0; startDist = 0; baseC = null;
       img.style.transform = '';
       if(opts.scrollable) img.style.touchAction = 'pan-y';
     }
@@ -61,6 +68,7 @@
       if(n === 2){
         startDist = dist(p[0], p[1]); startMid = mid(p[0], p[1]);
         startScale = scale; startTx = tx; startTy = ty;
+        baseC = centerNow();
       } else if(n === 1){
         moved = 0; startMid = { x:e.clientX, y:e.clientY }; startTx = tx; startTy = ty;
       }
@@ -75,8 +83,12 @@
         scale = startScale * (d / startDist);
         if(scale < MIN) scale = MIN;
         if(scale > MAX) scale = MAX;
-        tx = startTx + (m.x - startMid.x);
-        ty = startTy + (m.y - startMid.y);
+        /* 指の間の点が動かないように、拡大と同時に上下左右へずらします。
+           k は今回の拡大率。指を広げながら好きな向きへ動かせます。 */
+        var k = scale / startScale;
+        var c = baseC || centerNow();
+        tx = m.x - c.x - k * (startMid.x - c.x - startTx);
+        ty = m.y - c.y - k * (startMid.y - c.y - startTy);
         apply();
       } else if(n === 1 && scale > 1.02){
         if(e.cancelable) e.preventDefault();
@@ -93,7 +105,17 @@
       if(n === 0){
         var now = Date.now();
         if(moved < 8){
-          if(now - lastTap < 300){ scale = (scale > 1.05) ? 1 : 2.5; tx = 0; ty = 0; apply(); lastTap = 0; }
+          if(now - lastTap < 300){
+            if(scale > 1.05){ scale = 1; tx = 0; ty = 0; }
+            else {
+              /* たたいた場所を中心に2.5倍にします */
+              var c2 = centerNow(), k2 = 2.5 / scale;
+              tx = e.clientX - c2.x - k2 * (e.clientX - c2.x - tx);
+              ty = e.clientY - c2.y - k2 * (e.clientY - c2.y - ty);
+              scale = 2.5;
+            }
+            apply(); lastTap = 0;
+          }
           else lastTap = now;
         }
         startDist = 0;
