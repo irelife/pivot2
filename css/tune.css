@@ -3796,3 +3796,45 @@ tr.sub-row td{font-size:13px;}
   line-height:1.5;
   text-align:center;
 }
+
+/* ===== pv-bstat-name : 客付業者統計で、担当者名が
+   「鼻／戸」のように1文字ずつ縦に折れていたのを直します。
+
+   原因：
+     ・名前の欄は flex:1 1 auto（いくらでも縮む）
+     ・となりの会社名は flex:0 0 auto（まったく縮まない）
+   という組み合わせでした。会社名が長い行だけ、名前の欄が
+   16px まで押しつぶされ、1文字ずつ折り返されていました。
+   （「タイヨウエステート」「東建コーポレーション 倉敷支店」など）
+
+   直しかた：
+     ・名前は1行で出す。縦には折らない。
+     ・スマホでは、会社名を次の行にまわして、名前と取り合わない
+       ようにする。会社名も1行まるごと使えるので読みやすくなります。
+   会社名がとなりにある行（担当者別・物件別）だけを直します。
+   業者別の一覧は、会社名がとなりに無いので、これまでどおりです。
+   ===== */
+#bstat-body .bstat-top:has(> .pb-sub) .bstat-name{
+  flex:0 1 auto;
+  min-width:3em;
+  white-space:nowrap;
+  word-break:normal;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#bstat-body .bstat-top:has(> .pb-sub) .pb-sub{
+  flex:0 1 auto!important;
+  min-width:0;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+@media (max-width:760px){
+  /* スマホでは、会社名を次の行へ */
+  #bstat-body .bstat-top{ flex-wrap:wrap; row-gap:2px; }
+  #bstat-body .bstat-top:has(> .pb-sub) .bstat-name{ flex:1 1 auto; }
+  #bstat-body .bstat-top:has(> .pb-sub) .pb-sub{
+    order:5; flex:1 1 100%!important; width:100%;
+    margin-left:0; text-align:left;
+  }
+}
