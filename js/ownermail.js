@@ -85,6 +85,48 @@ function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.
 function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function norm(s){ return (s||"").replace(/[\s\u3000]/g,"").replace(/御中|様/g,""); }
 
+/* ===== 物件名の突き合わせ（3段階） =====
+   オーナー一覧の物件名と、物件画面の物件名は、書き方が少しずつ違います。
+     オーナー側   「タリスヴィータ A棟」「ナディア　A」「アルデバランＡ棟」
+     物件側       「タリスヴィータ」    「ナディア」    「アルデバランA」
+   そこで、次の順に当てていきます。上で当たれば下は見ません。
+
+     ① 文字をそろえて そのまま比べる
+        （全角/半角をそろえ、空白を取る）
+     ② 末尾の「棟」だけ落として比べる
+        （アルカンシェルA棟 → アルカンシェルA）
+     ③ 棟・A/B・Ⅰ/Ⅱ まで落として比べる
+        （タリスヴィータA棟 → タリスヴィータ）
+
+   ③は、物件一覧に <同じ基本名の建物が1件しか無いとき> だけ使います。
+   「フォンターナ A」と「フォンターナ B」のように、建物そのものが
+   A と B に分かれていて オーナーも違う場合があるためです。
+   ここを見ないと、別のオーナーに付けてしまいます。
+   また、1つの名前が2社にまたがるときは、あいまいなので付けません。
+   ===================================== */
+function pnm1(s){ return String(s||"").normalize("NFKC").replace(/[\s\u3000]/g,"").toLowerCase(); }
+function pnm2(s){ return pnm1(s).replace(/棟$/,""); }
+function pnm3(s){
+  var t = pnm1(s), prev = null;
+  var re = /(?:[a-z0-9北南東西新旧\u2160-\u2163]?棟$)|(?:[a-z]$)|(?:[\u2160-\u2163]$)/;
+  while(prev !== t){ prev = t; t = t.replace(re, ""); }
+  return t;
+}
+/* 物件一覧の中で、同じ「基本名」の建物が何件あるかを数えます */
+function pvBldNameCount(){
+  var c2 = {}, c3 = {};
+  try{
+    var all = (typeof pbLoadAll === "function") ? (pbLoadAll() || {}) : {};
+    Object.keys(all).forEach(function(id){
+      var nm = (all[id] || {}).name;
+      var k2 = pnm2(nm), k3 = pnm3(nm);
+      if(k2) c2[k2] = (c2[k2] || 0) + 1;
+      if(k3) c3[k3] = (c3[k3] || 0) + 1;
+    });
+  }catch(e){}
+  return { c2:c2, c3:c3 };
+}
+
 // ===== 住所でも検索できるようにする =====
 // 物件画面に登録された住所を「物件名 → 住所」の表にして持っておく。
 // 3秒だけ使い回すので、続けて文字を打っても重くならず、
@@ -626,16 +668,31 @@ function buildDetail(pages){
     }
   }
   // オーナーへ紐付け(宛名 or 物件名)
-  const byName={}, byProp={};
+  const byName={}, byProp={}, byProp2={}, byProp3={};
+  const _bc = pvBldNameCount();
   owners.forEach(o=>{ if(norm(o.atena))byName[norm(o.atena)]=o; if(norm(o.name)&&!byName[norm(o.name)])byName[norm(o.name)]=o;
     const plist=(o.properties&&o.properties.length)?o.properties:[o.property];
-    plist.forEach(pn=>{ if(norm(pn))byProp[norm(pn)]=o; }); });
+    plist.forEach(pn=>{
+      if(!pn) return;
+      if(norm(pn) && !byProp[norm(pn)]) byProp[norm(pn)]=o;          // これまでどおり
+      const k1=pnm1(pn); if(k1 && !byProp[k1]) byProp[k1]=o;         // 文字をそろえた形も入れる
+      const k2=pnm2(pn);
+      if(k2){ if(!(k2 in byProp2)) byProp2[k2]=o; else if(byProp2[k2]!==o) byProp2[k2]=null; }
+      const k3=pnm3(pn);
+      if(k3){ if(!(k3 in byProp3)) byProp3[k3]=o; else if(byProp3[k3]!==o) byProp3[k3]=null; }
+    }); });
   const map=new Map();
   let unmatched=[];
   for(const g of groups){
     let o=byName[norm(g.atena)];
     if(!o){ const k=norm(g.atena); for(const kk in byName){ if(kk&&(kk.includes(k)||k.includes(kk))){o=byName[kk];break;} } }
-    if(!o){ o=byProp[norm(g.property)]; }   // 宛名で見つからなければ物件名で照合
+    // 宛名で見つからなければ物件名で照合（①→②→③の順に当てます）
+    if(!o){
+      const gp=g.property;
+      o = byProp[norm(gp)] || byProp[pnm1(gp)] || null;
+      if(!o && _bc.c2[pnm2(gp)]===1) o = byProp2[pnm2(gp)] || null;
+      if(!o && _bc.c3[pnm3(gp)]===1) o = byProp3[pnm3(gp)] || null;
+    }
     const key=o?o.name:("（未登録）"+g.atena);
     if(!map.has(key)) map.set(key,{owner:o?o.name:g.atena, atena:(o&&o.atena)?o.atena:g.atena, email:o?o.email:"", props:[]});
     map.get(key).props.push(g);
