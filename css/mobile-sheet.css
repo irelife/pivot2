@@ -79,7 +79,13 @@
   }
   #modal.pv-ms > .modal > .modal-header > span::-webkit-scrollbar{ display:none; }
   #modal.pv-ms .modal-home-logo{ color:#fff; font-size:15px !important; padding:2px 4px !important; flex:0 0 auto; }
-  #modal.pv-ms .modal-close{ color:#fff !important; font-size:26px; flex:0 0 auto; }
+  /* 「×」は指で押す的です。小さいと、まわりの黒いところを
+     押してしまいます。スマホでは大きくします。 */
+  #modal.pv-ms .modal-close{
+    color:#fff !important; font-size:26px; flex:0 0 auto;
+    width:48px !important; height:48px !important;
+    position:relative; z-index:5;
+  }
   /* Property / Contract / Owner Mail の切替は、画面を閉じてから使えます。
      スマホでは幅を食って「×」が押せなくなるので隠します。 */
   #modal.pv-ms .modal-tab-btn{ display:none !important; }
