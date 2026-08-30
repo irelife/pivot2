@@ -275,12 +275,10 @@
     pinPrev.addEventListener('click', function(){ step(-1); });
     pinNext.addEventListener('click', function(){ step(1); });
 
-    if(window.MutationObserver){
+    var area = document.getElementById('layout-area');
+    if(area && window.MutationObserver){
       obs = new MutationObserver(syncStage);
-      ['layout-area', 'photos-area'].forEach(function(id){
-        var a = document.getElementById(id);
-        if(a) obs.observe(a, { childList:true, subtree:true, attributes:true, attributeFilter:['src'] });
-      });
+      obs.observe(area, { childList:true, subtree:true, attributes:true, attributeFilter:['src'] });
     }
     var nameEl = document.getElementById('f-name');
     if(nameEl) nameEl.addEventListener('input', syncName);
@@ -343,19 +341,15 @@
   }
 
   /* ---------- 上に映す画像を集める ----------
-     配置図が先、そのあとに現地写真。
-     配置図を入れていなくて写真だけの物件でも、ちゃんと映ります（v5）。 */
+     上に映すのは「配置図」だけです。
+     現地写真は映しません（配置図と取りちがえないようにするためです）。
+     配置図が2枚あるときは、‹ › で切り替えられます。 */
   function collect(){
-    var out = [], i;
+    var out = [];
     var L = qa('#layout-area .img-thumb img');
-    for(i = 0; i < L.length; i++){
+    for(var i = 0; i < L.length; i++){
       out.push({ src: L[i].getAttribute('src') || '',
                  label: '配置図' + (L.length > 1 ? ' ' + (i + 1) : '') });
-    }
-    var P = qa('#photos-area .img-thumb img');
-    for(i = 0; i < P.length; i++){
-      out.push({ src: P[i].getAttribute('src') || '',
-                 label: '現地写真 ' + (i + 1) });
     }
     return out.filter(function(s){ return !!s.src; });
   }
@@ -372,7 +366,7 @@
       if(q('#layout-area .img-thumb-pdf')){
         stage.innerHTML = '<div class="pv-stage-pdf">配置図はPDFです<br>下の配置図欄から開いてください</div>';
       } else {
-        stage.innerHTML = '<div class="pv-stage-none">配置図も写真もまだ登録されていません。<br>下の「配置図」「現地写真」から追加できます。</div>';
+        stage.innerHTML = '<div class="pv-stage-none">配置図がまだ登録されていません。<br>下の「配置図」から追加できます。</div>';
       }
       if(hint) hint.style.display = 'none';
       if(pin) pin.style.display = 'none';
