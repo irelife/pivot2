@@ -3667,7 +3667,7 @@ tr.sub-row td{font-size:13px;}
 @media (max-width:860px){
 
   /* ---- ① 検索窓を1行まるごと使い、左そろえに ---- */
-  .app-tabs > .kb-toolbar{
+  body.tab-kanban .app-tabs > .kb-toolbar{
     flex:0 0 100%; width:100%; margin-left:0;
     display:flex; flex-wrap:wrap; gap:8px;
     justify-content:flex-start; align-items:center;
