@@ -534,12 +534,19 @@
     else if(MQ.addListener) MQ.addListener(refresh);
     window.addEventListener('resize', function(){ if(on && !dragging) snap(SNAPS[idx]); });
 
-    // 物件を開いたときに、上の画像と物件名を映しなおします
+    // 物件を開いたときに、上の画像と物件名を映しなおします。
+    // 「閉じている→開いた」の瞬間だけ動かします。
+    // （つまみを動かすときにも #modal のクラスは変わるので、
+    //   毎回動かすと、たたんだ配置図が勝手に開いてしまいます）
     var m = document.getElementById('modal');
+    var wasActive = m ? m.classList.contains('active') : false;
     if(m && window.MutationObserver){
       new MutationObserver(function(){
+        var nowActive = m.classList.contains('active');
+        var opened = nowActive && !wasActive;
+        wasActive = nowActive;
         if(!on) return;
-        if(m.classList.contains('active')){
+        if(opened){
           userSnapped = false;
           cur = 0;
           /* たたんだままだと「配置図が出ない」と見えるので、開き直します */
