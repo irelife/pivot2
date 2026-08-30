@@ -2115,11 +2115,22 @@ function exportBrokerStatsPdf(){
   .lg { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:3px; vertical-align:middle; }
   table.s9 { font-size:9px; }  table.s9 th, table.s9 td { padding:3px 5px; }
   table.s8 { font-size:8px; }  table.s8 th, table.s8 td { padding:2px 4px; }
-  .pagebreak { page-break-before: always; }
-  /* ①②③ を、それぞれ必ず1枚に収めます（ページをまたがせません） */
+    .pagebreak { page-break-before: always; }
+  /* ①②③ は、それぞれ必ず新しいページの頭から始めます。 */
   .page { page-break-after: always; break-after: page; }
   .page:last-child { page-break-after: auto; break-after: auto; }
-  table, tr, thead, tbody { page-break-inside: avoid; break-inside: avoid; }
+  /* 表は途中で改ページしてかまいません。ただし、
+     ・1行の途中では切らない
+     ・次のページにも見出し行（青い帯）をくり返す
+     ・見出しだけが1枚に取り残されないようにする
+     という決まりにします。
+     （以前は table ごと break-inside:avoid にしていたため、
+     長い表が丸ごと次のページに押し出され、
+     見出しだけの白いページができていました） */
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr { page-break-inside: avoid; break-inside: avoid; }
+  h1, h2, .note, .legend, .sub, .rule { page-break-after: avoid; break-after: avoid; }
   @media print {
     .noprint { display:none; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -2137,8 +2148,8 @@ function exportBrokerStatsPdf(){
 <div class="note">成約実績の多い順。感謝を伝えつつ関係を維持したい主力業者です。上位3社は青で強調しています。</div>
 <div class="legend">エリア色：<span><i class="lg" style="background:#7c3aed"></i>福山</span><span><i class="lg" style="background:#1d4ed8"></i>倉敷</span><span><i class="lg" style="background:#047857"></i>岡山</span><span><i class="lg" style="background:#b7791f"></i>広島(その他)</span></div>
 <table${_shrink(_rankN)}>
-  <tr><th style="width:8%">順位</th><th style="width:20%">客付業者</th><th style="width:10%">客付け数</th><th style="width:8%">ｷｬﾝｾﾙ</th><th style="width:14%">最終客付け</th><th>よく客付けする物件 Best3</th></tr>
-  ${rankRows}
+  <thead><tr><th style="width:8%">順位</th><th style="width:20%">客付業者</th><th style="width:10%">客付け数</th><th style="width:8%">ｷｬﾝｾﾙ</th><th style="width:14%">最終客付け</th><th>よく客付けする物件 Best3</th></tr></thead>
+  <tbody>${rankRows}</tbody>
 </table>
 </div>
 
@@ -2147,8 +2158,8 @@ function exportBrokerStatsPdf(){
 <div class="note">過去に客付け実績（3件以上）がありながら、6ヶ月以上 紹介の途絶えている業者。経過の長い順。色が濃いほど再アプローチの優先度が高い業者です。</div>
 <div class="legend">緊急度：<span><i class="lg" style="background:#fdf6e3;border:0.5px solid #cfc"></i>6〜11ヶ月</span><span><i class="lg" style="background:#fdecd7;border:0.5px solid #e5b"></i>1年以上</span><span><i class="lg" style="background:#fde0dd;border:0.5px solid #d88"></i>2年以上(最優先)</span>／ 業者名の色はエリア（福山=紫・倉敷=青・岡山=緑）</div>
 <table id="dig"${_shrink(_digN)}>
-  <tr><th style="width:24%">業者名</th><th style="width:14%">過去の客付け</th><th style="width:16%">最終客付け</th><th style="width:14%">客付けなし</th><th>得意物件（過去実績）</th></tr>
-  ${digRows || '<tr><td colspan="5" class="c">該当なし</td></tr>'}
+  <thead><tr><th style="width:24%">業者名</th><th style="width:14%">過去の客付け</th><th style="width:16%">最終客付け</th><th style="width:14%">客付けなし</th><th>得意物件（過去実績）</th></tr></thead>
+  <tbody>${digRows || '<tr><td colspan="5" class="c">該当なし</td></tr>'}</tbody>
 </table>
 </div>
 
@@ -2156,9 +2167,10 @@ function exportBrokerStatsPdf(){
 <h2 id="stfttl">③ 担当者ランキング（会社名つき）</h2>
 <div class="note">仲介会社の担当者ひとりずつの成績です。同じ名字の方が別の会社にいても混ざらないよう、<b>会社名とセット</b>で数えています。成約数の多い順・上位30名。</div>
 <table id="stf"${_shrink(_stfN)}>
-  <tr><th style="width:7%">順位</th><th style="width:14%">担当者</th><th style="width:22%">会社名</th><th style="width:9%">客付け数</th><th style="width:8%">ｷｬﾝｾﾙ</th><th style="width:13%">最終客付け</th><th>よく決める物件 Best3</th></tr>
-  ${staffRows || '<tr><td colspan="7" class="c">担当者名の入っているデータがありません</td></tr>'}
+  <thead><tr><th style="width:7%">順位</th><th style="width:14%">担当者</th><th style="width:22%">会社名</th><th style="width:9%">客付け数</th><th style="width:8%">ｷｬﾝｾﾙ</th><th style="width:13%">最終客付け</th><th>よく決める物件 Best3</th></tr></thead>
+  <tbody>${staffRows || '<tr><td colspan="7" class="c">担当者名の入っているデータがありません</td></tr>'}</tbody>
 </table>
+
 </div>
 </body></html>`;
   // iPhone / iPad は別ウィンドウでの印刷が働かないので、
