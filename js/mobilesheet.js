@@ -186,6 +186,7 @@
   var on = false, idx = 1;
   var modal, box, header, body, footer, sheet, stage, grip, gripName, hint, obs;
   var pin, pinImg, pinLabel, pinPrev, pinNext, pinch;
+  var stageImg, stagePinch;
   var stageNav, stageNavLabel;
   var shots = [], cur = 0, curName = '';
   var userSnapped = false;   /* 自分で下げたあとは、勝手に上げません */
@@ -218,7 +219,7 @@
 
     hint = document.createElement('div');
     hint.id = 'pv-hint';
-    hint.textContent = 'タップで拡大';
+    hint.textContent = 'タップで全画面・2本指で拡大';
     box.appendChild(hint);
 
     sheet = document.createElement('div');
@@ -336,6 +337,7 @@
     body.style.removeProperty('overflow-y');
     sheet = stage = stageNav = stageNavLabel = grip = gripName = null;
     hint = pin = pinImg = pinLabel = pinPrev = pinNext = pinch = null;
+    stageImg = stagePinch = null;
     shots = []; cur = 0;
     on = false;
   }
@@ -383,8 +385,21 @@
   function show(){
     var s = shots[cur]; if(!s) return;
     var img = q('img', stage);
-    if(!img){ stage.innerHTML = '<img alt="配置図">'; img = q('img', stage); }
-    if(img.getAttribute('src') !== s.src) img.setAttribute('src', s.src);
+    if(!img){
+      stage.innerHTML = '<img alt="配置図">'; img = q('img', stage);
+      stageImg = img; stagePinch = null;
+    }
+    if(img.getAttribute('src') !== s.src){
+      img.setAttribute('src', s.src);
+      if(stagePinch) stagePinch.reset();
+    }
+    /* 上に敷いた配置図も、2本指でつまんで大きくできるようにします。
+       （いままでは、いちばん上まで上げて貼りつけた板でしか
+         つまめませんでした） */
+    if(!stagePinch && typeof window.PVPinch === 'function'){
+      stageImg = img;
+      stagePinch = window.PVPinch(img, { frame: stage });
+    }
 
     if(pinImg && pinImg.getAttribute('src') !== s.src){
       pinImg.setAttribute('src', s.src);
@@ -425,10 +440,13 @@
   function h(name){ return Math.round(box.clientHeight * RATIO[name]); }
 
   function snap(name){
+    var before = SNAPS[idx];
     idx = SNAPS.indexOf(name); if(idx < 0) idx = 1;
     modal.setAttribute('data-pv-snap', name);
     modal.style.setProperty('--pv-h', h(name) + 'px');
     syncGripLabel();
+    /* 上の画面の高さが変わるので、つまんだ倍率はもとに戻します */
+    if(before !== SNAPS[idx] && stagePinch) stagePinch.reset();
   }
   /* 人が動かしたとき。以後は勝手に上まで伸ばしません。 */
   function snapByHand(name){
@@ -519,6 +537,8 @@
 
   /* ---------- 上の画像をタップして拡大（いまある機能をそのまま使います） ---------- */
   function onStageTap(){
+    /* つまんで大きくしている間は、指を離しても全画面に飛ばしません */
+    if(stagePinch && stagePinch.zoomed()) return;
     var src = layoutSrc();
     if(src && typeof window.openImgZoom === 'function') window.openImgZoom(src);
   }
