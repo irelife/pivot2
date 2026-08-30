@@ -96,9 +96,10 @@
   }
 
   #pv-grip{
-    flex:0 0 auto; padding:9px 0 5px; background:#fff;
+    flex:0 0 auto; padding:10px 0 7px; background:#fff;
     border-radius:16px 16px 0 0; cursor:grab; touch-action:none;
     -webkit-user-select:none; user-select:none;
+    position:relative; z-index:9;   /* 貼りつけた配置図より前。指が必ず届きます */
   }
   #pv-grip:active{ cursor:grabbing; }
   #pv-grip > i{ display:block; width:38px; height:4px; border-radius:100px; background:#C9C9CE; margin:0 auto; }
@@ -107,7 +108,9 @@
     display:block; text-align:center; font-size:12px; font-weight:700; color:#71717A;
     margin-top:6px; padding:0 46px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
-  #modal.pv-ms[data-pv-snap="full"] #pv-grip-name{ display:none; }
+  /* いちばん上まで上げているときは、下げ方が分かるように
+     「▼ 下げる」と出します（js が文字を入れ替えます）。 */
+  #modal.pv-ms[data-pv-snap="full"] #pv-grip-name{ color:#3F3F46; }
 
   /* 本文はシートの中身。どの高さでも指でスクロールできます。
      下や中の高さでスクロールしはじめたら、自動でいちばん上まで伸びます
@@ -182,13 +185,39 @@
     font-size:10.5px; font-weight:700; letter-spacing:.06em; color:#C9CBCF;
     background:rgba(0,0,0,.45); padding:3px 9px; border-radius:100px;
   }
+  #pv-pin .pv-pin-btns{
+    margin-left:auto; display:flex; align-items:center; gap:6px; pointer-events:auto;
+  }
   #pv-pin .pv-pin-bar button{
-    pointer-events:auto; margin-left:auto; appearance:none; border:0; cursor:pointer;
+    pointer-events:auto; appearance:none; border:0; cursor:pointer;
     font-family:inherit; font-size:11.5px; font-weight:700;
     background:rgba(255,255,255,.92); color:#17171A;
     height:26px; padding:0 11px; border-radius:100px;
   }
   #pv-pin .pv-pin-bar button:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+  #pv-pin #pv-pin-prev,
+  #pv-pin #pv-pin-next{ width:28px; padding:0; font-size:16px; line-height:1; }
+
+  /* ---- 上の画像を切り替える（配置図が2枚、現地写真もあるとき） ---- */
+  #pv-stage-nav{
+    position:absolute; left:10px; z-index:3;
+    bottom:calc(var(--pv-h, 60%) + 12px);
+    display:flex; align-items:center; gap:2px;
+    background:rgba(0,0,0,.5); border-radius:100px; padding:2px;
+    transition:bottom .38s cubic-bezier(.32,.72,0,1);
+  }
+  #pv-stage-nav button{
+    appearance:none; border:0; background:transparent; cursor:pointer;
+    color:#fff; font-family:inherit; font-size:16px; line-height:1;
+    width:28px; height:24px; border-radius:100px;
+  }
+  #pv-stage-nav button:active{ background:rgba(255,255,255,.18); }
+  #pv-stage-nav b{
+    color:#E6E6E8; font-size:11px; font-weight:700; letter-spacing:.04em;
+    min-width:34px; text-align:center;
+  }
+  #modal.pv-ms[data-pv-snap="full"] #pv-stage-nav{ opacity:0; pointer-events:none; }
+  #modal.pv-ms.pv-dragging #pv-stage-nav{ transition:none; }
   /* たたんだとき */
   #modal.pv-ms[data-pv-snap="full"] #pv-pin.is-folded .pv-pin-view{ height:0; min-height:0; }
   #modal.pv-ms[data-pv-snap="full"] #pv-pin.is-folded{ background:#fff; border-bottom:1px solid #E4E4E6; }
