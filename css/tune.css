@@ -3768,3 +3768,31 @@ tr.sub-row td{font-size:13px;}
   .sw-date{ margin-left:0; }
   .sw-notice.sw-open .sw-list{ max-height:50vh; }
 }
+
+/* ===== pv-sync-fit : 上のバーの「ログイン済み(最新)」が
+   字の途中で切れていたのを直します。
+
+   原因は2つありました。
+   ① 幅を 118px に固定していましたが、
+      「✅ ログイン済み(最新)」は 169px 必要でした。
+   ② #sync-status は inline-flex（横並びの箱）なので、
+      text-overflow:ellipsis（…で省略）が効きません。
+      そのため「…」も出ず、字の途中でばっさり切れていました。
+
+   ふつうの箱に戻したうえで、文字が入る幅にします。
+   幅は固定のままなので、表示が変わってもバーは動きません。
+   画面のせまい端末では、はみ出さないところまで縮めて
+   「…」で省略します。
+   ===== */
+#sync-status{
+  display:inline-block!important;
+  flex:0 0 auto!important;
+  width:172px!important;
+  max-width:calc(100vw - 150px)!important;
+  min-width:0!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+  line-height:1.5;
+  text-align:center;
+}
