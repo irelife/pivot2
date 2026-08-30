@@ -36,6 +36,9 @@
   #pv-stage img{
     width:100%; height:100%; object-fit:contain;
     padding:54px 8px 6px;
+    /* 2本指でつまんで大きくできるように、
+       指の動きをこちらで受け取ります */
+    touch-action:none; will-change:transform;
   }
   #pv-stage .pv-stage-none{
     color:#8B8D93; font-size:13px; text-align:center; padding:0 24px 60px; line-height:1.9;
