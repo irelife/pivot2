@@ -1,0 +1,199 @@
+/* ===========================================================
+   スマホの区画一覧を「1区画＝1カード」にします
+   ・横スクロールをなくす（いままで 1290px の表を 345px の窓で
+     見ていたので、契約者名を見るのに横へ2回振る必要がありました）
+   ・上に「空き／使用中／解約」の数と、絞り込み、検索を置く
+   ・既定は「見るだけ」。電話中の誤タップで書き換わりません。
+   このファイルは 760px 以下でしか効きません。
+   パソコンの画面はいっさい変わりません。
+   =========================================================== */
+@media (max-width: 760px){
+
+  /* ---------- 上の道具箱（数・絞り込み・検索） ---------- */
+  #pvc-bar{
+    margin:0 -14px 12px; padding:10px 14px 12px;
+    background:#fff; border-bottom:1px solid #E4E4E6;
+  }
+  #pvc-bar .pvc-head{
+    display:flex; align-items:baseline; gap:8px; margin-bottom:8px;
+  }
+  #pvc-bar .pvc-head b{ font-size:13px; font-weight:800; color:#17171A; letter-spacing:.02em; }
+  #pvc-bar .pvc-head span{ font-size:11px; color:#71717A; }
+
+  /* 絞り込みのつまみ。横に並べて、はみ出す分は横に流します */
+  #pvc-chips{
+    display:flex; gap:6px; overflow-x:auto; padding-bottom:2px;
+    scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  }
+  #pvc-chips::-webkit-scrollbar{ display:none; }
+  #pvc-chips button{
+    flex:0 0 auto; appearance:none; cursor:pointer; font-family:inherit;
+    font-size:12px; font-weight:700; line-height:1;
+    padding:8px 12px; border-radius:100px;
+    border:1px solid #C9C9CE; background:#fff; color:#3F3F46;
+  }
+  #pvc-chips button i{ font-style:normal; font-weight:800; margin-left:5px; color:#71717A; }
+  #pvc-chips button[aria-pressed="true"]{
+    background:#17171A; border-color:#17171A; color:#fff;
+  }
+  #pvc-chips button[aria-pressed="true"] i{ color:#C9C9CE; }
+
+  #pvc-find{ display:flex; gap:8px; margin-top:8px; }
+  #pvc-find input{
+    flex:1 1 auto; min-width:0; font-family:inherit; font-size:14px;
+    padding:9px 12px; border:1px solid #C9C9CE; border-radius:10px;
+    background:#fff; color:#17171A;
+  }
+  #pvc-find input:focus{ outline:2px solid #17171A; outline-offset:-2px; }
+  #pvc-edit{
+    flex:0 0 auto; appearance:none; cursor:pointer; font-family:inherit;
+    font-size:12px; font-weight:700; padding:0 14px; border-radius:10px;
+    border:1px solid #C9C9CE; background:#fff; color:#3F3F46;
+  }
+  .modal-body.pvc-edit-on #pvc-edit{ background:#17171A; border-color:#17171A; color:#fff; }
+  #pvc-empty{
+    display:none; padding:18px 4px; text-align:center;
+    font-size:13px; color:#71717A;
+  }
+  .modal-body.pvc-no-hit #pvc-empty{ display:block; }
+
+  /* ---------- 表をカードに組み替えます ---------- */
+  .modal-body.pvc-on .spots-table-sticky-top{ display:none !important; }
+  .modal-body.pvc-on #spots-table-wrap{
+    overflow:visible !important; width:auto !important; max-width:none !important;
+  }
+  .modal-body.pvc-on #spots-table{
+    display:block; border:0; border-collapse:separate; border-spacing:0;
+    /* base.css が min-width:1290px を掛けているので、ここで外します。
+       これが横スクロールの正体でした。 */
+    width:100% !important; min-width:0 !important;
+    table-layout:auto !important;
+  }
+  .modal-body.pvc-on #spots-table > thead{ display:none; }
+  .modal-body.pvc-on #spots-table > tbody{ display:block; }
+
+  /* 1区画＝1カード */
+  .modal-body.pvc-on #spots-table tr.spot-row{
+    display:grid;
+    grid-template-columns:74px 1fr auto;
+    grid-template-areas:
+      "no    type  status"
+      "room  user  user"
+      "price tou   tou"
+      "note  note  note"
+      "doc   doc   doc";
+    gap:6px 10px; align-items:center;
+    padding:10px 12px; margin:0 0 8px;
+    border:1px solid #D4D4D8; border-radius:12px;
+  }
+  .modal-body.pvc-on #spots-table tr.spot-row > td{
+    display:block; border:0 !important; padding:0 !important; min-width:0;
+  }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(1){ grid-area:no; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(2){ grid-area:type; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(3){ grid-area:tou; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(4){ grid-area:room; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(5){ grid-area:user; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(6){ grid-area:price; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(7){ grid-area:status; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(8){ grid-area:note; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(9){ grid-area:doc; }
+
+  /* 区画番号を大きく */
+  .modal-body.pvc-on #spots-table tr.spot-row > td.spot-no-cell{
+    background:transparent !important; text-align:left !important;
+  }
+  .modal-body.pvc-on #spots-table tr.spot-row .spot-no-label{
+    display:inline; font-size:19px; font-weight:800; letter-spacing:.02em; color:#17171A;
+    background:transparent !important; padding:0 !important;
+  }
+  .modal-body.pvc-on #spots-table tr.spot-row .spot-drag-icon{ display:none; }
+  /* 区画そのものを消す「×」は、スマホでは出しません。
+     電話中の押しまちがいで区画が消えると取り返しがつかないためです。
+     区画の削除はパソコンから行ってください。 */
+  .modal-body.pvc-on #spots-table tr.spot-row .spot-remove-btn{ display:none !important; }
+
+  /* 見出しを小さく添えます */
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(3)::before{ content:"棟"; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(4)::before{ content:"号室"; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(5)::before{ content:"使用者"; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(6)::before{ content:"月額"; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(8)::before{ content:"備考"; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td::before{
+    display:block; font-size:10px; font-weight:700; letter-spacing:.08em;
+    color:#8A8A93; margin-bottom:1px;
+  }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(5) input{
+    font-size:16px; font-weight:700;
+  }
+
+  /* 入力欄は、見るだけのときは字だけに見せます */
+  .modal-body.pvc-on #spots-table tr > td input[type="text"],
+  .modal-body.pvc-on #spots-table tr > td input[type="date"],
+  .modal-body.pvc-on #spots-table tr > td select{
+    width:100% !important; max-width:100% !important;
+    font-family:inherit; font-size:14px; color:#17171A;
+    background:transparent; border:1px solid transparent;
+    border-radius:8px; padding:3px 4px !important; appearance:none;
+  }
+  .modal-body.pvc-on:not(.pvc-edit-on) #spots-table tr > td input,
+  .modal-body.pvc-on:not(.pvc-edit-on) #spots-table tr > td select{
+    pointer-events:none;
+  }
+  .modal-body.pvc-on:not(.pvc-edit-on) #spots-table tr > td input::placeholder{ color:transparent; }
+  .modal-body.pvc-edit-on #spots-table tr > td input[type="text"],
+  .modal-body.pvc-edit-on #spots-table tr > td input[type="date"],
+  .modal-body.pvc-edit-on #spots-table tr > td select{
+    border-color:#C9C9CE; background:#fff;
+  }
+
+  /* 状況はカードの右上にバッジで */
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(7){ justify-self:end; }
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(7) select{
+    width:auto !important; text-align:center;
+    font-size:12px; font-weight:800; letter-spacing:.04em;
+    padding:5px 12px !important; border-radius:100px;
+    border:1px solid #3F3F46 !important; background:#fff !important;
+  }
+  /* 種別は小さく、番号のとなりに */
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(2) select{
+    width:auto !important; font-size:12px; color:#52525B;
+  }
+  /* 月額は右にそろえず、読みやすく左そろえ */
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(6) input{ text-align:left !important; }
+
+  /* 書類ボタンは、編集のときだけ出します（電話中は邪魔なので） */
+  .modal-body.pvc-on #spots-table tr.spot-row > td:nth-child(9){ display:none; }
+  .modal-body.pvc-edit-on #spots-table tr.spot-row > td:nth-child(9){
+    display:flex !important; gap:6px; text-align:left !important;
+    padding:2px 0 0 !important; border-top:1px solid #E4E4E6 !important;
+    margin-top:4px;
+  }
+  .modal-body.pvc-edit-on #spots-table tr.spot-row > td:nth-child(9) .btn-doc{
+    flex:1; margin:0 !important;
+  }
+
+  /* 解約日・予約・退去済 の行は、カードの下にくっつく帯にします */
+  .modal-body.pvc-on #spots-table tr.sub-row{
+    display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px;
+    margin:-10px 0 8px; padding:8px 12px;
+    border:1px solid #D4D4D8; border-top:0;
+    border-radius:0 0 12px 12px;
+  }
+  .modal-body.pvc-on #spots-table tr.sub-row > td{
+    display:block; border:0 !important; padding:0 !important;
+    text-align:left !important; min-width:0;
+  }
+  .modal-body.pvc-on #spots-table tr.sub-row > td:empty{ display:none; }
+  .modal-body.pvc-on #spots-table tr.sub-row > td input{ width:auto !important; min-width:120px; }
+
+  /* 中身が空の欄は、見るだけのときは出しません。
+     （空き区画のカードに「使用者」「備考」の見出しだけが残らないように）
+     :has() が使えない古い端末では、これまでどおり見出しが出るだけです。 */
+  .modal-body.pvc-on:not(.pvc-edit-on) #spots-table tr.spot-row > td:has(input[type="text"]:placeholder-shown){
+    display:none;
+  }
+
+  /* 絞り込みで消した区画 */
+  .modal-body.pvc-on #spots-table tr.pvc-hide{ display:none !important; }
+}
