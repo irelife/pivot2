@@ -47,6 +47,7 @@
       '<div id="pvc-find">' +
         '<input type="search" id="pvc-word" placeholder="区画番号・お名前・号室で探す" ' +
                'autocomplete="off" enterkeyhint="search" aria-label="区画をさがす">' +
+        '<button type="button" id="pvc-map" title="この物件の住所を地図で開きます">地図</button>' +
         '<button type="button" id="pvc-edit" aria-pressed="false">編集</button>' +
       '</div>';
 
@@ -74,6 +75,7 @@
     findBox.addEventListener('input', onWord);
     findBox.addEventListener('search', onWord);
     q('#pvc-edit', bar).addEventListener('click', onEdit);
+    q('#pvc-map', bar).addEventListener('click', onMap);
 
     var tb = document.getElementById('spots-tbody');
     if(tb && window.MutationObserver){
@@ -204,12 +206,47 @@
     var f = e.target.getAttribute && e.target.getAttribute('data-field');
     if(f === 'status') refreshSoon();
   }
+  /* 絞り込んだあと、<いちばん上に残った区画カード> の先頭へ寄せます。
+     ・すべて   … 1番めの区画
+     ・空き     … 空きの いちばん上
+     ・使用中   … 使用中の いちばん上
+     貼りつけた配置図の板は上に居座るので、そのぶん下げて、
+     カードが板のかげに隠れないようにします。
+     絞り込みで高さが変わるので、描き直しを1回待ってから測ります。 */
   function scrollToSpots(){
-    var sec = q('.spots-section');
-    if(!sec || !body) return;
-    var top = sec.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop;
-    try{ body.scrollTo({ top: Math.max(0, top - 8), behavior:'smooth' }); }
-    catch(err){ body.scrollTop = Math.max(0, top - 8); }
+    if(!on || !body) return;
+    var run = function(){
+      var target = q('#spots-tbody tr.spot-row:not(.pvc-hide)') || q('.spots-section');
+      if(!target) return;
+      var pin = document.getElementById('pv-pin');
+      var pinH = 0;
+      if(pin && getComputedStyle(pin).display !== 'none'){
+        pinH = pin.getBoundingClientRect().height;
+      }
+      var top = target.getBoundingClientRect().top
+              - body.getBoundingClientRect().top
+              + body.scrollTop - pinH - 10;
+      if(top < 0) top = 0;
+      try{ body.scrollTo({ top: top, behavior:'smooth' }); }
+      catch(err){ body.scrollTop = top; }
+    };
+    if(window.requestAnimationFrame) requestAnimationFrame(run); else setTimeout(run, 16);
+  }
+
+  /* ---------- 地図（スマホだけ） ---------- */
+  function onMap(){
+    var a = document.getElementById('f-addr');
+    var addr = a ? String(a.value || '').trim() : '';
+    var nm = document.getElementById('f-name');
+    var name = nm ? String(nm.value || '').trim() : '';
+    if(!addr){
+      alert('住所が入っていないので、地図を開けません。\n下の「住所(物件メイン)」に入れてください。');
+      return;
+    }
+    /* 物件名も一緒に渡すと、建物名で見つかることがあります */
+    var q2 = addr + (name ? ' ' + name : '');
+    window.open('https://www.google.com/maps/search/?api=1&query=' +
+                encodeURIComponent(q2), '_blank', 'noopener');
   }
 
   /* ---------- 出入り口 ---------- */
