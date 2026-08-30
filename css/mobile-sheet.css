@@ -1,0 +1,197 @@
+/* ===========================================================
+   スマホで物件を見るときの画面（Googleマップと同じ組み立て）
+   ・配置図を画面いっぱいに敷く
+   ・物件情報と区画一覧は、下から引き上げるシートに入れる
+   このファイルは 760px 以下でしか効きません。
+   パソコンの画面はいっさい変わりません。
+   =========================================================== */
+@media (max-width: 760px){
+
+  /* 用意ができた印（js/mobilesheet.js が #modal に付けます） */
+  #modal.pv-ms{
+    padding:0 !important;
+    overflow:hidden !important;
+    align-items:stretch !important;
+    background:#1C1D20 !important;
+  }
+  #modal.pv-ms > .modal{
+    width:100% !important; max-width:none !important;
+    height:100% !important; max-height:none !important;
+    border:0 !important; border-radius:0 !important; box-shadow:none !important;
+    background:#1C1D20 !important;
+    -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+    position:relative !important;
+    display:block !important;
+    overflow:hidden !important;
+  }
+
+  /* ---- 上：配置図のステージ ---- */
+  #pv-stage{
+    position:absolute; top:0; left:0; right:0; z-index:1;
+    height:calc(100% - var(--pv-h, 60%));
+    display:flex; align-items:center; justify-content:center;
+    background:#1C1D20; overflow:hidden;
+    transition:height .38s cubic-bezier(.32,.72,0,1);
+  }
+  #pv-stage img{
+    width:100%; height:100%; object-fit:contain;
+    padding:54px 8px 6px;
+  }
+  #pv-stage .pv-stage-none{
+    color:#8B8D93; font-size:13px; text-align:center; padding:0 24px 60px; line-height:1.9;
+  }
+  #pv-stage .pv-stage-pdf{
+    color:#E6E6E8; font-size:14px; font-weight:700; text-align:center; padding-bottom:60px;
+  }
+  #pv-hint{
+    position:absolute; left:50%; transform:translateX(-50%);
+    bottom:calc(var(--pv-h, 60%) + 12px); z-index:3;
+    background:rgba(255,255,255,.94); color:#17171A;
+    font-size:11.5px; font-weight:700; letter-spacing:.03em;
+    padding:5px 13px; border-radius:100px; pointer-events:none;
+    box-shadow:0 2px 10px rgba(0,0,0,.32);
+    transition:opacity .2s, bottom .38s cubic-bezier(.32,.72,0,1);
+  }
+  #modal.pv-ms[data-pv-snap="full"] #pv-hint{ opacity:0; }
+
+  /* ---- 上に浮くヘッダー ---- */
+  #modal.pv-ms > .modal > .modal-header{
+    position:absolute !important; top:0; left:0; right:0; z-index:4;
+    padding:9px 10px !important;
+    background:linear-gradient(#1C1D20 62%, rgba(28,29,32,0)) !important;
+    border:0 !important;
+    gap:8px;
+  }
+  #modal.pv-ms > .modal > .modal-header > span{
+    flex:1; min-width:0; overflow-x:auto; gap:8px !important;
+    scrollbar-width:none;
+  }
+  #modal.pv-ms > .modal > .modal-header > span::-webkit-scrollbar{ display:none; }
+  #modal.pv-ms .modal-home-logo{ color:#fff; font-size:15px !important; padding:2px 4px !important; flex:0 0 auto; }
+  #modal.pv-ms .modal-close{ color:#fff !important; font-size:26px; flex:0 0 auto; }
+  /* Property / Contract / Owner Mail の切替は、画面を閉じてから使えます。
+     スマホでは幅を食って「×」が押せなくなるので隠します。 */
+  #modal.pv-ms .modal-tab-btn{ display:none !important; }
+  #modal.pv-ms #undo-btn,
+  #modal.pv-ms #redo-btn{ flex:0 0 auto; }
+  #modal.pv-ms #undo-btn,
+  #modal.pv-ms #redo-btn{ width:38px !important; height:34px !important; }
+
+  /* ---- 下：引き上げるシート ---- */
+  /* シートの高さ＝見えている高さ。こうしておくと「保存・キャンセル」が
+     いつでもシートのいちばん下に出て、画面の外に出ません。 */
+  #pv-sheet{
+    position:absolute; left:0; right:0; bottom:0; z-index:6;
+    height:var(--pv-h, 60%);
+    background:#fff; border-radius:16px 16px 0 0;
+    box-shadow:0 -2px 20px rgba(0,0,0,.22);
+    display:flex; flex-direction:column;
+    transition:height .38s cubic-bezier(.32,.72,0,1);
+  }
+  #modal.pv-ms.pv-dragging #pv-sheet,
+  #modal.pv-ms.pv-dragging #pv-stage,
+  #modal.pv-ms.pv-dragging #pv-hint{ transition:none; }
+  @media (prefers-reduced-motion: reduce){
+    #pv-sheet, #pv-stage, #pv-hint{ transition:none; }
+  }
+
+  #pv-grip{
+    flex:0 0 auto; padding:9px 0 5px; background:#fff;
+    border-radius:16px 16px 0 0; cursor:grab; touch-action:none;
+    -webkit-user-select:none; user-select:none;
+  }
+  #pv-grip:active{ cursor:grabbing; }
+  #pv-grip > i{ display:block; width:38px; height:4px; border-radius:100px; background:#C9C9CE; margin:0 auto; }
+  #pv-grip:focus-visible{ outline:2px solid #17171A; outline-offset:-3px; }
+  #pv-grip-name{
+    display:block; text-align:center; font-size:12px; font-weight:700; color:#71717A;
+    margin-top:6px; padding:0 46px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  #modal.pv-ms[data-pv-snap="full"] #pv-grip-name{ display:none; }
+
+  /* 本文はシートの中身。どの高さでも指でスクロールできます。
+     下や中の高さでスクロールしはじめたら、自動でいちばん上まで伸びます
+     （地図アプリと同じ動きです）。 */
+  #modal.pv-ms > .modal #pv-sheet > .modal-body{
+    flex:1 1 auto; min-height:0;
+    padding:4px 14px 18px !important;
+    overflow-y:auto !important; overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    touch-action:pan-y;
+  }
+
+  /* 保存・キャンセルはシートの下に固定 */
+  #modal.pv-ms > .modal #pv-sheet > .modal-footer{
+    flex:0 0 auto;
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom)) !important;
+    border-top:1px solid #E4E4E6 !important; background:#fff;
+  }
+  #modal.pv-ms #pv-sheet > .modal-footer .btn{ flex:1; justify-content:center; }
+
+  /* シートの中の配置図ブロックは「差し替え用」に小さくします
+     （大きく見るのは上のステージなので、ここは操作だけ） */
+  #modal.pv-ms .spot-layout-left-img .img-block-title::after{
+    content:" ／ 大きな表示は上の画面です";
+    font-weight:400; color:#8A8A93;
+  }
+  #modal.pv-ms .spot-layout-left-img .img-block-layout .img-thumb,
+  #modal.pv-ms .spot-layout-left-img .img-block-layout .img-thumb-loading,
+  #modal.pv-ms .spot-layout-left-img .img-block-layout #layout-area.layout-single .img-thumb,
+  #modal.pv-ms .spot-layout-left-img .img-block-layout #layout-area.layout-single .img-thumb-loading{
+    height:96px !important; max-height:96px !important;
+  }
+  #modal.pv-ms .spot-layout-left-img .img-block-layout .img-upload-btn{
+    min-height:96px !important;
+  }
+
+  /* ---- 入力欄が画面からはみ出さないようにします ----
+     いまのスマホ画面でも右側が切れていたところです。 */
+  #modal.pv-ms .modal-body .form-row{ flex-wrap:wrap !important; gap:10px !important; }
+  /* flex:1 / flex:2 のままだと、どんなに狭くても1行に詰め込まれて字が切れます。
+     折り返す幅を決めて、スマホでは2つずつ並ぶようにします。 */
+  #modal.pv-ms .modal-body .form-field{ flex:1 1 150px !important; min-width:0 !important; }
+  #modal.pv-ms .modal-body .form-field input,
+  #modal.pv-ms .modal-body .form-field select,
+  #modal.pv-ms .modal-body .form-field textarea{ max-width:100% !important; }
+  #modal.pv-ms .modal-body .tou-box,
+  #modal.pv-ms .modal-body .spots-section,
+  #modal.pv-ms .modal-body .img-section{ max-width:100% !important; }
+
+  /* ---- 区画を見るときに、配置図を上に貼りつけておく板 ----
+     シートをいちばん上まで上げたときだけ出ます。
+     中身をスクロールしても、この板は上に残ります。 */
+  #pv-pin{ display:none; }
+  #modal.pv-ms[data-pv-snap="full"] #pv-pin{
+    display:block; position:sticky; top:0; z-index:8;
+    margin:0 -14px 10px; background:#1C1D20;
+    border-bottom:1px solid #000; overflow:hidden;
+  }
+  #pv-pin .pv-pin-view{
+    height:30vh; min-height:150px; display:flex; align-items:center; justify-content:center;
+    overflow:hidden; background:#1C1D20;
+  }
+  #pv-pin .pv-pin-view img{
+    width:100%; height:100%; object-fit:contain; touch-action:pan-y;
+    will-change:transform;
+  }
+  #pv-pin .pv-pin-bar{
+    position:absolute; top:6px; right:8px; left:8px; z-index:2;
+    display:flex; align-items:center; gap:6px; pointer-events:none;
+  }
+  #pv-pin .pv-pin-bar span{
+    font-size:10.5px; font-weight:700; letter-spacing:.06em; color:#C9CBCF;
+    background:rgba(0,0,0,.45); padding:3px 9px; border-radius:100px;
+  }
+  #pv-pin .pv-pin-bar button{
+    pointer-events:auto; margin-left:auto; appearance:none; border:0; cursor:pointer;
+    font-family:inherit; font-size:11.5px; font-weight:700;
+    background:rgba(255,255,255,.92); color:#17171A;
+    height:26px; padding:0 11px; border-radius:100px;
+  }
+  #pv-pin .pv-pin-bar button:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+  /* たたんだとき */
+  #modal.pv-ms[data-pv-snap="full"] #pv-pin.is-folded .pv-pin-view{ height:0; min-height:0; }
+  #modal.pv-ms[data-pv-snap="full"] #pv-pin.is-folded{ background:#fff; border-bottom:1px solid #E4E4E6; }
+  #pv-pin.is-folded .pv-pin-bar{ position:static; padding:6px 2px; }
+  #pv-pin.is-folded .pv-pin-bar span{ color:#71717A; background:transparent; padding:0; }
+}
