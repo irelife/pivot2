@@ -76,6 +76,45 @@ function setSyncStatus(state, text){
 // 起動時はクラウドを読み、クラウドの時刻が自分より新しいときだけ取り込む(古い物で上書きしない)。
 const MTIME_KEY = insPrefix() + 'local_mtime';
 let _hasUnsavedChanges = false;
+
+/* ==================================================================
+ * pv-sync-guard 2026-08-31
+ *   古い内容を持った端末が、正しいクラウドを何度でも古い状態へ
+ *   戻してしまう事故を止めるための仕組み。
+ *
+ *   ❶ 前回そろえた時点の物件一覧を覚えておく（last_sync_bld_ids）
+ *   ❷ 送信前に「クラウドにあって、手元に無い物件」を調べる
+ *      ・前回そろえた時点で手元にあった物件 → その人が消したので、通す
+ *      ・一度も手元に無かった物件           → 取りこぼし。送信を中止する
+ *   ❸ 取り込みを保護したときに、手元の内容を自動で送り返さない
+ * ================================================================== */
+const SYNCIDS_KEY = insPrefix() + 'last_sync_bld_ids';
+function saveSyncIds(ids){
+  try{ localStorage.setItem(SYNCIDS_KEY, JSON.stringify(ids || [])); }catch(e){}
+}
+function loadSyncIds(){
+  try{
+    const a = JSON.parse(localStorage.getItem(SYNCIDS_KEY) || 'null');
+    return Array.isArray(a) ? a : null;   // null = まだ一度もそろえていない
+  }catch(e){ return null; }
+}
+// クラウドにあって手元に無い物件のうち、「この端末が一度も持っていなかった物件」の名前を返す
+function pvMissingFromLocal(cloudBlds, localBlds){
+  const known = loadSyncIds();
+  const out = [];
+  const c = cloudBlds || {}, l = localBlds || {};
+  for(const id in c){
+    if(!Object.prototype.hasOwnProperty.call(c, id)) continue;
+    if(Object.prototype.hasOwnProperty.call(l, id)) continue;       // 手元にもある
+    if(known && known.indexOf(id) >= 0) continue;                   // 前は持っていた → 意図した削除
+    out.push((c[id] && c[id].name) ? String(c[id].name) : id);
+  }
+  return out;
+}
+function pvMissingText(list){
+  return '　' + list.slice(0, 8).join('、') + (list.length > 8 ? ('　ほか' + (list.length - 8) + '件') : '');
+}
+try{ window.pvMissingFromLocal = pvMissingFromLocal; window.saveSyncIds = saveSyncIds; window.loadSyncIds = loadSyncIds; }catch(e){}
  
 function touchLocalMtime(){
   const t = Date.now();
@@ -149,12 +188,27 @@ async function doAutoPush(){
           _autoPushInFlight = false;
           return;
         }
+        // ===== 取りこぼし防止(pv-sync-guard) =====
+        // 件数が半分あっても、1件だけ消える押し戻しは今までの安全装置を素通りしていました。
+        // クラウドにあって、この端末が一度も持っていない物件があれば、送信そのものを止めます。
+        const _miss = pvMissingFromLocal(cloudAll, all);
+        if(_miss.length){
+          setSyncStatus('error', '⚠️ 送信を中止(消える物件があります)');
+          alert('同期を安全のため中止しました。\n\n' +
+                'クラウドにあって、この端末に無い物件が ' + _miss.length + '件あります。\n' +
+                pvMissingText(_miss) + '\n\n' +
+                'このまま送ると、これらが消えてしまいます。\n' +
+                '設定 →「⬇️ クラウドから読込」で、先にクラウドの内容を取り込んでください。');
+          _autoPushInFlight = false;
+          return;
+        }
       }
     }catch(e){ /* 確認に失敗しても通常の保存は続行 */ }
     const mtime = getLocalMtime() || touchLocalMtime();
     const r = await postToGas(url, { action:'save', payload:{ buildings: all, contracts: contracts, owners: ownersData, mtime: mtime } });
     if(r && r.ok){
       _hasUnsavedChanges = false;
+      try{ saveSyncIds(Object.keys(all)); }catch(e){}   // pv-sync-guard: そろえた時点の一覧
       setSyncStatus('saved', '✅ 同期済み');
       setTimeout(() => { const e=document.getElementById('sync-status'); if(e && e.dataset.state==='saved') setSyncStatus('idle',''); }, 2000);
     } else {
@@ -208,9 +262,9 @@ async function autoPullOnStart(){
         const localBC = Object.keys(localBuildings).length;
         const cloudBC = Object.keys(buildings || {}).length;
         if(localBC >= 3 && cloudBC < localBC * 0.5){
-          // クラウドの物件が異常に少ない → 物件は取り込まず手元を守り、手元をクラウドへ送る
+          // クラウドの物件が異常に少ない → 物件は取り込まず手元を守る。
+          // ★pv-sync-guard: ここで手元をクラウドへ送り返すのはやめました(古い内容の押し戻しの原因)
           setSyncStatus('error', '⚠️ 物件データを保護しました');
-          scheduleAutoPush();
         } else if(buildings && Object.keys(buildings).length >= 0){
         pbSaveRaw(buildings);
         }
@@ -224,8 +278,8 @@ async function autoPullOnStart(){
         if(localCC >= 3 && cloudCC < localCC * 0.5){
           // クラウド側が異常に少ない → 契約は取り込まず、手元を守る。手元をクラウドへ送って復旧。
           setSyncStatus('error', '⚠️ 契約データを保護しました');
-          alert('クラウドの契約数('+cloudCC+'件)が、この端末('+localCC+'件)より大幅に少なかったため、\n手元の契約データを保護し、クラウドの内容では上書きしませんでした。\n\nこの端末の契約をクラウドへ送って復旧します。');
-          scheduleAutoPush();
+          // ★pv-sync-guard: 自動で送り返さない
+          alert('クラウドの契約数('+cloudCC+'件)が、この端末('+localCC+'件)より大幅に少なかったため、\n手元の契約データを保護し、クラウドの内容では上書きしませんでした。\n\nどちらが正しいかを確かめてから、設定の「⬇️ クラウドから読込」または「⬆️ 全データをクラウドへ送信」を使ってください。');
         } else {
           localStorage.setItem(ctKey(), JSON.stringify(contracts || {}));
         }
@@ -639,7 +693,6 @@ async function loginPull(opt){
   const _cbc = Object.keys(buildings || {}).length;
   let _guarded = false;
   if(_lbc >= 1 && _cbc < _lbc * 0.5){
-    setSyncStatus('error', '⚠️ 物件データを保護しました');
     _guarded = true;
   } else {
     pbSaveRaw(buildings);
@@ -650,16 +703,35 @@ async function loginPull(opt){
   const _lcc = Object.keys(_lc).length;
   const _ccc = Object.keys(contracts || {}).length;
   if(_lcc >= 1 && _ccc < _lcc * 0.5){
-    setSyncStatus('error', '⚠️ 契約データを保護しました');
     _guarded = true;
   } else {
     localStorage.setItem(ctKey(), JSON.stringify(contracts || {}));
   }
-  // 取り込みを止めた場合は、手元の内容をクラウドへ送って復旧させる
-  if(_guarded){ try{ scheduleAutoPush(); }catch(e){} }
+  // ===== 内容が大きく違うとき(pv-sync-guard) =====
+  // ★以前はここで、手元の内容をクラウドへ自動で送り返していました。
+  //   そのため、古い内容の端末が正しいクラウドを何度でも古い状態に戻していました。
+  //   自動では送り返さず、どちらに合わせるかを人に決めてもらいます。
+  if(_guarded){
+    setSyncStatus('error', '⚠️ 内容が大きく違います');
+    const _ok = confirm(
+      'この端末の内容と、クラウドの内容が大きく違います。\n\n' +
+      '　この端末 : 物件 ' + _lbc + '件 / 契約 ' + _lcc + '件\n' +
+      '　クラウド : 物件 ' + _cbc + '件 / 契約 ' + _ccc + '件\n\n' +
+      '［OK］ クラウドにそろえる(ほかの端末と同じ内容になります)\n' +
+      '［キャンセル］ この端末の内容のまま使う(クラウドへは送りません)'
+    );
+    if(_ok){
+      pbSaveRaw(buildings);
+      try{ localStorage.setItem(ctKey(), JSON.stringify(contracts || {})); }catch(e){}
+      _guarded = false;
+    }
+  }
   if(typeof window.applyCloudOwners === 'function'){ window.applyCloudOwners(payload.owners); }
   const cloudMtime = parseInt(payload.mtime || '0', 10) || Date.now();
   try{ localStorage.setItem(MTIME_KEY, String(cloudMtime)); }catch(e){}
+  // pv-sync-guard: クラウドにそろえたときだけ、その一覧を「前回そろえた時点」として記録する。
+  // (手元を残した場合に記録すると、次の送信で取りこぼしを見逃してしまうため)
+  if(!_guarded){ try{ saveSyncIds(Object.keys(buildings || {})); }catch(e){} }
   _hasUnsavedChanges = false;
   requestRender();
   // クラウド取り込み後に自動切替をチェック（起動時の1秒後では間に合わないため）
@@ -978,11 +1050,12 @@ async function cloudSaveAll(){
   cloudLog('送信中... ('+bldCount+'物件)');
  
   try {
-　  let _ct = {}; try{ _ct = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){ _ct = {}; }
+        let _ct = {}; try{ _ct = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){ _ct = {}; }
     let _ow = []; try{ _ow = JSON.parse(localStorage.getItem(insPrefix() + 'rent_owner_send_owners_v1') || '[]'); }catch(e){ _ow = []; }
     const _mt = (typeof touchLocalMtime === 'function') ? touchLocalMtime() : Date.now();
     const r = await postToGas(url, { action: 'save', payload: { buildings: all, contracts: _ct, owners: _ow, mtime: _mt } });
     if(r.ok){
+      try{ saveSyncIds(Object.keys(all)); }catch(e){}   // pv-sync-guard
       cloudLog('送信成功: 物件 '+r.buildingCount+'件 / 区画 '+r.spotCount+'件', 'success');
       cloudLog('  → スプレッドシートを確認してください', 'success');
       document.dispatchEvent(new CustomEvent('pivot:toast', { detail: 'クラウドへ送信完了' }));
@@ -1020,6 +1093,7 @@ async function cloudLoadAll(){
       const payload = r.payload || {};
       const buildings = payload.buildings || {};
       document.dispatchEvent(new CustomEvent('pivot:save-buildings', { detail: buildings }));
+      try{ saveSyncIds(Object.keys(buildings)); }catch(e){}   // pv-sync-guard
       cloudLog('読込成功: 物件 '+(r.buildingCount||0)+'件', 'success');
       document.dispatchEvent(new CustomEvent('pivot:toast', { detail: 'クラウドから読込完了' }));
       requestRender('buildings');
