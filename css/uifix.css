@@ -1,0 +1,60 @@
+/* ============================================================
+   こまかい直し  uifix 2026-08-31a
+   ・これから先の「ちょっとした見た目の直し」は、この1枚に足していきます。
+   ・元に戻すときは index.html のこの1行を消すだけです。
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   ① オーナーメール「別管理」の見出しが、スマホで縦に折れる
+      　森本  →  森本
+      　将行      将行
+      名前・バッジ・「閲覧のみ」を、それぞれ1行に収めます。
+   ------------------------------------------------------------ */
+@media (max-width:760px){
+  #rent-view .pv-head{
+    flex-wrap:wrap;
+    row-gap:8px;
+    column-gap:8px;
+  }
+  /* 名前は1行め全部を使います。長ければ … で切ります */
+  #rent-view .pv-head .nm{
+    flex:1 1 100%;
+    min-width:0;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  /* バッジ・状態・ボタンは、縦に折らずに横のまま */
+  #rent-view .pv-head .pill,
+  #rent-view .pv-head .vac,
+  #rent-view .pv-head .mail,
+  #rent-view .pv-head button{
+    flex:0 0 auto;
+    white-space:nowrap;
+  }
+  #rent-view .pv-head .spacer{ flex:1 1 auto; }
+  #rent-view .pv-head button{ margin-left:0 !important; }
+}
+
+/* ------------------------------------------------------------
+   ② 「ほか ◯件（押すと全部出ます）」を、押せるように見せます
+      （実際に押したときの動きは js/uifix.js が付けます）
+   ------------------------------------------------------------ */
+.sw-more{
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none; user-select:none;
+}
+.sw-more:hover{ color:#3d3d42; background:rgba(0,0,0,.03); }
+.sw-more:active{ background:rgba(0,0,0,.06); }
+
+/* ------------------------------------------------------------
+   ③ 契約の一覧表（リスト表示）の角を丸くします
+   ------------------------------------------------------------ */
+#kb-view .lv-wrap{
+  border-radius:18px;
+  overflow:hidden;
+}
+@media (max-width:760px){
+  #kb-view .lv-wrap{ border-radius:16px; }
+}
