@@ -58,8 +58,10 @@
   function pinched(){
     var im=pinImg(); if(!im) return false;
     var t=im.style.transform||'';
-    return t.indexOf('translate(')>=0 && t.indexOf('scale(1)')<0;
+    var m=t.match(/scale\(([\d.]+)\)/);
+    return !!(m && parseFloat(m[1])>1.05);
   }
+  function zoomOn(){ var p=pin(); return !!(p && p.classList.contains('ims-zoom')); }
 
   /* ---- 画像の中から「番号の札」を探して、その中心を返します ---- */
   function findTags(img){
@@ -124,33 +126,83 @@
     return res;
   }
 
+  var curX = 0.5, curY = 0.5, ovX = 0, ovY = 0;   // いまの位置と、動かせる余地
+  var escaped = false;                            // 自分で全体表示にもどしたか
+
+  function setPos(img, x, y){
+    curX = Math.max(0, Math.min(1, x));
+    curY = Math.max(0, Math.min(1, y));
+    img.style.objectPosition = (curX*100).toFixed(1)+'% '+(curY*100).toFixed(1)+'%';
+  }
+
   function place(img, f){
     var box=img.getBoundingClientRect();
     var iw=img.naturalWidth, ih=img.naturalHeight;
     if(!iw||!ih||!box.width||!box.height) return;
     var s=Math.max(box.width/iw, box.height/ih);
     var dw=iw*s, dh=ih*s;
-    var ox = (dw>box.width)  ? (f.fx*dw - box.width/2)  / (dw-box.width)  : 0.5;
-    var oy = (dh>box.height) ? (f.fy*dh - box.height/2) / (dh-box.height) : 0.5;
-    ox=Math.max(0,Math.min(1,ox)); oy=Math.max(0,Math.min(1,oy));
-    img.style.objectPosition = (ox*100).toFixed(1)+'% '+(oy*100).toFixed(1)+'%';
+    ovX = Math.max(0, dw - box.width);
+    ovY = Math.max(0, dh - box.height);
+    var ox = ovX ? (f.fx*dw - box.width/2)  / ovX : 0.5;
+    var oy = ovY ? (f.fy*dh - box.height/2) / ovY : 0.5;
+    setPos(img, ox, oy);
+  }
+
+  /* ---- 大きくしている間は、指で上下左右に動かせるようにします ---- */
+  function bindPan(){
+    var img = pinImg();
+    if(!img || img.__pvPan) return;
+    img.__pvPan = true;
+    var st = null;
+    img.addEventListener('touchstart', function(e){
+      if(!zoomOn() || pinched() || !e.touches || e.touches.length !== 1){ st=null; return; }
+      var t = e.touches[0];
+      st = { x:t.clientX, y:t.clientY, ox:curX, oy:curY };
+    }, {passive:true});
+    img.addEventListener('touchmove', function(e){
+      if(!st || !zoomOn() || pinched() || !e.touches || e.touches.length !== 1) return;
+      if(!ovX && !ovY) return;                     // 動かす余地が無ければ、そのままスクロール
+      var t = e.touches[0];
+      var dx = t.clientX - st.x, dy = t.clientY - st.y;
+      var ny = ovY ? st.oy - dy/ovY : curY;
+      /* いちばん上の端で、さらに下へ払ったとき → 全体表示にもどします（逃げ道） */
+      if(ovY && ny < -0.06 && dy > 46){
+        var p2 = pin();
+        if(p2) p2.classList.remove('ims-zoom');
+        img.style.objectPosition = '';
+        escaped = true;          // いちばん上まで戻すまで、勝手に大きくしません
+        st = null;
+        return;
+      }
+      setPos(img,
+        ovX ? st.ox - dx/ovX : curX,
+        ny);
+      try{ e.preventDefault(); }catch(err){}       // 指で動かしている間は、シートを動かしません
+    }, {passive:false});
+    img.addEventListener('touchend', function(){ st=null; }, {passive:true});
+    img.addEventListener('touchcancel', function(){ st=null; }, {passive:true});
   }
 
   function update(){
     var p=pin(), b=body();
     if(!p||!b) return;
     var img=pinImg();
-    if(!img || getComputedStyle(p).display==='none' || pinched()){
+    if(!img || getComputedStyle(p).display==='none'){
       if(p) p.classList.remove('ims-zoom');
       return;
     }
+    bindPan();
     var y=b.scrollTop||0;
     if(y>ON){
+      if(escaped) return;                                 // 自分で戻したときは、そのまま
+      if(zoomOn()) return;                                // すでに大きくしている（＝指で動かした位置を保ちます）
+      if(pinched()) return;                               // 指でつまんでいる間は、切り替えません
       var f=findTags(img);
       if(!f){ p.classList.remove('ims-zoom'); return; }   // 札が無ければ、そのまま
       place(img, f);
       p.classList.add('ims-zoom');
     }else if(y<OFF){
+      escaped = false;
       p.classList.remove('ims-zoom');
       img.style.objectPosition='';
     }
@@ -166,5 +218,9 @@
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 
-  window.PVPinZoom = { update: update, find: function(){ var i=pinImg(); return i?findTags(i):null; } };
+  window.PVPinZoom = {
+    update: update,
+    find: function(){ var i=pinImg(); return i?findTags(i):null; },
+    pos:  function(){ return { x:curX, y:curY, ovX:ovX, ovY:ovY }; }
+  };
 })();
