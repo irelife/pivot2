@@ -71,5 +71,8 @@
 #pv-pin.ims-zoom .pv-pin-view img{
   object-fit:cover !important;
   /* どこを映すかは js/uifix.js が決めます（object-position を直接入れます） */
+  /* 大きくしている間は、指の動きを画像のほうで受け取ります（上下左右に動かせます）。
+     いちばん上の端で下へ払うと、元の全体表示にもどります。 */
+  touch-action:none !important;
 }
 #pv-pin .pv-pin-view img{ transition:none; }
