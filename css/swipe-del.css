@@ -1,0 +1,76 @@
+/* ============================================================
+   左スワイプで削除  swipe-del 2026-08-31a
+   ・スマホ幅（760px以下）のときだけ働きます。
+   ・物件カードの🗑と、契約カードの×を、画面から隠します。
+   ・カードを左にスワイプすると、右から「削除」が出ます。
+   ・元に戻すときは index.html のこの1行を消すだけです。
+   ============================================================ */
+
+/* --- スマホでは、いつも見えている削除ボタンを隠します --- */
+@media (max-width:760px){
+  .bld-card-del,
+  #kb-view .ct-card-del,
+  .ct-card-del{
+    display:none !important;
+  }
+}
+
+/* --- 🗑が無くなったぶん、物件カードの右の空きをつめます --- */
+@media (max-width:760px){
+  #list .pref-body .bld-card{ padding-right:16px; }
+}
+
+/* --- スワイプ中のカード --- */
+.swd-card{
+  position:relative;
+  z-index:2;
+  will-change:transform;
+  -webkit-user-select:none; user-select:none;
+}
+/* 指で引いている間は、なめらか動き（transition）を切ります。
+   ★元のCSSが #list ～ の書き方で強いので、同じ強さで書いています。 */
+.swd-card.swd-drag,
+#list .pref-body .bld-card.swd-drag,
+#kb-view .ct-card.swd-drag{
+  transition:none !important;
+}
+/* 指を離したあとだけ、すっと戻します */
+.swd-card.swd-anim,
+#list .pref-body .bld-card.swd-anim,
+#kb-view .ct-card.swd-anim{
+  transition:transform .2s cubic-bezier(.22,.61,.36,1) !important;
+}
+/* スワイプ中はカードの浮き上がり（hover の動き）を止めます */
+.swd-card:hover{ transform:none; }
+
+/* --- 右から出てくる「削除」の面 --- */
+#swd-panel{
+  position:fixed;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  box-sizing:border-box;
+  padding:0 6px;
+  overflow:hidden;
+  z-index:60;
+  background:#1b1b1b;
+  color:#fff;
+  border-radius:0 14px 14px 0;
+  box-shadow:0 1px 2px rgba(0,0,0,.10), 0 8px 20px rgba(0,0,0,.12);
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:.04em;
+  white-space:nowrap;
+  -webkit-user-select:none; user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  cursor:pointer;
+}
+#swd-panel.on{ display:flex; }
+#swd-panel.swd-anim{
+  transition:width .2s cubic-bezier(.22,.61,.36,1), left .2s cubic-bezier(.22,.61,.36,1);
+}
+#swd-panel.swd-flat{ border-radius:0; }
+#swd-panel .swd-ico{ font-size:16px; line-height:1; }
+#swd-panel .swd-txt{ line-height:1; }
+#swd-panel.swd-press{ background:#000; }
