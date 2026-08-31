@@ -1,226 +1,78 @@
 /* ============================================================
- *  こまかい直し   uifix 2026-08-31a
- *
- *  ・「ほか ◯件（押すと全部出ます）」を押したら、
- *    切替のお知らせが全部開くようにします。
- *    （今までは、上の見出しを押したときだけ開いていました）
- *
- *  いまある処理には一切さわっていません。
- *  すでにある toggleSwitchNotice() を呼ぶだけです。
- *  元に戻すときは index.html のこの1行を消すだけです。
- * ============================================================ */
-(function(){
-  'use strict';
+   こまかい直し  uifix 2026-08-31a
+   ・これから先の「ちょっとした見た目の直し」は、この1枚に足していきます。
+   ・元に戻すときは index.html のこの1行を消すだけです。
+   ============================================================ */
 
-  function boot(){
-    document.addEventListener('click', function(e){
-      var t = e.target;
-      var more = null;
-      for(var i = 0; t && t.nodeType === 1 && i < 6; i++, t = t.parentNode){
-        if(t.classList && t.classList.contains('sw-more')){ more = t; break; }
-      }
-      if(!more) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if(typeof window.toggleSwitchNotice === 'function') window.toggleSwitchNotice();
-    }, true);
+/* ------------------------------------------------------------
+   ① オーナーメール「別管理」の見出しが、スマホで縦に折れる
+      　森本  →  森本
+      　将行      将行
+      名前・バッジ・「閲覧のみ」を、それぞれ1行に収めます。
+   ------------------------------------------------------------ */
+@media (max-width:760px){
+  #rent-view .pv-head{
+    flex-wrap:wrap;
+    row-gap:8px;
+    column-gap:8px;
   }
-
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
-})();
-
-/* ============================================================
- *  ④ 区画を見るときに、上の配置図を「区画の並び」に寄せて大きくする
- *
- *  ・シートを下にスクロールし始めたら、上に貼りついている配置図を
- *    画面いっぱいに広げて、区画の番号が並んでいる場所を映します。
- *  ・場所は決め打ちではありません。画像を小さな下絵にして、
- *    「番号の札（黒・赤の小さな四角）」がまとまっている所を探します。
- *    下でも、右でも、真ん中でも見つけられます。
- *  ・札が見つからない画像（ふつうの図面や写真）では、何もしません。
- *  ・指でつまんで大きくしている間も、何もしません。
- * ============================================================ */
-(function(){
-  'use strict';
-
-  var ON = 40;    // これだけ下にスクロールしたら大きくします（px）
-  var OFF = 14;   // ここまで戻したら、元にもどします（px）
-  var SW = 160;   // 下絵の幅（この大きさで札を探します）
-  var cache = {}; // 画像ごとの結果を覚えておきます
-
-  function pin(){ return document.getElementById('pv-pin'); }
-  function pinImg(){ var p=pin(); return p ? p.querySelector('.pv-pin-view img') : null; }
-  function body(){
-    return document.querySelector('#modal.pv-ms #pv-sheet > .modal-body') ||
-           document.querySelector('#pv-sheet > .modal-body');
+  /* 名前は1行め全部を使います。長ければ … で切ります */
+  #rent-view .pv-head .nm{
+    flex:1 1 100%;
+    min-width:0;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
   }
-  function pinched(){
-    var im=pinImg(); if(!im) return false;
-    var t=im.style.transform||'';
-    var m=t.match(/scale\(([\d.]+)\)/);
-    return !!(m && parseFloat(m[1])>1.05);
+  /* バッジ・状態・ボタンは、縦に折らずに横のまま */
+  #rent-view .pv-head .pill,
+  #rent-view .pv-head .vac,
+  #rent-view .pv-head .mail,
+  #rent-view .pv-head button{
+    flex:0 0 auto;
+    white-space:nowrap;
   }
-  function zoomOn(){ var p=pin(); return !!(p && p.classList.contains('ims-zoom')); }
+  #rent-view .pv-head .spacer{ flex:1 1 auto; }
+  #rent-view .pv-head button{ margin-left:0 !important; }
+}
 
-  /* ---- 画像の中から「番号の札」を探して、その中心を返します ---- */
-  function findTags(img){
-    var key = img.currentSrc || img.src || '';
-    if(!key) return null;
-    if(Object.prototype.hasOwnProperty.call(cache, key)) return cache[key];
-    var res = null;
-    try{
-      var iw=img.naturalWidth, ih=img.naturalHeight;
-      if(!iw || !ih) return null;
-      var sw=SW, sh=Math.max(1, Math.round(ih*sw/iw));
-      var cv=document.createElement('canvas'); cv.width=sw; cv.height=sh;
-      var cx=cv.getContext('2d', {willReadFrequently:true});
-      cx.drawImage(img, 0, 0, sw, sh);
-      var d=cx.getImageData(0,0,sw,sh).data;
-      var n=sw*sh, mask=new Uint8Array(n), i, r, g, b, mx, mn;
-      for(i=0;i<n;i++){
-        r=d[i*4]; g=d[i*4+1]; b=d[i*4+2];
-        mx=Math.max(r,g,b); mn=Math.min(r,g,b);
-        // 黒い札 or 赤い札
-        if((mx<60 && (mx-mn)<26) || (r>150 && g<90 && b<90)) mask[i]=1;
-      }
-      // つながっている固まりに分ける
-      var seen=new Uint8Array(n), stack=[], blobs=[], p, x, y, x0,x1,y0,y1,area,q,nx,ny;
-      for(i=0;i<n;i++){
-        if(!mask[i] || seen[i]) continue;
-        stack.length=0; stack.push(i); seen[i]=1;
-        x0=x1=i%sw; y0=y1=(i/sw)|0; area=0;
-        while(stack.length){
-          p=stack.pop(); area++;
-          x=p%sw; y=(p/sw)|0;
-          if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
-          nx=x-1; if(nx>=0){ q=p-1; if(mask[q]&&!seen[q]){seen[q]=1;stack.push(q);} }
-          nx=x+1; if(nx<sw){ q=p+1; if(mask[q]&&!seen[q]){seen[q]=1;stack.push(q);} }
-          ny=y-1; if(ny>=0){ q=p-sw; if(mask[q]&&!seen[q]){seen[q]=1;stack.push(q);} }
-          ny=y+1; if(ny<sh){ q=p+sw; if(mask[q]&&!seen[q]){seen[q]=1;stack.push(q);} }
-        }
-        blobs.push({cx:(x0+x1)/2, cy:(y0+y1)/2, a:area, w:x1-x0+1, h:y1-y0+1});
-      }
-      // 札らしい大きさ・形のものだけ残す
-      var good=[], t;
-      for(i=0;i<blobs.length;i++){
-        t=blobs[i];
-        if(t.a >= n*0.0002 && t.a <= n*0.015){
-          var ar=t.w/Math.max(1,t.h);
-          if(ar>=0.3 && ar<=3.0) good.push(t);
-        }
-      }
-      if(good.length>=4){
-        // 大きさのそろったものだけにする（写真の影などを外します）
-        var areas=good.map(function(o){return o.a;}).sort(function(a,b){return a-b;});
-        var med=areas[(areas.length/2)|0];
-        var same=good.filter(function(o){ return o.a>=med*0.6 && o.a<=med*1.7; });
-        if(same.length>=4){
-          var xs=same.map(function(o){return o.cx;}).sort(function(a,b){return a-b;});
-          var ys=same.map(function(o){return o.cy;}).sort(function(a,b){return a-b;});
-          res={ fx: xs[(xs.length/2)|0]/sw, fy: ys[(ys.length/2)|0]/sh };
-        }
-      }
-    }catch(e){ res=null; }   // 画像が読めないときは、何もしません
-    cache[key]=res;
-    return res;
-  }
+/* ------------------------------------------------------------
+   ② 「ほか ◯件（押すと全部出ます）」を、押せるように見せます
+      （実際に押したときの動きは js/uifix.js が付けます）
+   ------------------------------------------------------------ */
+.sw-more{
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none; user-select:none;
+}
+.sw-more:hover{ color:#3d3d42; background:rgba(0,0,0,.03); }
+.sw-more:active{ background:rgba(0,0,0,.06); }
 
-  var curX = 0.5, curY = 0.5, ovX = 0, ovY = 0;   // いまの位置と、動かせる余地
-  var escaped = false;                            // 自分で全体表示にもどしたか
+/* ------------------------------------------------------------
+   ③ 契約の一覧表（リスト表示）の角を丸くします
+   ------------------------------------------------------------ */
+#kb-view .lv-wrap{
+  border-radius:18px;
+  overflow:hidden;
+}
+@media (max-width:760px){
+  #kb-view .lv-wrap{ border-radius:16px; }
+}
 
-  function setPos(img, x, y){
-    curX = Math.max(0, Math.min(1, x));
-    curY = Math.max(0, Math.min(1, y));
-    img.style.objectPosition = (curX*100).toFixed(1)+'% '+(curY*100).toFixed(1)+'%';
-  }
 
-  function place(img, f){
-    var box=img.getBoundingClientRect();
-    var iw=img.naturalWidth, ih=img.naturalHeight;
-    if(!iw||!ih||!box.width||!box.height) return;
-    var s=Math.max(box.width/iw, box.height/ih);
-    var dw=iw*s, dh=ih*s;
-    ovX = Math.max(0, dw - box.width);
-    ovY = Math.max(0, dh - box.height);
-    var ox = ovX ? (f.fx*dw - box.width/2)  / ovX : 0.5;
-    var oy = ovY ? (f.fy*dh - box.height/2) / ovY : 0.5;
-    setPos(img, ox, oy);
-  }
-
-  /* ---- 大きくしている間は、指で上下左右に動かせるようにします ---- */
-  function bindPan(){
-    var img = pinImg();
-    if(!img || img.__pvPan) return;
-    img.__pvPan = true;
-    var st = null;
-    img.addEventListener('touchstart', function(e){
-      if(!zoomOn() || pinched() || !e.touches || e.touches.length !== 1){ st=null; return; }
-      var t = e.touches[0];
-      st = { x:t.clientX, y:t.clientY, ox:curX, oy:curY };
-    }, {passive:true});
-    img.addEventListener('touchmove', function(e){
-      if(!st || !zoomOn() || pinched() || !e.touches || e.touches.length !== 1) return;
-      if(!ovX && !ovY) return;                     // 動かす余地が無ければ、そのままスクロール
-      var t = e.touches[0];
-      var dx = t.clientX - st.x, dy = t.clientY - st.y;
-      var ny = ovY ? st.oy - dy/ovY : curY;
-      /* いちばん上の端で、さらに下へ払ったとき → 全体表示にもどします（逃げ道） */
-      if(ovY && ny < -0.06 && dy > 46){
-        var p2 = pin();
-        if(p2) p2.classList.remove('ims-zoom');
-        img.style.objectPosition = '';
-        escaped = true;          // いちばん上まで戻すまで、勝手に大きくしません
-        st = null;
-        return;
-      }
-      setPos(img,
-        ovX ? st.ox - dx/ovX : curX,
-        ny);
-      try{ e.preventDefault(); }catch(err){}       // 指で動かしている間は、シートを動かしません
-    }, {passive:false});
-    img.addEventListener('touchend', function(){ st=null; }, {passive:true});
-    img.addEventListener('touchcancel', function(){ st=null; }, {passive:true});
-  }
-
-  function update(){
-    var p=pin(), b=body();
-    if(!p||!b) return;
-    var img=pinImg();
-    if(!img || getComputedStyle(p).display==='none'){
-      if(p) p.classList.remove('ims-zoom');
-      return;
-    }
-    bindPan();
-    var y=b.scrollTop||0;
-    if(y>ON){
-      if(escaped) return;                                 // 自分で戻したときは、そのまま
-      if(zoomOn()) return;                                // すでに大きくしている（＝指で動かした位置を保ちます）
-      if(pinched()) return;                               // 指でつまんでいる間は、切り替えません
-      var f=findTags(img);
-      if(!f){ p.classList.remove('ims-zoom'); return; }   // 札が無ければ、そのまま
-      place(img, f);
-      p.classList.add('ims-zoom');
-    }else if(y<OFF){
-      escaped = false;
-      p.classList.remove('ims-zoom');
-      img.style.objectPosition='';
-    }
-  }
-
-  function boot(){
-    document.addEventListener('scroll', update, {passive:true, capture:true});
-    document.addEventListener('touchend', function(){ setTimeout(update,60); }, {passive:true, capture:true});
-    window.addEventListener('resize', update);
-    window.setInterval(update, 700);   // 画面が作り直されたときの取りこぼし防止
-  }
-
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
-
-  window.PVPinZoom = {
-    update: update,
-    find: function(){ var i=pinImg(); return i?findTags(i):null; },
-    pos:  function(){ return { x:curX, y:curY, ovX:ovX, ovY:ovY }; }
-  };
-})();
+/* ------------------------------------------------------------
+   ④ 区画を見るとき、上の配置図を「区画の並び」に寄せて大きく出す
+      ・シートを下にスクロールし始めたら、貼りついている配置図を
+        いっぱいに広げて、区画の番号が並んでいる所を映します。
+        （どこに並んでいるかは js/uifix.js が画像から探します）
+      ・いちばん上まで戻すと、元の「全体が入る」表示に戻ります。
+      ・指でつまんで大きくしているときは、じゃましません。
+   ------------------------------------------------------------ */
+#pv-pin.ims-zoom .pv-pin-view img{
+  object-fit:cover !important;
+  /* どこを映すかは js/uifix.js が決めます（object-position を直接入れます） */
+  /* 大きくしている間は、指の動きを画像のほうで受け取ります（上下左右に動かせます）。
+     いちばん上の端で下へ払うと、元の全体表示にもどります。 */
+  touch-action:none !important;
+}
+#pv-pin .pv-pin-view img{ transition:none; }
