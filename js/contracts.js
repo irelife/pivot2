@@ -800,7 +800,7 @@ function renderCard(c){
   const adLabelHtml = '<span class="ct-ad-label' + adCls + '">' + adText + '</span>';
  
   var _touch = ('ontouchstart' in window);
- 　  // 契約日がまだ来ていないものは、カードを薄い緑にします（ct-future）
+ // 契約日がまだ来ていないものは、カードを薄い緑にします（ct-future）
   const _dtc = daysToContract(c);
   const isFuture = (_dtc !== null && _dtc > 0 && !isDone && !c.archived);
   return '<div class="ct-card status-' + status + (isDone ? ' done' : '') + (c.archived ? ' archived' : '') + (isFuture ? ' ct-future' : '') + '" data-id="' + c.id + '"' + (_touch ? '' : ' draggable="true"') +
@@ -1384,7 +1384,6 @@ function _normStaff(s){
   n = n.replace(/[髙﨑濵濱德眞靑]/g, c => _KANJI_VAR[c] || c);
   return n.replace(/[\s\u3000]+/g, '').trim();
 }
- 
 // 統計データを集計して返す(業者ごと)。現在の契約 ＋ PIVOT導入前の履歴(BROKER_HISTORY)を合算
 function computeBrokerStats(){
   const yearInput = document.getElementById('bstat-year');
@@ -1466,7 +1465,7 @@ function computeBrokerStats(){
         (c.dealStatus === 'cancel') ? 'cancel' : (c.dealStatus === 'rejected') ? 'reject' : 'ok');
   });
  
-    // PIVOT導入前の履歴（カード化しない分析専用データ）
+  // PIVOT導入前の履歴（カード化しない分析専用データ）
   // この端末の物件一覧(物件マスタ)に載っている物件の分だけを使います。
   // PIVOT2 は自分が持つ物件、PIVOT3 は自分が持つ物件——と、
   // 同じコードのまま、それぞれの担当分だけが集計されます。
@@ -1492,7 +1491,7 @@ function computeBrokerStats(){
     if(fyValid && w.year !== fy) return;
     const roomNo = h.room ? String(h.room).replace(/^P/i,'').replace(/\.0$/,'') : '';
     const bldg = (h.property||'(物件未入力)').trim();
-    add(broker, w, bldg + (roomNo ? ' '+roomNo+'号' : ''), bldg, h.staff, _cancelKind(h.status));
+        add(broker, w, bldg + (roomNo ? ' '+roomNo+'号' : ''), bldg, h.staff, _cancelKind(h.status));
   });
 
   /* 岡山（PIVOT3）の契約履歴  js/history-okayama.js
@@ -2257,8 +2256,7 @@ function _doExportBrokerStatsPdf(){
 
 </div>
 </body></html>`;
- 
-    // iPhone / iPad は別ウィンドウでの印刷が働かないので、
+  // iPhone / iPad は別ウィンドウでの印刷が働かないので、
   // この画面の中に重ねて出します（js/core.js の PV_PRINT_HTML）。
   // パソコンと Android は、これまでどおり別ウィンドウのままです。
   if(window.PV_IS_IOS && window.PV_PRINT_HTML){ window.PV_PRINT_HTML(html); return; }
@@ -4005,4 +4003,4 @@ try{window.toggleTypeField=toggleTypeField;}catch(e){}
 try{window.toggleMonthlyField=toggleMonthlyField;}catch(e){}
 try{window.updateSortButtons=updateSortButtons;}catch(e){}
 })();
-
+ 
