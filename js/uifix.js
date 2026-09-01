@@ -276,3 +276,85 @@
 
   window.PVIconBar = { move: move };
 })();
+
+/* ============================================================
+ *  ⑥⑦⑧ スマホの画面下バー（契約タブ・オーナーメール）
+ *
+ *  ・契約タブ     … 整列／表示／ランキング／新規 を下に並べます
+ *  ・オーナーメール … 開く／閉じる／下書き／一斉送信 を下に並べます
+ *  ボタンそのものを動かすだけなので、押したときの動きは今までと同じです。
+ *  何かの画面（物件の編集・契約シート）が開いている間は、隠します。
+ * ============================================================ */
+(function(){
+  'use strict';
+
+  function mobile(){
+    try{ return window.matchMedia('(max-width:760px)').matches; }
+    catch(e){ return (window.innerWidth||999)<=760; }
+  }
+  function anyOpen(){
+    return !!document.querySelector('.modal-overlay.active, #sheet.active, #img-zoom.active');
+  }
+  function makeBar(id){
+    var b = document.getElementById(id);
+    if(!b){
+      b = document.createElement('div');
+      b.id = id; b.className = 'pv-fixbar';
+      document.body.appendChild(b);
+    }
+    return b;
+  }
+  function put(bar, sel, cls){
+    var el = document.querySelector(sel);
+    if(!el) return null;
+    if(cls && !el.classList.contains(cls)) el.classList.add(cls);
+    if(el.parentNode !== bar) bar.appendChild(el);
+    return el;
+  }
+
+  function tick(){
+    var open = anyOpen();
+    document.body.classList.toggle('pv-anyopen', open);
+
+    if(!mobile()){
+      ['pvbar-kb','pvbar-rent'].forEach(function(id){
+        var b=document.getElementById(id); if(b) b.classList.remove('on');
+      });
+      document.body.classList.remove('pv-bar-kb','pv-bar-rent');
+      return;
+    }
+
+    /* --- 契約タブ --- */
+    var kb = makeBar('pvbar-kb');
+    put(kb, '#btn-sort');
+    put(kb, '#btn-view');
+    put(kb, '#kb-view .broker-stat-btn, .broker-stat-btn');
+    put(kb, '#kb-view .btn-primary[onclick="KB.openSheet()"], .btn-primary[onclick="KB.openSheet()"]');
+
+    /* --- オーナーメール --- */
+    var rt = makeBar('pvbar-rent');
+    put(rt, '#rent-view button[onclick="RENT.expandAll(true)"]',  'pvb-open');
+    put(rt, '#rent-view button[onclick="RENT.expandAll(false)"]', 'pvb-close');
+    put(rt, '#rent-btn-draft');
+    put(rt, '#rent-btn-send');
+
+    var body = document.body;
+    var onKb   = body.classList.contains('tab-kanban') && !open;
+    var onRent = body.classList.contains('tab-rent')   && !open;
+    kb.classList.toggle('on', onKb);
+    rt.classList.toggle('on', onRent);
+    body.classList.toggle('pv-bar-kb', onKb);
+    body.classList.toggle('pv-bar-rent', onRent);
+  }
+
+  function boot(){
+    tick();
+    window.setInterval(tick, 600);
+    document.addEventListener('click', function(){ setTimeout(tick, 80); }, true);
+    window.addEventListener('resize', tick);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+
+  window.PVBars = { tick: tick };
+})();
