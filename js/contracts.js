@@ -2077,14 +2077,19 @@ function _doExportBrokerStatsPdf(){
   const bAll = (typeof loadAll==='function') ? loadAll() : {};
   const addrByName = {};
   Object.values(bAll).forEach(b => { if(b && b.name) addrByName[String(b.name).trim()] = b.addr || ''; });
-  // エリア色（福山=紫 / 倉敷=青 / 岡山=緑 / その他=灰）
+  /* エリアの見分け方。
+     以前は業者名を紫・青・緑に色分けしていましたが、
+     ・白黒で印刷すると区別がつかない
+     ・PIVOT本体の見た目（黒と白）と合わない
+     ので、名前の前に「福」「倉」「岡」「広」の小さな札を付けます。
+     色を使わなくても、ひと目で分かります。 */
   const areaOf = (addr)=>{
     const a = String(addr||'');
-    if(/福山/.test(a)) return {key:'福山', color:'#7c3aed', bg:'#f5f3ff'};
-    if(/倉敷/.test(a)) return {key:'倉敷', color:'#1d4ed8', bg:'#eff6ff'};
-    if(/岡山/.test(a)) return {key:'岡山', color:'#047857', bg:'#ecfdf5'};
-    if(/広島/.test(a)) return {key:'広島', color:'#b7791f', bg:'#fdf3e0'};
-    return {key:'', color:'#555', bg:'#f4f6f8'};
+    if(/福山/.test(a)) return {key:'福山', lbl:'福'};
+    if(/倉敷/.test(a)) return {key:'倉敷', lbl:'倉'};
+    if(/岡山/.test(a)) return {key:'岡山', lbl:'岡'};
+    if(/広島/.test(a)) return {key:'広島', lbl:'広'};
+    return {key:'', lbl:'－'};
   };
   // 業者の代表エリア = Best3の1位物件のエリア
   const brokerArea = (r)=>{
@@ -2105,12 +2110,12 @@ function _doExportBrokerStatsPdf(){
     r._area = brokerArea(r);
   });
  
-  // ① ランキングTOP20（業者名を地域色・地域ドット付き）
+  // ① ランキングTOP20（業者名にエリアの札を付けます）
+  const _tag = (a)=> `<span class="tag">${(a && a.lbl) || '－'}</span>`;
   let rankRows = '';
   rows.slice(0,20).forEach((r,i)=>{
     const cls = (i<3) ? ' class="top3"' : (i%2===1 ? ' class="alt"' : '');
-    const dot = `<span class="dot" style="background:${r._area.color}"></span>`;
-    const nm = `<span style="color:${r._area.color};font-weight:700">${dot}${esc(r.broker)}</span>`;
+    const nm = `<span class="bn">${_tag(r._area)}${esc(r.broker)}</span>`;
     rankRows += `<tr${cls}>
       <td class="c">${i+1}</td>
       <td>${nm}</td>
@@ -2126,10 +2131,10 @@ function _doExportBrokerStatsPdf(){
   const dig = rows.filter(r=> r._gap!=='' && r._gap>=6 && r.count>=3).sort((a,b)=> b._gap - a._gap);
   const digRowArr = [];
   dig.forEach(r=>{
-    // 緊急度クラス：6-11ヶ月=warn(黄) / 12-23ヶ月=hot(橙) / 24ヶ月以上=crit(赤)
+    // 緊急度クラス：6-11ヶ月=warn / 12-23ヶ月=hot / 24ヶ月以上=crit
+    // （色は使いません。この印を見て、ページを3つに分けています）
     const lv = (r._gap>=24) ? ' class="crit"' : (r._gap>=12) ? ' class="hot"' : ' class="warn"';
-    const dot = `<span class="dot" style="background:${r._area.color}"></span>`;
-    const nm = `<span style="color:${r._area.color};font-weight:700">${dot}${esc(r.broker)}</span>`;
+    const nm = `<span class="bn">${_tag(r._area)}${esc(r.broker)}</span>`;
     const b2 = (r.top3||[]).slice(0,2).map(t=>esc(t.name)+'('+t.count+')').join(' / ');
     digRowArr.push({ lv: _lvOf(r), html: `<tr${lv}>
       <td>${nm}</td>
@@ -2144,15 +2149,14 @@ function _doExportBrokerStatsPdf(){
   (staffs||[]).slice(0,30).forEach((s,i)=>{
     const cls = (i<3) ? ' class="top3"' : (i%2===1 ? ' class="alt"' : '');
     const ar = areaOf(addrByName[(s.top3&&s.top3[0])?s.top3[0].name:''] || '');
-    const dot = `<span class="dot" style="background:${ar.color}"></span>`;
     const last = (s.lastSort && s.lastSort.length>=8)
       ? (s.lastSort.slice(0,4)+'/'+s.lastSort.slice(4,6)+'/'+s.lastSort.slice(6,8))
       : (s.lastSort && s.lastSort.length>=6 ? (s.lastSort.slice(0,4)+'/'+s.lastSort.slice(4,6)) : '－');
     const b3 = (s.top3||[]).map(t=>esc(t.name)+'('+t.count+')').join(' / ');
     staffRowArr.push(`<tr${cls}>
       <td class="c">${i+1}</td>
-      <td class="b">${dot}${esc(s.staff)}</td>
-      <td style="color:${ar.color}">${esc(s.broker)}${(s.stores&&s.stores.length)?' <span style="color:#666">('+s.stores.map(x=>esc(x.name)+x.count).join('/')+')</span>':''}</td>
+      <td class="b">${_tag(ar)}${esc(s.staff)}</td>
+      <td>${esc(s.broker)}${(s.stores&&s.stores.length)?' <span style="color:#666">('+s.stores.map(x=>esc(x.name)+x.count).join('/')+')</span>':''}</td>
       <td class="c">${s.count}</td>
       <td class="c">${s.cancel||'－'}</td>
       <td class="c">${last}</td>
@@ -2179,7 +2183,7 @@ function _doExportBrokerStatsPdf(){
   const STF_PER = 26;   // ③ 1枚あたりの上限行数（列が多く、折り返すので少なめ）
   const _pg = (i, n) => (n > 1) ? `<span class="pgno">${i+1} / ${n} ページ</span>` : '';
 
-  const DIG_LEGEND = '<div class="legend">業者名の色はエリア（<i class="lg" style="background:#7c3aed"></i>福山　<i class="lg" style="background:#1d4ed8"></i>倉敷　<i class="lg" style="background:#047857"></i>岡山　<i class="lg" style="background:#b7791f"></i>広島ほか）</div>';
+  const DIG_LEGEND = '<div class="legend">名前の前の札＝エリア：<span class="tag">福</span>福山　<span class="tag">倉</span>倉敷　<span class="tag">岡</span>岡山　<span class="tag">広</span>広島　<span class="tag">－</span>その他・住所なし</div>';
   const DIG_THEAD = '<thead><tr><th style="width:24%">業者名</th><th style="width:14%">過去の客付け</th><th style="width:16%">最終客付け</th><th style="width:14%">客付けなし</th><th>得意物件（過去実績）</th></tr></thead>';
   const STF_THEAD = '<thead><tr><th style="width:7%">順位</th><th style="width:14%">担当者</th><th style="width:22%">会社名</th><th style="width:9%">客付け数</th><th style="width:8%">ｷｬﾝｾﾙ</th><th style="width:13%">最終客付け</th><th>よく決める物件 Best3</th></tr></thead>';
 
@@ -2241,7 +2245,7 @@ ${DIG_LEGEND}
   @page { size: A4; margin: 14mm 12mm; }
   * { box-sizing: border-box; }
   body { font-family: "Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif; color:#222; margin:0;
-         background:#e9edf2; }
+         background:#f2f2f4; }
   /* ★画面で見るときは、1枚ずつが白い紙に見えるようにします。
      下地の灰色は画面だけのもので、PDFには入りません
      （PDFは1枚ずつ白地で描き出すため）。
@@ -2249,29 +2253,43 @@ ${DIG_LEGEND}
   .page { background:#fff; }
   .page + .page { margin-top:24px; }
   @media print { body { background:#fff; } .page + .page { margin-top:0; } }
-  h1 { font-size:22px; color:#1f3a5f; margin:0 0 4px; }
-  .sub { font-size:11px; color:#555; margin:0 0 6px; }
-  .rule { height:2px; background:#1f3a5f; margin:6px 0 14px; }
-  h2 { font-size:15px; color:#1f3a5f; margin:18px 0 4px; }
-  .note { font-size:10px; color:#666; margin:2px 0 8px; }
+  /* ===== 黒と白だけの配色（PIVOT本体にそろえています） =====
+     色で見分けていたものは、すべて「形」と「文字」に置き換えました。
+       エリア  … 名前の前の「福・倉・岡・広」の札
+       緊急度  … ページの見出しで分かれています（2年以上／1年以上／6ヶ月以上）
+     白黒で印刷しても、まったく同じように読めます。 */
+  h1 { font-size:22px; color:#17171a; margin:0 0 4px; letter-spacing:.01em; }
+  .sub { font-size:11px; color:#71717a; margin:0 0 6px; }
+  .rule { height:2px; background:#17171a; margin:6px 0 14px; }
+  h2 { font-size:15px; color:#17171a; margin:18px 0 4px; }
+  .note { font-size:10px; color:#71717a; margin:2px 0 8px; }
   table { width:100%; border-collapse:collapse; font-size:10px; }
-  th { background:#1f3a5f; color:#fff; font-weight:700; padding:5px 6px; text-align:left; border:0.5px solid #cfd6de; }
-  td { padding:5px 6px; border:0.5px solid #cfd6de; vertical-align:middle; }
+  /* ★表の見出しの帯だけ、色を使います。
+       青  … 実績のランキング（① よく客付けしてくれる業者 ／ ③ 担当者）
+       橙  … 動いてほしいもの（② 掘り起こし候補）
+     ページをめくったとき、どちらの表かがひと目で分かります。
+     帯以外は、すべて黒と灰色のままです。 */
+  th { background:#1f3a5f; color:#fff; font-weight:700; padding:5px 6px; text-align:left; border:0.5px solid #3f3f46; }
+  #dig th { background:#c2410c; }      /* ② 掘り起こし候補 ＝ 橙 */
+  #stf th { background:#1f3a5f; }      /* ③ 担当者ランキング ＝ 青（①と同じ） */
+  td { padding:5px 6px; border:0.5px solid #d4d4d8; vertical-align:middle; color:#17171a; }
   td.c { text-align:center; }
   td.b { font-weight:700; }
-  tr.alt td { background:#f4f6f8; }
+  tr.alt td { background:#f4f4f5; }
+  /* ★上位3社の帯。灰色だと目立たなかったので、うすい青にします。
+     見出しの帯（青）と組みになって、「①③＝青の表」だと分かります。 */
   tr.top3 td { background:#e8f0fb; }
-  #dig th { background:#b7791f; }
-  #stf th { background:#155e75; }
-  tr.warn td { background:#fdf6e3; }   /* 6-11ヶ月：黄 */
-  tr.hot  td { background:#fdecd7; }   /* 12-23ヶ月：橙 */
-  tr.crit td { background:#fde0dd; }   /* 24ヶ月以上：赤 */
-  td.gap { color:#c0392b; font-weight:700; }
-  tr.crit td.gap { color:#7a1f16; }
-  .dot { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px; vertical-align:middle; }
-  .legend { font-size:9px; color:#555; margin:4px 0 8px; }
+  /* ②は1行おきにうすい灰色を敷きます（行を目で追いやすくするため） */
+  #dig tbody tr:nth-child(even) td { background:#f4f4f5; }
+  td.gap { font-weight:800; }                  /* あいている月数は、太字で目立たせます */
+  .bn { font-weight:700; }
+  /* エリアの札。名前の前に付く、1文字の四角です */
+  .tag { display:inline-block; min-width:12px; padding:0 3px; margin-right:5px;
+         border:0.5px solid #17171a; border-radius:2px;
+         font-size:8px; font-weight:800; line-height:1.5; text-align:center;
+         vertical-align:1px; color:#17171a; }
+  .legend { font-size:9px; color:#71717a; margin:4px 0 8px; }
   .legend span { display:inline-block; margin-right:10px; }
-  .lg { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:3px; vertical-align:middle; }
   .pgno { font-size:11px; font-weight:700; color:#666; margin-left:8px; }
     .pagebreak { page-break-before: always; }
   /* ①②③ は、それぞれ必ず新しいページの頭から始めます。 */
@@ -2294,7 +2312,7 @@ ${DIG_LEGEND}
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
   .noprint { position:fixed; top:10px; right:10px; }
-  .noprint button { font-size:14px; font-weight:700; padding:8px 16px; border:none; border-radius:8px; background:#1f3a5f; color:#fff; cursor:pointer; }
+  .noprint button { font-size:14px; font-weight:700; padding:9px 18px; border:none; border-radius:999px; background:#17171a; color:#fff; cursor:pointer; }
 </style></head><body>
 <div class="noprint"><button onclick="window.print()">🖨 PDFとして保存 / 印刷</button></div>
 <div class="page">
@@ -2303,8 +2321,8 @@ ${DIG_LEGEND}
 <div class="rule"></div>
  
 <h2>① よく客付けしてくれる業者 TOP20</h2>
-<div class="note">成約実績の多い順。感謝を伝えつつ関係を維持したい主力業者です。上位3社は青で強調しています。</div>
-<div class="legend">エリア色：<span><i class="lg" style="background:#7c3aed"></i>福山</span><span><i class="lg" style="background:#1d4ed8"></i>倉敷</span><span><i class="lg" style="background:#047857"></i>岡山</span><span><i class="lg" style="background:#b7791f"></i>広島(その他)</span></div>
+<div class="note">成約実績の多い順。感謝を伝えつつ関係を維持したい主力業者です。上位3社は、うすい青の帯で示しています。</div>
+<div class="legend">名前の前の札＝エリア：<span><span class="tag">福</span>福山</span><span><span class="tag">倉</span>倉敷</span><span><span class="tag">岡</span>岡山</span><span><span class="tag">広</span>広島</span><span><span class="tag">－</span>その他・住所なし</span></div>
 <table>
   <thead><tr><th style="width:8%">順位</th><th style="width:20%">客付業者</th><th style="width:10%">客付け数</th><th style="width:8%">ｷｬﾝｾﾙ</th><th style="width:14%">最終客付け</th><th>よく客付けする物件 Best3</th></tr></thead>
   <tbody>${rankRows}</tbody>
