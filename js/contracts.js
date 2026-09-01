@@ -2121,24 +2121,26 @@ function _doExportBrokerStatsPdf(){
   });
  
   // ② 掘り起こし候補（3件以上・6ヶ月以上・経過の長い順）
+  // 6〜11ヶ月＝warn / 12〜23ヶ月＝hot / 24ヶ月以上＝crit
+  const _lvOf = (r) => (r._gap>=24) ? 'crit' : (r._gap>=12) ? 'hot' : 'warn';
   const dig = rows.filter(r=> r._gap!=='' && r._gap>=6 && r.count>=3).sort((a,b)=> b._gap - a._gap);
-  let digRows = '';
+  const digRowArr = [];
   dig.forEach(r=>{
     // 緊急度クラス：6-11ヶ月=warn(黄) / 12-23ヶ月=hot(橙) / 24ヶ月以上=crit(赤)
     const lv = (r._gap>=24) ? ' class="crit"' : (r._gap>=12) ? ' class="hot"' : ' class="warn"';
     const dot = `<span class="dot" style="background:${r._area.color}"></span>`;
     const nm = `<span style="color:${r._area.color};font-weight:700">${dot}${esc(r.broker)}</span>`;
     const b2 = (r.top3||[]).slice(0,2).map(t=>esc(t.name)+'('+t.count+')').join(' / ');
-    digRows += `<tr${lv}>
+    digRowArr.push({ lv: _lvOf(r), html: `<tr${lv}>
       <td>${nm}</td>
       <td class="c">${r.count} 件</td>
       <td class="c">${r._lastDisp}</td>
       <td class="c gap">${r._gap}ヶ月</td>
-      <td>${b2}</td></tr>`;
+      <td>${b2}</td></tr>` });
   });
  
   // ③ 担当者ランキング（会社名つき。同姓の別人が混ざらないよう会社名を必ず添えます）
-  let staffRows = '';
+  const staffRowArr = [];
   (staffs||[]).slice(0,30).forEach((s,i)=>{
     const cls = (i<3) ? ' class="top3"' : (i%2===1 ? ' class="alt"' : '');
     const ar = areaOf(addrByName[(s.top3&&s.top3[0])?s.top3[0].name:''] || '');
@@ -2147,22 +2149,88 @@ function _doExportBrokerStatsPdf(){
       ? (s.lastSort.slice(0,4)+'/'+s.lastSort.slice(4,6)+'/'+s.lastSort.slice(6,8))
       : (s.lastSort && s.lastSort.length>=6 ? (s.lastSort.slice(0,4)+'/'+s.lastSort.slice(4,6)) : '－');
     const b3 = (s.top3||[]).map(t=>esc(t.name)+'('+t.count+')').join(' / ');
-    staffRows += `<tr${cls}>
+    staffRowArr.push(`<tr${cls}>
       <td class="c">${i+1}</td>
       <td class="b">${dot}${esc(s.staff)}</td>
       <td style="color:${ar.color}">${esc(s.broker)}${(s.stores&&s.stores.length)?' <span style="color:#666">('+s.stores.map(x=>esc(x.name)+x.count).join('/')+')</span>':''}</td>
       <td class="c">${s.count}</td>
       <td class="c">${s.cancel||'－'}</td>
       <td class="c">${last}</td>
-      <td>${b3}</td></tr>`;
+      <td>${b3}</td></tr>`);
   });
 
-  /* 行数が多いと1枚に入りきらないので、行数に応じて字の大きさを落とします。
-     （22行までは今までどおり。30行までは9px、それ以上は8px） */
-  const _shrink = (n) => (n <= 22) ? '' : (n <= 30) ? ' class="s9"' : ' class="s8"';
-  const _rankN  = Math.min(rows.length, 20);
-  const _digN   = dig.length;
-  const _stfN   = Math.min((staffs||[]).length, 30);
+  /* ★ここが今回の直しです。
+     これまでは ①②③ を「それぞれ必ず1枚」にしていました。
+     ②は該当が140社あるため、1枚に押し込むために字がとても小さく
+     縮められ、読めなくなっていました（PDFを作る側が、はみ出した分を
+     用紙の高さに合わせて縮めるしくみのためです）。
+     これからは字の大きさは変えず、1枚に入る行数で切り分けます。
+     見出しと表の頭は、続きのページにも出します。
+     行の途中で切れることはありません。 */
+  const _chunk = (a, n) => {
+    if(!a.length) return [[]];
+    const pages = Math.max(1, Math.ceil(a.length / n));   // 何枚になるか
+    const per   = Math.ceil(a.length / pages);            // 枚数で割り直して、均等にします
+    const o = [];                                          // （最後の1枚だけ数行、を防ぎます）
+    for(let i = 0; i < a.length; i += per) o.push(a.slice(i, i + per));
+    return o;
+  };
+  const DIG_PER = 34;   // ② 1枚あたりの上限行数（A4に収まる行数です）
+  const STF_PER = 26;   // ③ 1枚あたりの上限行数（列が多く、折り返すので少なめ）
+  const _pg = (i, n) => (n > 1) ? `<span class="pgno">${i+1} / ${n} ページ</span>` : '';
+
+  const DIG_LEGEND = '<div class="legend">業者名の色はエリア（<i class="lg" style="background:#7c3aed"></i>福山　<i class="lg" style="background:#1d4ed8"></i>倉敷　<i class="lg" style="background:#047857"></i>岡山　<i class="lg" style="background:#b7791f"></i>広島ほか）</div>';
+  const DIG_THEAD = '<thead><tr><th style="width:24%">業者名</th><th style="width:14%">過去の客付け</th><th style="width:16%">最終客付け</th><th style="width:14%">客付けなし</th><th>得意物件（過去実績）</th></tr></thead>';
+  const STF_THEAD = '<thead><tr><th style="width:7%">順位</th><th style="width:14%">担当者</th><th style="width:22%">会社名</th><th style="width:9%">客付け数</th><th style="width:8%">ｷｬﾝｾﾙ</th><th style="width:13%">最終客付け</th><th>よく決める物件 Best3</th></tr></thead>';
+
+  /* ②は「あいている期間」で3つに分け、それぞれ新しいページの頭から始めます。
+     途中で切れるときも、同じ緊急度の中だけで切れます。
+     ページの頭には必ず見出しと表の頭が出るので、どこを見ているか分かります。 */
+  const digGroups = [
+    { key:'crit', ttl:'2年以上あいている業者（最優先）',
+      note:'2年以上、紹介が途絶えています。まず声をかけたい先です。' },
+    { key:'hot',  ttl:'1年以上2年未満あいている業者',
+      note:'1年以上、紹介が途絶えています。次に声をかけたい先です。' },
+    { key:'warn', ttl:'6ヶ月以上1年未満あいている業者',
+      note:'半年以上、紹介が途絶えています。早めに接点を持ちたい先です。' }
+  ];
+  let digHtml = '';
+  let digNo = 0;
+  digGroups.forEach(g => {
+    const list = digRowArr.filter(x => x.lv === g.key);
+    if(!list.length) return;
+    digNo++;
+    const pages = _chunk(list.map(x => x.html), DIG_PER);
+    pages.forEach((rs, pi) => {
+      digHtml += `<div class="page">
+<h2${(digNo===1 && pi===0) ? ' id="digttl"' : ''}>② 掘り起こし候補 ${digNo}／3　${g.ttl}${_pg(pi, pages.length)}</h2>
+<div class="note">${g.note}　過去に3件以上の実績がある業者のうち、${list.length} 社が該当します（②全体では ${dig.length} 社）。あいている期間の長い順です。</div>
+${DIG_LEGEND}
+<table id="dig">${DIG_THEAD}
+  <tbody>${rs.join('')}</tbody>
+</table>
+</div>
+`;
+    });
+  });
+  if(!digHtml){
+    digHtml = `<div class="page">
+<h2 id="digttl">② 掘り起こし候補（広告・再アプローチ対象）</h2>
+<div class="note">6ヶ月以上あいている業者はありません。実績のある業者とは、いずれも半年以内に取引があります。</div>
+</div>
+`;
+  }
+
+  const stfPages = _chunk(staffRowArr, STF_PER);
+  const stfHtml = stfPages.map((rs, pi) => `<div class="page">
+<h2${pi===0 ? ' id="stfttl"' : ''}>③ 担当者ランキング（会社名つき）${_pg(pi, stfPages.length)}</h2>
+<div class="note">${pi===0
+  ? '仲介会社の担当者ひとりずつの成績です。同じ名字の方が別の会社にいても混ざらないよう、<b>会社名とセット</b>で数えています。成約数の多い順・上位30名。'
+  : '前のページのつづきです。成約数の多い順です。'}</div>
+<table id="stf">${STF_THEAD}
+  <tbody>${rs.join('') || '<tr><td colspan="7" class="c">担当者名の入っているデータがありません</td></tr>'}</tbody>
+</table>
+</div>`).join('\n');
 
   const today = new Date();
   const dstr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
@@ -2172,7 +2240,15 @@ function _doExportBrokerStatsPdf(){
 <style>
   @page { size: A4; margin: 14mm 12mm; }
   * { box-sizing: border-box; }
-  body { font-family: "Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif; color:#222; margin:0; }
+  body { font-family: "Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif; color:#222; margin:0;
+         background:#e9edf2; }
+  /* ★画面で見るときは、1枚ずつが白い紙に見えるようにします。
+     下地の灰色は画面だけのもので、PDFには入りません
+     （PDFは1枚ずつ白地で描き出すため）。
+     これで「PDFにする前に、どこで page が分かれるか」が画面で分かります。 */
+  .page { background:#fff; }
+  .page + .page { margin-top:24px; }
+  @media print { body { background:#fff; } .page + .page { margin-top:0; } }
   h1 { font-size:22px; color:#1f3a5f; margin:0 0 4px; }
   .sub { font-size:11px; color:#555; margin:0 0 6px; }
   .rule { height:2px; background:#1f3a5f; margin:6px 0 14px; }
@@ -2196,8 +2272,7 @@ function _doExportBrokerStatsPdf(){
   .legend { font-size:9px; color:#555; margin:4px 0 8px; }
   .legend span { display:inline-block; margin-right:10px; }
   .lg { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:3px; vertical-align:middle; }
-  table.s9 { font-size:9px; }  table.s9 th, table.s9 td { padding:3px 5px; }
-  table.s8 { font-size:8px; }  table.s8 th, table.s8 td { padding:2px 4px; }
+  .pgno { font-size:11px; font-weight:700; color:#666; margin-left:8px; }
     .pagebreak { page-break-before: always; }
   /* ①②③ は、それぞれ必ず新しいページの頭から始めます。 */
   .page { page-break-after: always; break-after: page; }
@@ -2230,31 +2305,15 @@ function _doExportBrokerStatsPdf(){
 <h2>① よく客付けしてくれる業者 TOP20</h2>
 <div class="note">成約実績の多い順。感謝を伝えつつ関係を維持したい主力業者です。上位3社は青で強調しています。</div>
 <div class="legend">エリア色：<span><i class="lg" style="background:#7c3aed"></i>福山</span><span><i class="lg" style="background:#1d4ed8"></i>倉敷</span><span><i class="lg" style="background:#047857"></i>岡山</span><span><i class="lg" style="background:#b7791f"></i>広島(その他)</span></div>
-<table${_shrink(_rankN)}>
+<table>
   <thead><tr><th style="width:8%">順位</th><th style="width:20%">客付業者</th><th style="width:10%">客付け数</th><th style="width:8%">ｷｬﾝｾﾙ</th><th style="width:14%">最終客付け</th><th>よく客付けする物件 Best3</th></tr></thead>
   <tbody>${rankRows}</tbody>
 </table>
 </div>
 
-<div class="page">
-<h2 id="digttl">② 掘り起こし候補（広告・再アプローチ対象）</h2>
-<div class="note">過去に客付け実績（3件以上）がありながら、6ヶ月以上 紹介の途絶えている業者。経過の長い順。色が濃いほど再アプローチの優先度が高い業者です。</div>
-<div class="legend">緊急度：<span><i class="lg" style="background:#fdf6e3;border:0.5px solid #cfc"></i>6〜11ヶ月</span><span><i class="lg" style="background:#fdecd7;border:0.5px solid #e5b"></i>1年以上</span><span><i class="lg" style="background:#fde0dd;border:0.5px solid #d88"></i>2年以上(最優先)</span>／ 業者名の色はエリア（福山=紫・倉敷=青・岡山=緑）</div>
-<table id="dig"${_shrink(_digN)}>
-  <thead><tr><th style="width:24%">業者名</th><th style="width:14%">過去の客付け</th><th style="width:16%">最終客付け</th><th style="width:14%">客付けなし</th><th>得意物件（過去実績）</th></tr></thead>
-  <tbody>${digRows || '<tr><td colspan="5" class="c">該当なし</td></tr>'}</tbody>
-</table>
-</div>
+${digHtml}
 
-<div class="page">
-<h2 id="stfttl">③ 担当者ランキング（会社名つき）</h2>
-<div class="note">仲介会社の担当者ひとりずつの成績です。同じ名字の方が別の会社にいても混ざらないよう、<b>会社名とセット</b>で数えています。成約数の多い順・上位30名。</div>
-<table id="stf"${_shrink(_stfN)}>
-  <thead><tr><th style="width:7%">順位</th><th style="width:14%">担当者</th><th style="width:22%">会社名</th><th style="width:9%">客付け数</th><th style="width:8%">ｷｬﾝｾﾙ</th><th style="width:13%">最終客付け</th><th>よく決める物件 Best3</th></tr></thead>
-  <tbody>${staffRows || '<tr><td colspan="7" class="c">担当者名の入っているデータがありません</td></tr>'}</tbody>
-</table>
-
-</div>
+${stfHtml}
 </body></html>`;
   // iPhone / iPad は別ウィンドウでの印刷が働かないので、
   // この画面の中に重ねて出します（js/core.js の PV_PRINT_HTML）。
