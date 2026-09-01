@@ -414,22 +414,34 @@
 
 /* ------------------------------------------------------------
    ⑲ ヘッダーの「保存中…」の帯を、ふだんは出しません
-      core.js の setSyncStatus() が4つの状態を出しています。
-        saving … ⏳ 保存中…／同期中…
-        saved  … ✅ 同期済み（2秒で消える）
-        error  … ⚠️ 同期失敗／⚠️ 安全のため同期を中止
-      ところが4つとも同じ灰色の帯なので、いちばん大事な
-      「同期失敗」が「保存中」に埋もれていました。
+      core.js の setSyncStatus() が5つの状態を出しています。
+        saving  … ⏳ 保存中…／同期中…
+        saved   … ✅ 同期済み（2秒で消える）
+        loading … 最新を確認中…／確認中…
+        idle    … （空）
+        error   … ⚠️ 同期失敗／⚠️ 安全のため同期を中止
+      5つとも同じ灰色の帯なので、いちばん大事な「同期失敗」が
+      「保存中」に埋もれていました。
       保存できて当たり前のものは出さず、異常だけを赤く出します。
+
+      ★はじめは「まっさらな白い帯」が一瞬だけ出ていました。
+        index.html の #sync-status は style="display:none" で
+        始まりますが、tune.css の
+          #sync-status{ display:inline-block !important; }
+        が !important のため、インラインの display:none に勝って
+        しまい、文字の入っていない 172px の帯が出ていました。
+        core.js が最初の状態を入れるまでの、ほんの一瞬です。
+        そこで「まず全部消す → error のときだけ出す」に
+        書き替えました。状態が入っていない読み込み直後も
+        消えるので、あの白い帯は出なくなります。
+
       ★JSは触っていません。表示の指定だけです。
         元に戻したいときは、このブロックを消してください。
    ------------------------------------------------------------ */
-#sync-status[data-state="saving"],
-#sync-status[data-state="saved"],
-#sync-status[data-state="loading"],
-#sync-status[data-state="idle"]{ display:none !important; }
+#sync-status{ display:none !important; }
 
 #sync-status[data-state="error"]{
+  display:inline-block !important;
   background:#fdecea !important;
   color:#b3261e !important;
   box-shadow:inset 0 0 0 1px rgba(179,38,30,.28);
