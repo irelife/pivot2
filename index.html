@@ -119,10 +119,11 @@
       <button onclick="closeSettingsMenu();document.getElementById('restoreFile').click()">復元</button>
       <button onclick="closeSettingsMenu();restoreEmergencyBackup()" style="color:#c0392b">緊急復元(直前に戻す)</button>
       <button onclick="closeSettingsMenu();openImgDiagModal()">画像チェック</button>
+     
       <div class="settings-menu-sep"></div>
       <button onclick="closeSettingsMenu();openSpotImport()" class="settings-menu-primary">区画をExcelでまとめて取込</button>
       <button onclick="closeSettingsMenu();openCsvImportModal()">区画を1物件ずつ入力</button>
-
+      <button onclick="closeSettingsMenu();openAreaClean()">よそのエリアの空物件を片づける</button> 
       <div class="settings-menu-sep"></div>
       <button onclick="closeSettingsMenu();pivotLogout()">ログアウト</button>
     </div>
@@ -1117,7 +1118,8 @@
 <script src="js/mobilesheet.js?v=8"></script>
 <script src="js/spotcards.js?v=2"></script>
 <script src="js/swipedel.js?v=1"></script>
-<script src="js/uifix.js?v=5"></script>
+<script src="js/uifix.js?v=6"></script>
+<script src="js/areaclean.js?v=1"></script>
 <script src="js/imgswipe.js?v=1"></script>
 </body>
 </html>
