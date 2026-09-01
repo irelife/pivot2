@@ -1481,48 +1481,55 @@ function switchApp(which){
     var fname = (name || title || '書類').replace(/[\\\/:*?"<>|\s]+/g, '_') +
                 '_' + d.getFullYear() + p(d.getMonth()+1) + p(d.getDate()) + '.pdf';
 
+    /* ===== 見た目 =====
+       PIVOT本体と同じ、黒と白だけの配色にそろえています。
+       ink … 文字と上のバーの色 ／ bg … 紙のうしろの下地 */
+    var INK = '#17171a', BG = '#f2f2f4', LINE = 'rgba(255,255,255,.22)';
+
     var ov = document.createElement('div');
     ov.id = 'pv-print-ov';
     ov.setAttribute('style','position:fixed;top:0;right:0;bottom:0;left:0;z-index:100000;'+
-      'background:#fff;display:flex;flex-direction:column;');
+      'background:' + BG + ';display:flex;flex-direction:column;');
 
     var bar = document.createElement('div');
     bar.setAttribute('style','flex:0 0 auto;display:flex;gap:10px;justify-content:space-between;'+
-      'align-items:center;padding:10px 12px;background:#1f3a5f;'+
+      'align-items:center;padding:10px 14px;background:' + INK + ';'+
       'padding-top:calc(10px + env(safe-area-inset-top, 0px));');
-    var bs = 'font-size:15px;font-weight:700;padding:10px 16px;border:0;border-radius:9px;cursor:pointer;font-family:inherit;';
+    var bs = 'font-size:15px;font-weight:700;padding:9px 18px;border:0;border-radius:999px;'+
+             'cursor:pointer;font-family:inherit;-webkit-appearance:none;';
+    var bsGhost = bs + 'background:transparent;color:#fff;box-shadow:inset 0 0 0 1px ' + LINE + ';';
+    var bsSolid = bs + 'background:#fff;color:' + INK + ';';
 
     var close = document.createElement('button');
-    close.type = 'button'; close.textContent = '✕ 閉じる';
-    close.setAttribute('style', bs + 'background:rgba(255,255,255,.18);color:#fff;');
+    close.type = 'button'; close.textContent = '閉じる';
+    close.setAttribute('style', bsGhost);
 
     var pr = document.createElement('button');
     pr.type = 'button'; pr.textContent = '印刷';
-    pr.setAttribute('style', bs + 'background:rgba(255,255,255,.18);color:#fff;');
+    pr.setAttribute('style', bsGhost);
 
     var go = document.createElement('button');
     go.type = 'button'; go.textContent = 'PDF';
-    go.setAttribute('style', bs + 'background:#fff;color:#1f3a5f;');
+    go.setAttribute('style', bsSolid);
 
-    /* スマホで「中身を見る」を押したときに使うボタン。ふだんは隠しています。 */
-    var back = document.createElement('button');
-    back.type = 'button'; back.textContent = '◀ 戻る';
-    back.setAttribute('style', bs + 'background:rgba(255,255,255,.18);color:#fff;');
-    back.style.display = 'none';
-
-    var saveBar = document.createElement('button');
-    saveBar.type = 'button'; saveBar.textContent = '\uD83D\uDCE4 保存・共有';
-    saveBar.setAttribute('style', bs + 'background:#fff;color:#1f3a5f;');
-    saveBar.style.display = 'none';
+    /* スマホでは、これが唯一の操作ボタンです。
+       押すと、できあがったPDFを共有シートへ渡します
+       （メールに添付／ファイルに保存／プリント などが選べます）。 */
+    var share = document.createElement('button');
+    share.type = 'button'; share.textContent = '共有';
+    share.setAttribute('style', bsSolid);
+    share.style.display = 'none';
 
     var right = document.createElement('div');
     right.setAttribute('style','display:flex;gap:8px;flex:0 0 auto;');
-    right.appendChild(pr); right.appendChild(go);
-    right.appendChild(back); right.appendChild(saveBar);
+    right.appendChild(pr); right.appendChild(go); right.appendChild(share);
     bar.appendChild(close); bar.appendChild(right);
 
     var fr = document.createElement('iframe');
-    fr.setAttribute('style','flex:1 1 auto;width:100%;border:0;background:#fff;');
+    /* 左右に少し余白をあけます。画面の端まで文字が来ると読みにくいためです。
+       中身は、この幅に合わせて自動で縮みます（_fit が fr の幅を見ています）。 */
+    fr.setAttribute('style','flex:1 1 auto;width:calc(100% - 24px);margin:0 12px 12px;'+
+      'border:0;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.10);');
 
     ov.appendChild(bar); ov.appendChild(fr);
     document.body.appendChild(ov);
@@ -1539,7 +1546,7 @@ function switchApp(which){
 
     go.onclick = function(){
       if(go.disabled) return;
-      go.disabled = true; go.textContent = '⏳ 作成中…'; go.style.opacity = '.7'; pr.disabled = true;
+      go.disabled = true; go.textContent = '作成中…'; go.style.opacity = '.6'; pr.disabled = true;
       _buildPdf(fr, box)
         .then(function(blob){ return _sharePdf(blob, fname); })
         .catch(function(e){
@@ -1551,88 +1558,66 @@ function switchApp(which){
         });
     };
 
-    /* ===== スマホ(iPhone/iPad)は、確認画面を出さずにそのままPDFを作ります =====
-       ・スマホでは印刷ができないので、印刷ボタンは出しません。
-       ・確認画面の見え方は実際のPDFと少しずれる(画面幅に合わせて縮めているため)ので、
-         かえって紛らわしく、出しません。中身は白い画面で隠します。
-       ・出来上がったら「保存・共有」を押してもらいます。
-         iPhone の決まりで、共有メニューは“指で押した直後”でないと開けないためです。 */
+    /* ===== スマホ(iPhone/iPad)の流れ =====
+       ・「PDF資料」を押したら、そのままPDFを作り、できたら中身をそのまま見せます。
+         （途中の案内画面は出しません。見たいのは中身だからです）
+       ・保存やメール添付は、上の「共有」から行います。
+         iPhone の決まりで、共有メニューは“指で押した直後”でないと開けないため、
+         PDFは先に作っておき、押されたらすぐ渡せるようにしています。 */
     var cover = null;
-    var pdfBlob = null;          // できあがったPDF。何度でも共有できるよう持っておきます
-    function _doShare(){
-      if(!pdfBlob) return;
-      _sharePdf(pdfBlob, fname);
-      /* ★ここでは画面を閉じません。
-         以前は共有シートを閉じただけで、この画面ごと消えていました。
-         キャンセルしたときに作り直しになってしまうためです。
-         閉じるときは、左上の「✕ 閉じる」を押してください。 */
+    var pdfBlob = null;
+
+    function _msg(main, sub){
+      return '<div style="max-width:300px;margin:auto;">' +
+             '<div style="font-size:16px;font-weight:700;color:' + INK + ';">' + main + '</div>' +
+             (sub ? '<div style="font-size:13px;color:#8e8e93;margin-top:8px;line-height:1.8;">' + sub + '</div>' : '') +
+             '<div id="pv-cover-act" style="margin-top:20px;"></div></div>';
     }
     function _showDoc(on){
       if(!cover) return;
-      cover.style.display  = on ? 'none' : '';
-      back.style.display    = on ? '' : 'none';
-      saveBar.style.display = on ? '' : 'none';
-    }
-    function _coverHtml(icon, main, sub){
-      return '<div style="max-width:280px;">' +
-             '<div style="font-size:38px;line-height:1.2;margin-bottom:12px;">' + icon + '</div>' +
-             '<div style="font-size:17px;font-weight:700;color:#222;">' + main + '</div>' +
-             (sub ? '<div style="font-size:13px;color:#888;margin-top:8px;line-height:1.8;">' + sub + '</div>' : '') +
-             '<div id="pv-cover-act" style="margin-top:20px;"></div></div>';
+      cover.style.display = on ? 'none' : 'flex';
+      fr.style.display    = on ? 'block' : 'none';
+      share.style.display = on ? 'inline-block' : 'none';
+      /* 隠しているあいだ、書類の幅は 0 として扱われるため縮尺が決められません。
+         表示に切り替えた直後に、もう一度あわせます。 */
+      if(on){ _layout(fr, box); setTimeout(function(){ _layout(fr, box); }, 60); }
     }
     function _makePdfNow(){
       _showDoc(false);
-      cover.innerHTML = _coverHtml('📄', 'PDFを作っています…', 'そのままお待ちください');
+      cover.innerHTML = _msg('PDFを作っています…', 'そのままお待ちください');
       _buildPdf(fr, box)
         .then(function(blob){
           pdfBlob = blob;
-          cover.innerHTML = _coverHtml('✅', 'PDFができました',
-            fname + '<br><span style="color:#aaa">保存する前に、中身を見て確かめられます</span>');
-          var act = cover.querySelector('#pv-cover-act');
-
-          /* ★中身の確認。スマホでは白い画面で隠していたので、
-             出来上がったPDFの中身を見られませんでした。
-             押すと白い画面を外して、ページごとに区切られた書類を見せます。 */
-          var look = document.createElement('button');
-          look.type = 'button'; look.textContent = '📄 中身を見る';
-          look.setAttribute('style', bs + 'background:#fff;color:#1f3a5f;'+
-            'box-shadow:inset 0 0 0 1.5px #1f3a5f;font-size:16px;padding:13px 24px;'+
-            'display:block;width:100%;margin-bottom:10px;');
-          look.onclick = function(){ _showDoc(true); };
-
-          var save = document.createElement('button');
-          save.type = 'button'; save.textContent = '📤 保存・共有';
-          save.setAttribute('style', bs + 'background:#1f3a5f;color:#fff;font-size:17px;'+
-            'padding:14px 26px;display:block;width:100%;');
-          save.onclick = _doShare;
-
-          act.appendChild(look); act.appendChild(save);
+          _showDoc(true);                 // 作れたら、すぐ中身を見せます
         })
         .catch(function(e){
-          cover.innerHTML = _coverHtml('⚠️', 'PDFを作れませんでした',
-            ((e && e.message) ? String(e.message).replace(/[<>]/g,'') : '') + '<br>電波の届く場所でお試しください');
+          cover.innerHTML = _msg('PDFを作れませんでした',
+            ((e && e.message) ? String(e.message).replace(/[<>]/g,'') : '') +
+            '<br>電波の届く場所でお試しください');
           var again = document.createElement('button');
           again.type = 'button'; again.textContent = 'もう一度';
-          again.setAttribute('style', bs + 'background:#1f3a5f;color:#fff;font-size:16px;padding:13px 24px;');
+          again.setAttribute('style', bs + 'background:' + INK + ';color:#fff;font-size:16px;padding:13px 26px;');
           again.onclick = _makePdfNow;
           cover.querySelector('#pv-cover-act').appendChild(again);
         });
     }
-    back.onclick    = function(){ _showDoc(false); };   // 白い画面（保存の案内）に戻ります
-    saveBar.onclick = _doShare;
+    share.onclick = function(){
+      if(!pdfBlob) return;
+      _sharePdf(pdfBlob, fname);
+      /* 共有シートを閉じただけで、この画面まで消えないようにしています。
+         閉じるときは、左上の「閉じる」を押してください。 */
+    };
 
     if(_isIOS){
       pr.style.display = 'none';                  // 印刷ボタンは出しません
       go.style.display = 'none';                  // PDFボタンも要りません(自動で作ります)
       cover = document.createElement('div');
-      cover.setAttribute('style','position:absolute;top:0;right:0;bottom:0;left:0;background:#fff;'+
-        'display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;'+
-        'font-family:inherit;');
-      cover.innerHTML = _coverHtml('📄', 'PDFを作っています…', 'そのままお待ちください');
+      cover.setAttribute('style','flex:1 1 auto;background:#fff;overflow:auto;'+
+        'display:flex;text-align:center;padding:24px;font-family:inherit;margin:0 12px 12px;'+
+        'box-shadow:0 1px 6px rgba(0,0,0,.10);');
+      cover.innerHTML = _msg('PDFを作っています…', 'そのままお待ちください');
       ov.appendChild(cover);
-      // 上の「✕ 閉じる」は白い画面より前に出しておきます(いつでも閉じられるように)
-      bar.style.position = 'relative';
-      bar.style.zIndex = '2';
+      fr.style.display = 'none';                  // 出来上がるまで書類は隠します
     }
 
     // 書類じたいが「読み込めたら印刷する」を持っている場合は任せます(二重に出さない)
@@ -1642,6 +1627,15 @@ function switchApp(which){
       // 画像の読み込みで高さが変わることがあるので、少し後にもう一度合わせます
       setTimeout(function(){ _layout(fr, box); }, 600);
       if(_isIOS){
+        /* 書類の中にある「PDFとして保存 / 印刷」ボタン(.noprint)は、
+           パソコン用のものです。スマホでは上のバーの「共有」を使うので、
+           中身を見るときに紛らわしくないよう隠します。 */
+        try{
+          var dd2 = fr.contentDocument;
+          var st2 = dd2.createElement('style');
+          st2.textContent = '.noprint{display:none !important;}';
+          (dd2.head || dd2.documentElement).appendChild(st2);
+        }catch(e){}
         // 中身が組み上がるのを待ってから、そのままPDFを作り始めます
         setTimeout(function(){ _makePdfNow(); }, 800);
         return;
