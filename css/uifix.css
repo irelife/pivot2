@@ -136,3 +136,96 @@
   #modal.pv-ms #pvc-find > #pvc-map,
   #modal.pv-ms #pvc-find > #pvc-edit{ display:none !important; }
 }
+
+
+/* ------------------------------------------------------------
+   ⑥ 上の「設定」「ログアウト」を、スマホではアイコンだけに
+   ------------------------------------------------------------ */
+@media (max-width:760px){
+  .app-tabs .settings-gear .settings-gear-label{ display:none !important; }
+  .app-tabs .settings-gear{
+    width:42px !important; min-width:42px !important;
+    padding:0 !important; justify-content:center !important;
+  }
+}
+
+/* ------------------------------------------------------------
+   ⑦ 物件一覧の「+ 物件を追加」を、右下の丸いボタンに
+   ------------------------------------------------------------ */
+@media (max-width:760px){
+  #pivot-view .toolbar > .btn[onclick="openModal()"]{
+    position:fixed !important;
+    right:16px !important;
+    bottom:calc(18px + env(safe-area-inset-bottom)) !important;
+    z-index:40 !important;
+    width:58px !important; height:58px !important; min-width:0 !important;
+    padding:0 !important; border-radius:50% !important;
+    font-size:0 !important; line-height:0 !important;
+    background:#17171A !important; color:#fff !important; border:0 !important;
+    box-shadow:0 6px 20px rgba(0,0,0,.30) !important;
+    display:flex !important; align-items:center !important; justify-content:center !important;
+  }
+  #pivot-view .toolbar > .btn[onclick="openModal()"]::before{
+    content:"" !important; display:block; width:28px; height:28px;
+    background:center/28px 28px no-repeat
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'><path d='M14 6v16M6 14h16'/></svg>");
+  }
+  /* 何かの画面が開いている間は、じゃまなので隠します */
+  body.pv-anyopen #pivot-view .toolbar > .btn[onclick="openModal()"]{ display:none !important; }
+  /* 検索欄を広く使えるようにします */
+  #pivot-view .toolbar > .search{ width:100% !important; flex:1 1 auto !important; }
+}
+
+/* ------------------------------------------------------------
+   ⑧ 画面の下のバー（契約タブ・オーナーメール）
+      ボタンは js/uifix.js がここへ移します。
+   ------------------------------------------------------------ */
+.pv-fixbar{
+  position:fixed; left:0; right:0; bottom:0; z-index:41;
+  display:none;
+  padding:5px 4px calc(8px + env(safe-area-inset-bottom));
+  background:rgba(255,255,255,.97);
+  border-top:1px solid #E4E4E6;
+}
+@media (max-width:760px){ .pv-fixbar.on{ display:flex !important; } }
+
+.pv-fixbar > button{
+  flex:1 1 0 !important; min-width:0 !important; width:auto !important;
+  display:flex !important; flex-direction:column !important;
+  align-items:center !important; justify-content:center !important;
+  gap:2px !important; height:56px !important; padding:0 !important; margin:0 !important;
+  background:transparent !important; border:0 !important; box-shadow:none !important;
+  color:#71717A !important; font-size:0 !important; font-weight:700 !important;
+  border-radius:12px !important; -webkit-tap-highlight-color:transparent;
+}
+.pv-fixbar > button:active{ background:rgba(0,0,0,.05) !important; }
+.pv-fixbar > button::before{
+  content:"" !important; display:block; width:26px; height:26px; flex:0 0 auto;
+  background-repeat:no-repeat; background-position:center; background-size:24px 24px;
+}
+.pv-fixbar > button::after{
+  display:block; font-size:10.5px; font-weight:700; color:#71717A; letter-spacing:.02em;
+}
+/* --- 契約タブ --- */
+#pvbar-kb > #btn-sort::before{ background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='%2317171A' stroke-width='1.8' stroke-linecap='round'><path d='M4 7h13M4 12h9M4 17h5'/><path d='M18 10l3 3-3 3'/></svg>"); }
+#pvbar-kb > #btn-sort::after{ content:"整列"; }
+#pvbar-kb > #btn-view::before{ background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='%2317171A' stroke-width='1.8' stroke-linecap='round'><rect x='3.5' y='4.5' width='7' height='7' rx='1.5'/><rect x='13.5' y='4.5' width='7' height='7' rx='1.5'/><path d='M4 16h16M4 20h11'/></svg>"); }
+#pvbar-kb > #btn-view::after{ content:"表示"; }
+#pvbar-kb > .broker-stat-btn::before{ background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='%2317171A' stroke-width='1.8' stroke-linecap='round'><path d='M5 20V11M12 20V5M19 20v-6'/></svg>"); }
+#pvbar-kb > .broker-stat-btn::after{ content:"ランキング"; }
+#pvbar-kb > .btn-primary::before{ background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><circle cx='12' cy='12' r='11' fill='%2317171A'/><path d='M12 7v10M7 12h10' stroke='%23fff' stroke-width='2.2' stroke-linecap='round'/></svg>"); }
+#pvbar-kb > .btn-primary::after{ content:"新規"; color:#17171A; }
+/* --- オーナーメール --- */
+#pvbar-rent > .pvb-open::before{ background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='%2317171A' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'><path d='M7 10l5 5 5-5'/><path d='M4 5h16'/></svg>"); }
+#pvbar-rent > .pvb-open::after{ content:"開く"; }
+#pvbar-rent > .pvb-close::before{ background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='%2317171A' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'><path d='M7 14l5-5 5 5'/><path d='M4 19h16'/></svg>"); }
+#pvbar-rent > .pvb-close::after{ content:"閉じる"; }
+#pvbar-rent > #rent-btn-draft::before{ background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='%2317171A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M6 3.5h8l5 5V20a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 20V5a1.5 1.5 0 0 1 1.5-1.5Z'/><path d='M14 3.5V9h5'/><path d='M8.5 13.5h7M8.5 17h4.5'/></svg>"); }
+#pvbar-rent > #rent-btn-draft::after{ content:"下書き"; }
+#pvbar-rent > #rent-btn-send::before{ background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><circle cx='12' cy='12' r='11' fill='%2317171A'/><path d='M6.5 12.2l11-4.2-4 11.5-2-4.6-5-2.7Z' fill='none' stroke='%23fff' stroke-width='1.7' stroke-linejoin='round'/></svg>"); }
+#pvbar-rent > #rent-btn-send::after{ content:"一斉送信"; color:#17171A; }
+/* バーのぶん、画面の下に余白をつくります */
+@media (max-width:760px){
+  body.pv-bar-kb #kb-view,
+  body.pv-bar-rent #rent-view{ padding-bottom:78px !important; }
+}
