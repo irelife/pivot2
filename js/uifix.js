@@ -224,3 +224,55 @@
     pos:  function(){ return { x:curX, y:curY, ovX:ovX, ovY:ovY }; }
   };
 })();
+
+/* ============================================================
+ *  ⑤ スマホの物件画面：下を「アイコンの帯」にする
+ *
+ *  区画バーにある「地図」「編集」を、いちばん下の帯へ移します。
+ *  ボタンそのものを動かすだけなので、押したときの動きは今までと同じです。
+ *  キャンセルは出しません（右上の × に任せます）。
+ *  見た目は css/uifix.css の⑤が受け持ちます。
+ * ============================================================ */
+(function(){
+  'use strict';
+
+  function mobile(){
+    try{ return window.matchMedia('(max-width:760px)').matches; }
+    catch(e){ return (window.innerWidth||999)<=760; }
+  }
+  function footer(){
+    return document.querySelector('#modal.pv-ms #pv-sheet > .modal-footer');
+  }
+
+  function move(){
+    if(!mobile()) return;
+    var f = footer();
+    if(!f) return;
+    var save = document.getElementById('save-bld-btn');
+    ['pvc-map','pvc-edit'].forEach(function(id){
+      var live = document.getElementById(id);   // いま生きているボタン
+      if(!live) return;
+      // 帯の中に、前に移した古いものが残っていたら片づけます
+      var olds = f.querySelectorAll('#'+id);
+      for(var i=0;i<olds.length;i++){
+        if(olds[i] !== live && olds[i].parentNode) olds[i].parentNode.removeChild(olds[i]);
+      }
+      if(live.parentNode === f) return;         // すでに帯の中
+      if(save && save.parentNode === f) f.insertBefore(live, save);
+      else f.appendChild(live);
+    });
+    // 並び順：地図 → 編集 → 保存
+    var m = f.querySelector('#pvc-map'), e = f.querySelector('#pvc-edit');
+    if(m && e && m.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_PRECEDING) f.insertBefore(m, e);
+  }
+
+  function boot(){
+    move();
+    window.setInterval(move, 700);
+    document.addEventListener('click', function(){ setTimeout(move, 60); }, true);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+
+  window.PVIconBar = { move: move };
+})();
