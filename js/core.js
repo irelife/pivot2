@@ -1448,13 +1448,18 @@ function switchApp(which){
     var f = null;
     try{ f = new File([blob], name, {type:'application/pdf'}); }catch(e){}
     if(f && navigator.canShare && navigator.canShare({files:[f]})){
-      return navigator.share({files:[f], title:name}).catch(function(err){
-        if(err && err.name === 'AbortError') return;   // 利用者が閉じただけ
-        _download(blob, name);
-      });
+      /* true …保存・共有できた ／ false …利用者が「キャンセル」を押した
+         （呼び出し側が、画面を閉じてよいか判断できるようにします） */
+      return navigator.share({files:[f], title:name})
+        .then(function(){ return true; })
+        .catch(function(err){
+          if(err && err.name === 'AbortError') return false;   // 利用者が閉じただけ
+          _download(blob, name);
+          return true;
+        });
     }
     _download(blob, name);
-    return Promise.resolve();
+    return Promise.resolve(true);
   }
   function _download(blob, name){
     var u = URL.createObjectURL(blob);
@@ -1499,9 +1504,21 @@ function switchApp(which){
     go.type = 'button'; go.textContent = 'PDF';
     go.setAttribute('style', bs + 'background:#fff;color:#1f3a5f;');
 
+    /* スマホで「中身を見る」を押したときに使うボタン。ふだんは隠しています。 */
+    var back = document.createElement('button');
+    back.type = 'button'; back.textContent = '◀ 戻る';
+    back.setAttribute('style', bs + 'background:rgba(255,255,255,.18);color:#fff;');
+    back.style.display = 'none';
+
+    var saveBar = document.createElement('button');
+    saveBar.type = 'button'; saveBar.textContent = '\uD83D\uDCE4 保存・共有';
+    saveBar.setAttribute('style', bs + 'background:#fff;color:#1f3a5f;');
+    saveBar.style.display = 'none';
+
     var right = document.createElement('div');
     right.setAttribute('style','display:flex;gap:8px;flex:0 0 auto;');
     right.appendChild(pr); right.appendChild(go);
+    right.appendChild(back); right.appendChild(saveBar);
     bar.appendChild(close); bar.appendChild(right);
 
     var fr = document.createElement('iframe');
@@ -1541,6 +1558,21 @@ function switchApp(which){
        ・出来上がったら「保存・共有」を押してもらいます。
          iPhone の決まりで、共有メニューは“指で押した直後”でないと開けないためです。 */
     var cover = null;
+    var pdfBlob = null;          // できあがったPDF。何度でも共有できるよう持っておきます
+    function _doShare(){
+      if(!pdfBlob) return;
+      _sharePdf(pdfBlob, fname);
+      /* ★ここでは画面を閉じません。
+         以前は共有シートを閉じただけで、この画面ごと消えていました。
+         キャンセルしたときに作り直しになってしまうためです。
+         閉じるときは、左上の「✕ 閉じる」を押してください。 */
+    }
+    function _showDoc(on){
+      if(!cover) return;
+      cover.style.display  = on ? 'none' : '';
+      back.style.display    = on ? '' : 'none';
+      saveBar.style.display = on ? '' : 'none';
+    }
     function _coverHtml(icon, main, sub){
       return '<div style="max-width:280px;">' +
              '<div style="font-size:38px;line-height:1.2;margin-bottom:12px;">' + icon + '</div>' +
@@ -1549,19 +1581,32 @@ function switchApp(which){
              '<div id="pv-cover-act" style="margin-top:20px;"></div></div>';
     }
     function _makePdfNow(){
+      _showDoc(false);
       cover.innerHTML = _coverHtml('📄', 'PDFを作っています…', 'そのままお待ちください');
       _buildPdf(fr, box)
         .then(function(blob){
-          cover.innerHTML = _coverHtml('✅', 'PDFができました', fname);
+          pdfBlob = blob;
+          cover.innerHTML = _coverHtml('✅', 'PDFができました',
+            fname + '<br><span style="color:#aaa">保存する前に、中身を見て確かめられます</span>');
+          var act = cover.querySelector('#pv-cover-act');
+
+          /* ★中身の確認。スマホでは白い画面で隠していたので、
+             出来上がったPDFの中身を見られませんでした。
+             押すと白い画面を外して、ページごとに区切られた書類を見せます。 */
+          var look = document.createElement('button');
+          look.type = 'button'; look.textContent = '📄 中身を見る';
+          look.setAttribute('style', bs + 'background:#fff;color:#1f3a5f;'+
+            'box-shadow:inset 0 0 0 1.5px #1f3a5f;font-size:16px;padding:13px 24px;'+
+            'display:block;width:100%;margin-bottom:10px;');
+          look.onclick = function(){ _showDoc(true); };
+
           var save = document.createElement('button');
           save.type = 'button'; save.textContent = '📤 保存・共有';
-          save.setAttribute('style', bs + 'background:#1f3a5f;color:#fff;font-size:17px;padding:14px 26px;');
-          save.onclick = function(){
-            _sharePdf(blob, fname).then(function(){
-              if(ov.parentNode) ov.parentNode.removeChild(ov);
-            });
-          };
-          cover.querySelector('#pv-cover-act').appendChild(save);
+          save.setAttribute('style', bs + 'background:#1f3a5f;color:#fff;font-size:17px;'+
+            'padding:14px 26px;display:block;width:100%;');
+          save.onclick = _doShare;
+
+          act.appendChild(look); act.appendChild(save);
         })
         .catch(function(e){
           cover.innerHTML = _coverHtml('⚠️', 'PDFを作れませんでした',
@@ -1573,6 +1618,9 @@ function switchApp(which){
           cover.querySelector('#pv-cover-act').appendChild(again);
         });
     }
+    back.onclick    = function(){ _showDoc(false); };   // 白い画面（保存の案内）に戻ります
+    saveBar.onclick = _doShare;
+
     if(_isIOS){
       pr.style.display = 'none';                  // 印刷ボタンは出しません
       go.style.display = 'none';                  // PDFボタンも要りません(自動で作ります)
