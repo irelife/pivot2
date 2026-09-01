@@ -76,3 +76,63 @@
   touch-action:none !important;
 }
 #pv-pin .pv-pin-view img{ transition:none; }
+
+
+/* ------------------------------------------------------------
+   ⑤ スマホの物件画面：下を「アイコンの帯」にする
+      ・地図／編集／保存 を、画面のいちばん下に横並びで置きます。
+      ・キャンセルは出しません。右上の × に任せます
+        （× は未保存のとき「保存しますか？」と聞いてくれます）。
+      ・アイコンは背景の絵なので、「編集」→「編集中」と
+        文字が変わっても消えません。
+   ------------------------------------------------------------ */
+@media (max-width:760px){
+  #modal.pv-ms #pv-sheet > .modal-footer{
+    display:flex !important;
+    gap:0 !important;
+    padding:5px 4px calc(8px + env(safe-area-inset-bottom)) !important;
+    background:rgba(255,255,255,.97) !important;
+  }
+  /* キャンセルは右上の × に任せます */
+  #modal.pv-ms #pv-sheet > .modal-footer button[onclick*="cancelModal"]{ display:none !important; }
+
+  #modal.pv-ms #pv-sheet > .modal-footer > button{
+    flex:1 1 0 !important; min-width:0 !important; width:auto !important;
+    display:flex !important; flex-direction:column !important;
+    align-items:center !important; justify-content:center !important;
+    gap:2px !important; height:56px !important; padding:0 !important;
+    background:transparent !important; border:0 !important; box-shadow:none !important;
+    color:#71717A !important; font-size:10.5px !important; font-weight:700 !important;
+    letter-spacing:.02em !important; border-radius:12px !important;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #modal.pv-ms #pv-sheet > .modal-footer > button:active{ background:rgba(0,0,0,.05) !important; }
+
+  /* --- アイコン（背景の絵として置きます） --- */
+  #modal.pv-ms #pv-sheet > .modal-footer > button::before{
+    content:"" !important;
+    display:block; width:26px; height:26px; flex:0 0 auto;
+    background-repeat:no-repeat; background-position:center; background-size:24px 24px;
+  }
+  /* 地図：ピン */
+  #modal.pv-ms #pv-sheet > .modal-footer > #pvc-map::before{
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='%2317171A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z'/><circle cx='12' cy='10' r='2.6'/></svg>");
+  }
+  /* 編集：えんぴつ */
+  #modal.pv-ms #pv-sheet > .modal-footer > #pvc-edit::before{
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='none' stroke='%2317171A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M4 20h4l10-10a2.8 2.8 0 0 0-4-4L4 16v4Z'/><path d='M13.5 6.5l4 4'/></svg>");
+  }
+  /* 保存：黒まるにチェック */
+  #modal.pv-ms #pv-sheet > .modal-footer > #save-bld-btn::before{
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><circle cx='12' cy='12' r='11' fill='%2317171A'/><path d='M6.5 12.4l3.7 3.7L17.6 8.7' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  }
+  #modal.pv-ms #pv-sheet > .modal-footer > #save-bld-btn{ color:#17171A !important; }
+  /* 編集中は、字を濃くして分かるようにします */
+  #modal.pv-ms #pv-sheet > .modal-footer > #pvc-edit[aria-pressed="true"]{ color:#17171A !important; }
+  #modal.pv-ms #pv-sheet > .modal-footer > #pvc-edit[aria-pressed="true"]::before{
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><circle cx='12' cy='12' r='11' fill='%2317171A'/><path d='M7 17h3l7.2-7.2a2 2 0 0 0-2.8-2.8L7 14.2V17Z' fill='none' stroke='%23fff' stroke-width='1.7' stroke-linejoin='round'/></svg>");
+  }
+  /* 上の区画バーからは、地図・編集を消します（下へ移したので） */
+  #modal.pv-ms #pvc-find > #pvc-map,
+  #modal.pv-ms #pvc-find > #pvc-edit{ display:none !important; }
+}
