@@ -312,6 +312,15 @@
     return el;
   }
 
+  /* バーの中のボタンを 出す / しまう。
+     バーのCSSが display:flex !important なので、
+     こちらも !important で打ち消します */
+  function showInBar(el, on){
+    if(!el) return;
+    if(on) el.style.removeProperty('display');
+    else   el.style.setProperty('display','none','important');
+  }
+
   function tick(){
     var open = anyOpen();
     document.body.classList.toggle('pv-anyopen', open);
@@ -333,10 +342,23 @@
 
     /* --- オーナーメール --- */
     var rt = makeBar('pvbar-rent');
-    put(rt, '#rent-view button[onclick="RENT.expandAll(true)"]',  'pvb-open');
-    put(rt, '#rent-view button[onclick="RENT.expandAll(false)"]', 'pvb-close');
+    /* いちど下のバーへ移すと #rent-view の中からは消えるので、
+       2回目からはバーの中を class で探します */
+    var bOpen  = put(rt, '#rent-view button[onclick="RENT.expandAll(true)"]',  'pvb-open')
+              || rt.querySelector('.pvb-open');
+    var bClose = put(rt, '#rent-view button[onclick="RENT.expandAll(false)"]', 'pvb-close')
+              || rt.querySelector('.pvb-close');
     put(rt, '#rent-btn-draft');
     put(rt, '#rent-btn-send');
+
+    /* 「開く」「閉じる」は 送信プレビューの開閉ボタンです。
+       「明細取込・送信」タブを開いていて、かつプレビューに中身が
+       あるときだけ出します。ほかの画面では押しても何も起きないので、
+       出さないほうが迷いません。 */
+    var canExpand = !!document.querySelector('#view-send.active')
+                 && document.querySelectorAll('.pv-body').length > 0;
+    showInBar(bOpen,  canExpand);
+    showInBar(bClose, canExpand);
 
     var body = document.body;
     var onKb   = body.classList.contains('tab-kanban') && !open;
