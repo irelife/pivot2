@@ -296,3 +296,124 @@
   /* 上に貼りつくときの位置。画面からはみ出さないようにします */
   .spot-layout-left-img{ top:20px !important; }
 }
+/* ============================================================
+   ⑫〜⑳  スマホの操作性・視認性（iOS風）  2026-09-01
+   　このブロックを丸ごと消せば、すべて元に戻ります。
+   ============================================================ */
+
+/* ⑫ 契約の一覧表示、スマホでは表の見出しを出しません
+      9列の表の見出しですが、スマホでは2列しか画面に入らず
+      「状態　物件」としか出ていませんでした。 */
+@media (max-width:760px){
+  #kb-view .lv-table thead{ display:none !important; }
+}
+
+/* ⑬ 下のアイコンバーを「すりガラス」にします
+      いままで半透明なだけで、後ろの文字が透けて重なっていました。 */
+.pv-fixbar{
+  background:rgba(255,255,255,.72) !important;
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+  border-top:1px solid rgba(0,0,0,.07) !important;
+}
+
+/* ⑭ 押したときの手ごたえ
+      指では :hover が効かないので、押した合図がありませんでした。 */
+@media (max-width:760px){
+  #kb-view .lv-row{ transition:background .12s; }
+  #kb-view .lv-row:active{ background:#ececee !important; }
+  #kb-view .lv-row:active td{ color:#17171a !important; }
+
+  #kb-view .stats-bar .stat-pill:active{
+    background:rgba(255,255,255,.28) !important;
+  }
+  @media (hover:none){
+    #kb-view .stats-bar .stat-pill:not(.on):hover{ background:transparent !important; }
+  }
+
+  .pv-fixbar > button:active{ background:rgba(0,0,0,.08) !important; }
+}
+
+/* ⑮ 一覧表示。右にまだ列が続いていることを示します */
+@media (max-width:760px){
+  #kb-view .lv-wrap{
+    -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 26px), transparent);
+    mask-image:linear-gradient(to right, #000 calc(100% - 26px), transparent);
+  }
+}
+
+/* ⑯ 状態の文字の左端をそろえます
+      「進行中」だけ13px 左にずれていました。札の形はそのままです。 */
+#kb-view .lv-badge.progress,
+#kb-view .lv-badge.arch{ padding-left:13px; }
+
+/* ⑰ 検索欄に虫眼鏡を出します
+      検索欄は #kb-view の中ではなく .app-tabs の中にあるため、
+      base.css の指定が一度も当たっていませんでした。 */
+#kb-search,
+#kb-search:focus{
+  padding-left:38px !important;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='7.5'/><path d='M20.5 20.5l-4.6-4.6'/></svg>") !important;
+  background-repeat:no-repeat !important;
+  background-position:14px center !important;
+  background-size:16px 16px !important;
+}
+
+/* ⑱ 上のタブを iOS のセグメント風にします */
+@media (max-width:760px){
+  .app-tabs > #tab-pivot,
+  .app-tabs > #tab-kanban,
+  .app-tabs > #tab-rent{
+    background:rgba(120,120,128,.10);
+    color:#5c5c63;
+    font-weight:600;
+    border-radius:10px;
+    padding:9px 15px;
+    box-shadow:none;
+  }
+  .app-tabs > #tab-pivot.active,
+  .app-tabs > #tab-kanban.active,
+  .app-tabs > #tab-rent.active{
+    background:#17171a;
+    color:#fff;
+    font-weight:700;
+    box-shadow:0 1px 3px rgba(0,0,0,.20);
+  }
+}
+
+/* ⑲ ヘッダーの「保存中…」の帯を、ふだんは出しません
+      4つの状態が全部おなじ灰色で、いちばん大事な「同期失敗」が
+      「保存中」に埋もれていました。異常だけを赤く出します。
+      ★JSは触っていません。表示の指定だけです。 */
+#sync-status[data-state="saving"],
+#sync-status[data-state="saved"],
+#sync-status[data-state="idle"]{ display:none !important; }
+
+#sync-status[data-state="error"]{
+  background:#fdecea !important;
+  color:#b3261e !important;
+  box-shadow:inset 0 0 0 1px rgba(179,38,30,.28);
+  font-weight:800 !important;
+}
+
+/* ⑳ 歯車の白い丸をやめ、アイコンだけにします */
+@media (max-width:760px){
+  .app-tabs .settings-gear{
+    background:transparent !important;
+    box-shadow:none !important;
+    border:0 !important;
+  }
+  @media (hover:none){
+    .app-tabs .settings-wrap:hover .settings-gear,
+    .app-tabs .settings-gear:hover{
+      background:transparent !important;
+      color:inherit !important;
+      transform:none !important;
+      box-shadow:none !important;
+    }
+  }
+  .app-tabs .settings-gear:active{
+    background:rgba(0,0,0,.08) !important;
+    border-radius:999px !important;
+  }
+}
