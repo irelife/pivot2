@@ -477,56 +477,89 @@
 }
 
 /* ------------------------------------------------------------
-   ㉒ 物件一覧の「空車 / 満車」の見た目
+   ㉒ 物件一覧の「空車 / 満車」の見た目（スマホのときだけ）
 
-      ・満車 … カードの背景を黒、文字を白にして「満車」と出します
-      ・空車あり … カードの背景を薄い青にして、
-                   種別ごとの空車数と区画ナンバーを出します
+      ・PC（幅761px以上）… 今までどおり（物件名＋住所＋全N区画）に戻します
+      ・スマホ（幅760px以下）… 満車なら背景 黒・文字 白で「満車」、
+                                空車があれば区画ナンバーの札を出します
       中身の組み立ては js/uifix.js の ㉒ で行っています。
    ------------------------------------------------------------ */
+@media screen and (max-width:760px){
 
-/* 満車：背景 黒・文字 白 */
-.bld-card.pv-card-full{ background:#17171A !important; }
-.bld-card.pv-card-full .bld-name,
-.bld-card.pv-card-full .bld-meta{ color:#ffffff !important; }
-.bld-card.pv-card-full:hover{ background:#000000 !important; }
-.bld-card.pv-card-full .bld-card-del{
-  border-color:rgba(255,255,255,.55) !important; color:#ffffff !important; background:transparent !important;
-}
-.bld-card.pv-card-full .bld-card-del:hover{ background:#dc2626 !important; border-color:#dc2626 !important; }
-.pv-full{
-  display:inline-flex; align-items:center; padding:2px 10px; border-radius:7px;
-  border:1.5px solid #ffffff; color:#ffffff; background:transparent;
-  font-size:15px; font-weight:800; letter-spacing:1.5px; line-height:1.2;
+  /* 満車：背景 黒・文字 白 */
+  .bld-card.pv-card-full{ background:#17171A !important; }
+  .bld-card.pv-card-full .bld-name,
+  .bld-card.pv-card-full .bld-meta{ color:#ffffff !important; }
+  .bld-card.pv-card-full:hover{ background:#000000 !important; }
+  .bld-card.pv-card-full .bld-card-del{
+    border-color:rgba(255,255,255,.55) !important; color:#ffffff !important; background:transparent !important;
+  }
+  .bld-card.pv-card-full .bld-card-del:hover{ background:#dc2626 !important; border-color:#dc2626 !important; }
+  .pv-full{
+    display:inline-flex; align-items:center; padding:2px 10px; border-radius:7px;
+    border:1.5px solid #ffffff; color:#ffffff; background:transparent;
+    font-size:15px; font-weight:800; letter-spacing:1.5px; line-height:1.2;
+  }
+
+  /* 空車あり：背景 白・文字 黒（色を変えるのはバッジと内わけの文字だけ） */
+  .bld-card.pv-card-vac{ background:#ffffff !important; }
+  .bld-card.pv-card-vac .bld-name{ color:#17171A !important; }
+  .bld-card.pv-card-vac .bld-meta{ color:#666666 !important; }
+  .bld-card.pv-card-vac:hover{ background:#f5f5f5 !important; }
+  /* 物件名と札を横ならびにします（住所と区画数は出しません）
+     ※ tune.css の #list .pref-body .bld-name（-webkit-box）が勝ってしまうので、
+       同じ強さの書き方＋!important でこちらを効かせています */
+  #list .bld-card .pv-name,
+  .bld-card .pv-name{
+    display:flex !important; align-items:center; flex-wrap:wrap;
+    gap:6px 8px !important; margin-bottom:0 !important;
+    -webkit-line-clamp:none !important; overflow:visible !important;
+  }
+  #list .bld-card .pv-nm,
+  .bld-card .pv-nm{ font-size:15px; font-weight:700; letter-spacing:.2px; }
+
+  /* 空いている区画の札（背景 黒・文字 白）。物件名の横に大きく出します */
+  .pv-free{ display:inline-flex; flex-wrap:wrap; gap:5px; }
+  .pv-chip{
+    display:inline-flex; align-items:baseline; gap:5px;
+    padding:2px 8px; border-radius:7px;
+    background:#17171A; color:#ffffff;
+    font-size:10px; font-weight:700; white-space:nowrap;
+  }
+  .pv-chip b{ font-size:15px; font-weight:800; color:#ffffff; letter-spacing:.2px; }
+  /* 解約中（もうすぐ空く）区画は、解約予定日を赤字で添えます */
+  .pv-chip-soon em{
+    font-style:normal; margin-left:1px; color:#ff5b52; font-size:10px; font-weight:800;
+  }
 }
 
-/* 空車あり：背景 白・文字 黒（色を変えるのはバッジと内わけの文字だけ） */
-.bld-card.pv-card-vac{ background:#ffffff !important; }
-.bld-card.pv-card-vac .bld-name{ color:#17171A !important; }
-.bld-card.pv-card-vac .bld-meta{ color:#666666 !important; }
-.bld-card.pv-card-vac:hover{ background:#f5f5f5 !important; }
-/* 物件名と札を横ならびにします（住所と区画数は出しません）
-   ※ tune.css の #list .pref-body .bld-name（-webkit-box）が勝ってしまうので、
-     同じ強さの書き方＋!important でこちらを効かせています */
-#list .bld-card .pv-name,
-.bld-card .pv-name{
-  display:flex !important; align-items:center; flex-wrap:wrap;
-  gap:6px 8px !important; margin-bottom:0 !important;
-  -webkit-line-clamp:none !important; overflow:visible !important;
-}
-#list .bld-card .pv-nm,
-.bld-card .pv-nm{ font-size:15px; font-weight:700; letter-spacing:.2px; }
+/* ------------------------------------------------------------
+   ㉓ PCのとき、配置図をもっと大きく／備考の列を短くします
 
-/* 空いている区画の札（背景 黒・文字 白）。物件名の横に大きく出します */
-.pv-free{ display:inline-flex; flex-wrap:wrap; gap:5px; }
-.pv-chip{
-  display:inline-flex; align-items:baseline; gap:5px;
-  padding:2px 8px; border-radius:7px;
-  background:#17171A; color:#ffffff;
-  font-size:10px; font-weight:700; white-space:nowrap;
+      ・配置図 … 画面が広いほど大きくなります（300px〜720px）
+      ・備考 … 画面の余りをぜんぶ吸っていたので、常識的な幅で止めます
+              （表の横幅に上限をつけて、備考が伸び続けないようにしています）
+      ※ ㉑ より後ろに書いているので、幅の指定はこちらが優先されます
+   ------------------------------------------------------------ */
+@media screen and (min-width:1025px){
+  /* 備考の列が画面の余りをぜんぶ吸ってしまうので、表そのものに上限をつけます。
+     （表は table-layout:fixed なので、余った幅は必ず備考にまわってしまいます）*/
+  #spots-table{ max-width:1400px !important; }
 }
-.pv-chip b{ font-size:15px; font-weight:800; color:#ffffff; letter-spacing:.2px; }
-/* 解約中（もうすぐ空く）区画は、解約予定日を赤字で添えます */
-.pv-chip-soon em{
-  font-style:normal; margin-left:1px; color:#ff5b52; font-size:10px; font-weight:800;
+
+@media screen and (min-width:1700px){
+  /* 画面が広いほど配置図を大きく（300px〜720px）。
+     横スクロールが出ないよう「画面幅 − 表のぶん」で決めています */
+  .spot-layout-left-img{
+    width:clamp(300px, calc(100vw - 1400px), 720px) !important;
+  }
+  /* 枠も配置図の幅に合わせて大きくします（縦横比 3:2 で伸びます） */
+  .spot-layout-left-img .img-block-layout .img-thumb,
+  .spot-layout-left-img .img-block-layout .img-thumb-loading,
+  .spot-layout-left-img .img-block-layout .img-upload-btn,
+  .spot-layout-left-img .img-block-layout #layout-area.layout-single .img-thumb,
+  .spot-layout-left-img .img-block-layout #layout-area.layout-single .img-thumb-loading{
+    width:100% !important; max-width:100% !important;
+    height:auto !important; aspect-ratio:3 / 2 !important;
+  }
 }
