@@ -185,3 +185,59 @@
 
   window.PVBars = { tick: tick };
 })();
+
+/* ============================================================
+ *  ㉒ 物件一覧に「空車 / 満車」を出します
+ *
+ *  ・満車の物件 … カードの背景を黒、文字を白にして「満車」と出します
+ *  ・空車がある物件 … カードの背景を薄い青にして、
+ *      種別（並列・縦列・軽専用）ごとに「空車の数」と「区画ナンバー」を出します
+ *
+ *  buildings.js の _bldCardHtml() を、この1枚で置き換えています。
+ *  元に戻すときは index.html の uifix.js の行を消すだけです。
+ * ============================================================ */
+(function(){
+  'use strict';
+
+  var TYPE_LABEL = { '並':'普通', '縦':'縦列', '軽':'軽', '機':'機械式' };
+
+  function esc(v){
+    return (typeof escapeHtml === 'function') ? escapeHtml(v) : String(v == null ? '' : v);
+  }
+
+  window._bldCardHtml = function(b){
+    var spots = (b && b.spots) || [];
+    var total = spots.length;
+    var used  = spots.filter(function(s){ return s.status === '借'; }).length;
+
+    /* 空いている区画（状況が「空き」のもの）を、区画ナンバー順にならべます */
+    var freeList = [];
+    spots.forEach(function(s, i){
+      if(!s || s.status !== '空') return;
+      freeList.push({ no: Number(s.no) || (i + 1), t: TYPE_LABEL[s.type] || '普通' });
+    });
+    freeList.sort(function(a, b){ return a.no - b.no; });
+    var free = freeList.length;
+    var full = (free === 0);
+
+    /* 満車なら「満車」、空車があれば区画ナンバーの札を物件名の横に出します */
+    var right = full
+      ? '<span class="pv-full">満車</span>'
+      : '<span class="pv-free">' +
+          freeList.map(function(f){
+            return '<span class="pv-chip"><b>P' + f.no + '</b>' + f.t + '</span>';
+          }).join('') +
+        '</span>';
+
+    return '<div class="bld-card ' + (full ? 'pv-card-full' : 'pv-card-vac') +
+             '" onclick="openModal(\'' + b.id + '\')">' +
+        '<div class="bld-card-info">' +
+          '<div class="bld-name pv-name">' +
+            '<span class="pv-nm">' + esc(b.name || '(名称未設定)') + '</span>' + right +
+          '</div>' +
+        '</div>' +
+        '<button class="bld-card-del" onclick="event.stopPropagation();deleteBldFromList(\'' + b.id +
+          '\')" title="この物件を削除">🗑</button>' +
+      '</div>';
+  };
+})();
