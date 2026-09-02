@@ -475,3 +475,48 @@
     height:300px !important;
   }
 }
+
+/* ------------------------------------------------------------
+   ㉒ 物件一覧の「空車 / 満車」の見た目
+
+      ・満車 … カードの背景を黒、文字を白にして「満車」と出します
+      ・空車あり … カードの背景を薄い青にして、
+                   種別ごとの空車数と区画ナンバーを出します
+      中身の組み立ては js/uifix.js の ㉒ で行っています。
+   ------------------------------------------------------------ */
+
+/* 満車：背景 黒・文字 白 */
+.bld-card.pv-card-full{ background:#17171A !important; }
+.bld-card.pv-card-full .bld-name,
+.bld-card.pv-card-full .bld-meta{ color:#ffffff !important; }
+.bld-card.pv-card-full:hover{ background:#000000 !important; }
+.bld-card.pv-card-full .bld-card-del{
+  border-color:rgba(255,255,255,.55) !important; color:#ffffff !important; background:transparent !important;
+}
+.bld-card.pv-card-full .bld-card-del:hover{ background:#dc2626 !important; border-color:#dc2626 !important; }
+.pv-full{
+  display:inline-flex; align-items:center; padding:4px 18px; border-radius:10px;
+  border:2px solid #ffffff; color:#ffffff; background:transparent;
+  font-size:25px; font-weight:800; letter-spacing:3px; line-height:1.2;
+}
+
+/* 空車あり：背景 白・文字 黒（色を変えるのはバッジと内わけの文字だけ） */
+.bld-card.pv-card-vac{ background:#ffffff !important; }
+.bld-card.pv-card-vac .bld-name{ color:#17171A !important; }
+.bld-card.pv-card-vac .bld-meta{ color:#666666 !important; }
+.bld-card.pv-card-vac:hover{ background:#f5f5f5 !important; }
+/* 物件名と札を横ならびにします（住所と区画数は出しません） */
+.bld-card .pv-name{
+  display:flex; align-items:center; flex-wrap:wrap; gap:10px 12px; margin-bottom:0 !important;
+}
+.bld-card .pv-nm{ font-size:25px; font-weight:700; letter-spacing:.5px; }
+
+/* 空いている区画の札（背景 黒・文字 白）。物件名の横に大きく出します */
+.pv-free{ display:inline-flex; flex-wrap:wrap; gap:8px; }
+.pv-chip{
+  display:inline-flex; align-items:baseline; gap:8px;
+  padding:5px 14px; border-radius:10px;
+  background:#17171A; color:#ffffff;
+  font-size:14px; font-weight:700; white-space:nowrap;
+}
+.pv-chip b{ font-size:25px; font-weight:800; color:#ffffff; letter-spacing:.5px; }
