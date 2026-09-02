@@ -520,3 +520,7 @@
   font-size:14px; font-weight:700; white-space:nowrap;
 }
 .pv-chip b{ font-size:25px; font-weight:800; color:#ffffff; letter-spacing:.5px; }
+/* 解約中（もうすぐ空く）区画は、解約予定日を赤字で添えます */
+.pv-chip-soon em{
+  font-style:normal; margin-left:2px; color:#ff5b52; font-size:14px; font-weight:800;
+}
