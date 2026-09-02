@@ -430,3 +430,48 @@
     border-radius:999px !important;
   }
 }
+
+/* ------------------------------------------------------------
+   ㉑ PCで物件の編集画面（区画一覧）が横スクロールしないようにする
+
+      いままで編集画面の横幅は 1400px で止まっていました。
+      区画一覧の表は 1290px 必要で、左に配置図（360px）が並ぶため、
+      どんなに広いモニターでも必ず横スクロールが出ていました。
+
+      ・PCでは編集画面を画面の幅いっぱいまで広げます。
+      ・1700px以上のモニター … 配置図は左のまま。表が全部入ります。
+      ・1700px未満のPC　　　 … 左右に並べると入りきらないので、
+                                配置図を上に回して、表に横幅を全部わたします。
+      スマホ・タブレット（1024px以下）は今までどおりです。
+   ------------------------------------------------------------ */
+@media screen and (min-width:1025px){
+  /* 画面のふちの余白を詰めて、編集画面を目いっぱい広げます */
+  #modal.modal-overlay{ padding:12px !important; }
+  #modal > .modal{ max-width:calc(100vw - 24px) !important; }
+  #modal .modal-body{ padding:16px !important; }
+  /* 表が収まっているときは、横スクロールバーを出しません */
+  #spots-table-wrap{ overflow-x:auto !important; }
+}
+
+/* 1700px以上：配置図は左に置いたままで、区画一覧が全部入ります */
+@media screen and (min-width:1700px){
+  .spot-layout-left-img{ width:300px !important; }
+  .spot-layout-left-img .img-block-layout .img-thumb,
+  .spot-layout-left-img .img-block-layout .img-thumb-loading,
+  .spot-layout-left-img .img-block-layout .img-upload-btn{ max-width:300px !important; }
+}
+
+/* 1025〜1699px：配置図を上に回して、区画一覧に横幅を全部わたします */
+@media screen and (min-width:1025px) and (max-width:1699px){
+  .spot-layout-row{ flex-direction:column !important; }
+  .spot-layout-left-img{ width:100% !important; position:static !important; }
+  .spot-layout-left-img .img-block-layout .img-thumb,
+  .spot-layout-left-img .img-block-layout .img-thumb-loading,
+  .spot-layout-left-img .img-block-layout .img-upload-btn{
+    max-width:420px !important; height:260px !important;
+  }
+  .spot-layout-left-img .img-block-layout #layout-area.layout-single .img-thumb,
+  .spot-layout-left-img .img-block-layout #layout-area.layout-single .img-thumb-loading{
+    height:300px !important;
+  }
+}
