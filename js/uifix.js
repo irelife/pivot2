@@ -187,11 +187,12 @@
 })();
 
 /* ============================================================
- *  ㉒ 物件一覧に「空車 / 満車」を出します
+ *  ㉒ 物件一覧に「空車 / 満車」を出します（スマホのときだけ）
  *
- *  ・満車の物件 … カードの背景を黒、文字を白にして「満車」と出します
- *  ・空車がある物件 … カードの背景を薄い青にして、
- *      種別（並列・縦列・軽専用）ごとに「空車の数」と「区画ナンバー」を出します
+ *  ・PC（幅761px以上）… 今までどおりの表示（物件名＋住所＋全N区画）に戻します
+ *  ・スマホ（幅760px以下）
+ *      満車の物件 … カードの背景を黒、文字を白にして「満車」と出します
+ *      空車がある物件 … 区画ナンバーの札（P3 普通 など）を物件名の横に出します
  *
  *  buildings.js の _bldCardHtml() を、この1枚で置き換えています。
  *  元に戻すときは index.html の uifix.js の行を消すだけです。
@@ -200,6 +201,13 @@
   'use strict';
 
   var TYPE_LABEL = { '並':'普通', '縦':'縦列', '軽':'軽', '機':'機械式' };
+
+  /* スマホの判定。他のCSS（mobile-fix.css など）と同じ 760px を境にしています */
+  var MOBILE_MAX = 760;
+  function isMobile(){ return window.innerWidth <= MOBILE_MAX; }
+
+  /* buildings.js のもとの関数。PCのときはこちらをそのまま使います */
+  var ORIG = window._bldCardHtml;
 
   function esc(v){
     return (typeof escapeHtml === 'function') ? escapeHtml(v) : String(v == null ? '' : v);
@@ -211,6 +219,23 @@
   }
 
   window._bldCardHtml = function(b){
+    /* PC は今までどおりの表示に戻します */
+    if(!isMobile()){
+      if(typeof ORIG === 'function') return ORIG.apply(this, arguments);
+      /* 念のための保険（もとの関数が見つからないとき）*/
+      var sp = (b && b.spots) || [];
+      return '<div class="bld-card" onclick="openModal(\'' + b.id + '\')">' +
+          '<div class="bld-card-info">' +
+            '<div class="bld-name">' + esc(b.name || '(名称未設定)') + '</div>' +
+            '<div class="bld-meta">' + (b.addr ? esc(b.addr) + ' / ' : '') +
+              '全' + sp.length + '区画 (使用中 ' +
+              sp.filter(function(s){ return s.status === '借'; }).length + ')</div>' +
+          '</div>' +
+          '<button class="bld-card-del" onclick="event.stopPropagation();deleteBldFromList(\'' +
+            b.id + '\')" title="この物件を削除">🗑</button>' +
+        '</div>';
+    }
+
     var spots = (b && b.spots) || [];
     var total = spots.length;
     var used  = spots.filter(function(s){ return s.status === '借'; }).length;
@@ -255,4 +280,13 @@
           '\')" title="この物件を削除">🗑</button>' +
       '</div>';
   };
+
+  /* 画面幅がスマホ⇔PCをまたいだときだけ、一覧を作りなおします */
+  var wasMobile = isMobile();
+  window.addEventListener('resize', function(){
+    var now = isMobile();
+    if(now === wasMobile) return;
+    wasMobile = now;
+    if(typeof renderList === 'function') renderList();
+  });
 })();
