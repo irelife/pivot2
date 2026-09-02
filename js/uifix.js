@@ -204,17 +204,29 @@
   function esc(v){
     return (typeof escapeHtml === 'function') ? escapeHtml(v) : String(v == null ? '' : v);
   }
+  /* 2026-09-15 → 9/15 */
+  function mmdd(v){
+    var m = String(v == null ? '' : v).match(/(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+    return m ? (Number(m[2]) + '/' + Number(m[3])) : '';
+  }
 
   window._bldCardHtml = function(b){
     var spots = (b && b.spots) || [];
     var total = spots.length;
     var used  = spots.filter(function(s){ return s.status === '借'; }).length;
 
-    /* 空いている区画（状況が「空き」のもの）を、区画ナンバー順にならべます */
+    /* 空いている区画を、区画ナンバー順にならべます
+       ・状況が「空き」…そのまま
+       ・状況が「解約中」…もうすぐ空くので、解約予定日を赤字で添えます */
     var freeList = [];
     spots.forEach(function(s, i){
-      if(!s || s.status !== '空') return;
-      freeList.push({ no: Number(s.no) || (i + 1), t: TYPE_LABEL[s.type] || '普通' });
+      if(!s) return;
+      if(s.status !== '空' && s.status !== '解') return;
+      freeList.push({
+        no: Number(s.no) || (i + 1),
+        t : TYPE_LABEL[s.type] || '普通',
+        soon: (s.status === '解') ? mmdd(s.end_date) : ''
+      });
     });
     freeList.sort(function(a, b){ return a.no - b.no; });
     var free = freeList.length;
@@ -225,7 +237,10 @@
       ? '<span class="pv-full">満車</span>'
       : '<span class="pv-free">' +
           freeList.map(function(f){
-            return '<span class="pv-chip"><b>P' + f.no + '</b>' + f.t + '</span>';
+            return '<span class="pv-chip' + (f.soon ? ' pv-chip-soon' : '') + '">' +
+                     '<b>P' + f.no + '</b>' + f.t +
+                     (f.soon ? '<em>' + f.soon + ' 解約予定</em>' : '') +
+                   '</span>';
           }).join('') +
         '</span>';
 
