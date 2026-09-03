@@ -250,7 +250,8 @@
       freeList.push({
         no: Number(s.no) || (i + 1),
         t : TYPE_LABEL[s.type] || '普通',
-        soon: (s.status === '解') ? mmdd(s.end_date) : ''
+        kai : (s.status === '解'),                       /* 解約中 */
+        soon: (s.status === '解') ? mmdd(s.end_date) : ''  /* 解約日（入っていれば）*/
       });
     });
     freeList.sort(function(a, b){ return a.no - b.no; });
@@ -262,9 +263,10 @@
       ? '<span class="pv-full">満車</span>'
       : '<span class="pv-free">' +
           freeList.map(function(f){
-            return '<span class="pv-chip' + (f.soon ? ' pv-chip-soon' : '') + '">' +
-                     '<b>P' + f.no + '</b>' + f.t +
-                     (f.soon ? '<em>' + f.soon + ' 解約予定</em>' : '') +
+            /* 解約中は「P8 解」。解約日が入っていれば「P8 解 9/15」 */
+            return '<span class="pv-chip' + (f.kai ? ' pv-chip-soon' : '') + '">' +
+                     '<b>P' + f.no + '</b>' +
+                     (f.kai ? '<em>解' + (f.soon ? ' ' + f.soon : '') + '</em>' : f.t) +
                    '</span>';
           }).join('') +
         '</span>';
