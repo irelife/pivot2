@@ -600,3 +600,33 @@
     width:clamp(300px, calc(100vw - 1504px), 1200px) !important;
   }
 }
+
+/* ------------------------------------------------------------
+   ㉗ 区画番号（P101 など）が、ドラッグの持ち手「⋮⋮」に重なる問題
+
+      区画番号の列は 80px しかなく、左右のあき（22px＋30px）を引くと
+      文字が入る幅は 26px しかありませんでした。
+      P1 〜 P99 なら入りますが、P101 のような3桁になるとはみ出して、
+      持ち手や「×」に重なっていました。
+
+      ・区画番号の列を 80px → 104px に広げます
+      ・そのぶん備考の下限を 220px → 196px にするので、
+        表全体に必要な幅（1290px）は変わりません
+        ＝ いままでどおり横スクロールは出ません
+      ・左右のあきを 20px／26px に詰めて、文字の場所を広げます
+      ・持ち手も少し小さくして、右に寄せます
+   ------------------------------------------------------------ */
+#spots-table thead th:nth-child(1){ width:104px !important; }
+#spots-table thead th:nth-child(8){ min-width:196px !important; }
+
+#spots-table td.spot-no-cell{
+  padding-left:24px !important;
+  padding-right:26px !important;
+}
+#spots-table td.spot-no-cell .spot-no-label{
+  display:inline-block !important;
+  white-space:nowrap !important;
+}
+#spots-table td.spot-no-cell .spot-drag-icon{
+  right:3px !important; width:18px !important;
+}
