@@ -292,3 +292,193 @@
     if(typeof renderList === 'function') renderList();
   });
 })();
+
+/* ============================================================
+ *  ㉔ 「復元」でうっかり古いデータに戻してしまわないための安全装置
+ *
+ *  これまでの復元は「物件◯件を復元します」としか出なかったので、
+ *  古いバックアップを選んでも気づけませんでした。ここでは
+ *    ・そのバックアップが「いつのものか」を必ず出します
+ *    ・いまのデータと比べて、減るもの（物件・区画・配置図・契約）を出します
+ *    ・減るとき／古いときは、もう一度たしかめます
+ *    ・復元する直前に、いまのデータを別枠へ退避します
+ *  あわせて、設定メニューに「復元前に戻す」を足しています。
+ * ============================================================ */
+(function(){
+  'use strict';
+
+  function pfx(){ return (typeof insPrefix === 'function') ? insPrefix() : 'pivot_'; }
+  function bKey(){ return (typeof pbKey === 'function') ? pbKey() : pfx() + 'blds'; }
+  function cKey(){ return (typeof ctKey === 'function') ? ctKey() : pfx() + 'contract_kanban_v2'; }
+  function oKey(){ return pfx() + 'rent_owner_send_owners_v1'; }
+  function preKey(){ return pfx() + 'prerestore_backup'; }
+
+  function pj(s){ try{ return JSON.parse(s || '{}'); }catch(e){ return {}; } }
+  function cnt(o){ return Object.keys(o || {}).length; }
+
+  /* 物件のかたまりを数えます（物件／区画／配置図） */
+  function tally(blds){
+    var t = { bld:0, spot:0, layout:0 };
+    Object.keys(blds || {}).forEach(function(id){
+      var b = blds[id]; if(!b) return;
+      t.bld++;
+      t.spot += (b.spots || []).length;
+      if(b.layout_id || b.layout2_id) t.layout++;
+    });
+    return t;
+  }
+
+  function ymd(s){
+    var d = new Date(s);
+    return isNaN(d.getTime()) ? '不明' : d.toLocaleString('ja-JP');
+  }
+  function daysAgo(s){
+    var d = new Date(s);
+    if(isNaN(d.getTime())) return null;
+    return Math.floor((Date.now() - d.getTime()) / 86400000);
+  }
+  function row(label, now, bak){
+    var d = bak - now;
+    return '　' + label + '： ' + now + ' → ' + bak +
+           (d < 0 ? '　← ' + (-d) + ' 減ります' : (d > 0 ? '　（+' + d + '）' : '')) + '\n';
+  }
+
+  /* 復元の直前に、いまのデータを退避します */
+  function keepBeforeRestore(){
+    try{
+      localStorage.setItem(preKey(), JSON.stringify({
+        at: new Date().toISOString(),
+        buildings: localStorage.getItem(bKey()) || '{}',
+        contracts: localStorage.getItem(cKey()) || '{}',
+        owners: localStorage.getItem(oKey()) || '[]'
+      }));
+      return true;
+    }catch(e){ return false; }
+  }
+
+  /* 設定メニューの「復元前に戻す」 */
+  window.undoRestore = function(){
+    var s = null;
+    try{ s = JSON.parse(localStorage.getItem(preKey()) || 'null'); }catch(e){ s = null; }
+    if(!s){
+      alert('復元前のデータが見つかりませんでした。\n（「復元」をまだ一度も使っていない場合は残っていません）');
+      return;
+    }
+    var t = tally(pj(s.buildings));
+    if(!confirm('「復元」を実行する直前の状態に戻します。\n\n' +
+                '退避した時刻： ' + ymd(s.at) + '\n' +
+                '物件 ' + t.bld + '件 ／ 区画 ' + t.spot + '件 ／ 配置図 ' + t.layout + '件\n\n' +
+                'いまのデータは、この内容で上書きされます。よろしいですか？')) return;
+    try{
+      localStorage.setItem(bKey(), s.buildings);
+      localStorage.setItem(cKey(), s.contracts);
+      if(s.owners) localStorage.setItem(oKey(), s.owners);
+      alert('復元前の状態に戻しました。ページを読み込み直します。');
+      location.reload();
+    }catch(e){ alert('戻せませんでした: ' + e); }
+  };
+
+  /* 復元そのものを、確認つきに置き換えます */
+  window.restoreBackup = function(event){
+    var inputEl = event && event.target;
+    var file = inputEl && inputEl.files && inputEl.files[0];
+    if(!file) return;
+
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var data;
+      try{ data = JSON.parse(e.target.result); }
+      catch(err){ alert('ファイル読み込みエラー: ' + err.message); inputEl.value = ''; return; }
+
+      if(!data || !data.buildings){
+        alert('このファイルは PIVOT のバックアップではないようです');
+        inputEl.value = ''; return;
+      }
+
+      var nowT = tally(pj(localStorage.getItem(bKey())));
+      var bakT = tally(data.buildings);
+      var nowC = cnt(pj(localStorage.getItem(cKey())));
+      var bakC = cnt(data.contracts);
+      var ago  = daysAgo(data.exportedAt);
+
+      var msg = '【いま選んだバックアップ】\n' +
+                '　作成日時： ' + ymd(data.exportedAt) +
+                (ago === null ? '' : '（' + (ago <= 0 ? '本日' : ago + '日前') + '）') + '\n' +
+                '　ファイル： ' + file.name + '\n\n' +
+                '【いまのデータ → 復元したあと】\n' +
+                row('物件　', nowT.bld,    bakT.bld) +
+                row('区画　', nowT.spot,   bakT.spot) +
+                row('配置図', nowT.layout, bakT.layout) +
+                row('契約　', nowC,        bakC);
+
+      var lost = [];
+      if(bakT.bld    < nowT.bld)    lost.push('物件');
+      if(bakT.spot   < nowT.spot)   lost.push('区画');
+      if(bakT.layout < nowT.layout) lost.push('配置図');
+      if(bakC        < nowC)        lost.push('契約');
+
+      if(lost.length){
+        msg += '\n⚠ このバックアップは、いまより中身が少ないです。\n' +
+               '　　古いファイルを選んでいないか、作成日時をもう一度たしかめてください。\n';
+      }
+      msg += '\n※ 復元する直前のデータは退避します（設定 →「復元前に戻す」で戻せます）\n\n復元しますか？';
+
+      if(!confirm(msg)){ inputEl.value = ''; return; }
+
+      /* 減るとき、または当日以外のバックアップのときは、もう一度たしかめます */
+      if(lost.length || (ago !== null && ago >= 1)){
+        if(!confirm('もう一度だけ確認します。\n\n' +
+                    ymd(data.exportedAt) + ' 時点のデータで上書きします。\n' +
+                    (lost.length ? '減るもの： ' + lost.join('・') + '\n' : '') +
+                    '\n本当に進めますか？')){ inputEl.value = ''; return; }
+      }
+
+      keepBeforeRestore();
+
+      try{
+        if(typeof saveAll === 'function'){
+          if(!saveAll(data.buildings)){ inputEl.value = ''; return; }
+        }else{
+          localStorage.setItem(bKey(), JSON.stringify(data.buildings));
+        }
+        if(data.contracts && typeof data.contracts === 'object'){
+          try{ localStorage.setItem(cKey(), JSON.stringify(data.contracts)); }catch(e2){}
+          try{ if(window.KB && window.KB.renderAll) window.KB.renderAll(); }catch(e2){}
+        }
+        if(data.owners && typeof window.applyCloudOwners === 'function'){
+          try{ window.applyCloudOwners(data.owners); }catch(e2){}
+        }
+        if(typeof showToast === 'function'){
+          showToast('✅ 物件' + bakT.bld + '件' + (bakC ? '・契約' + bakC + '件' : '') + 'を復元しました');
+        }
+        if(typeof renderAll === 'function') renderAll();
+      }catch(err){
+        alert('復元中にエラーが発生しました: ' + err);
+      }
+      inputEl.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  /* 設定メニューに「復元前に戻す」を足します（index.html はさわりません） */
+  function addUndoButton(){
+    var menu = document.getElementById('settings-menu');
+    if(!menu || document.getElementById('btn-undo-restore')) return;
+    var ref = null;
+    Array.prototype.forEach.call(menu.querySelectorAll('button'), function(b){
+      if((b.textContent || '').indexOf('緊急復元') >= 0) ref = b;
+    });
+    var btn = document.createElement('button');
+    btn.id = 'btn-undo-restore';
+    btn.textContent = '復元前に戻す';
+    btn.style.color = '#c0392b';
+    btn.onclick = function(){
+      if(typeof closeSettingsMenu === 'function') closeSettingsMenu();
+      window.undoRestore();
+    };
+    if(ref && ref.nextSibling) menu.insertBefore(btn, ref.nextSibling);
+    else menu.appendChild(btn);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addUndoButton);
+  else addUndoButton();
+})();
