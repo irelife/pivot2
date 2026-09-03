@@ -527,9 +527,10 @@
     font-size:10px; font-weight:700; white-space:nowrap;
   }
   .pv-chip b{ font-size:15px; font-weight:800; color:#ffffff; letter-spacing:.2px; }
-  /* 解約中（もうすぐ空く）区画は、解約予定日を赤字で添えます */
+  /* 解約中（もうすぐ空く）区画は、区画ナンバーの隣に「解」と解約予定日を出します。
+     例：P8 解 ／ 解約日が入っていれば P7 解 9/15 */
   .pv-chip-soon em{
-    font-style:normal; margin-left:1px; color:#ff5b52; font-size:10px; font-weight:800;
+    font-style:normal; margin-left:1px; color:#ffffff; font-size:11px; font-weight:800;
   }
 }
 
