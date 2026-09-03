@@ -566,3 +566,21 @@
     height:auto !important; aspect-ratio:3 / 2 !important;
   }
 }
+
+/* ------------------------------------------------------------
+   ㉕ PCで、配置図と区画一覧のあいだをもう少し空けます
+
+      いままで間は 16px しかなく（css/base.css の .spot-layout-row）、
+      配置図と表がくっついて見えていました。
+      PC（1025px以上）では 48px あけます。
+      そのぶん配置図の最大幅を 32px 詰めているので、
+      いままでどおり横スクロールは出ません。
+   ------------------------------------------------------------ */
+@media screen and (min-width:1025px){
+  .spot-layout-row{ gap:48px !important; }
+}
+@media screen and (min-width:1700px){
+  .spot-layout-left-img{
+    width:clamp(300px, calc(100vw - 1408px), 1200px) !important;
+  }
+}
