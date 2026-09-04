@@ -925,3 +925,315 @@
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();
+
+/* ============================================================
+ *  ㉜ 新しい端末を「リンク1回」で使えるようにします
+ *
+ *  いまは端末ごとに GAS の URL を手で入力しています。
+ *  打ち間違いのもとですし、台数が増えるほど手間です。
+ *
+ *  ★ index.html に URL を書き込む案は、やめました。
+ *    irelife/pivot2 と pivot3 は「公開」リポジトリなので、
+ *    書き込むと URL が誰でも読める状態になります。
+ *    URL を知られると、ログイン画面を通らずに
+ *    入居者名や連絡先まで取り出せてしまいます。
+ *
+ *  かわりに「引き継ぎリンク」にしました。
+ *   ・すでに使えている端末で、設定 →「引き継ぎリンクを作る」
+ *   ・出てきたリンクを LINE などで新しい端末へ送る
+ *   ・新しい端末でそれを1回開くと、設定が入ります
+ *   ・あとはログインするだけです
+ *
+ *  リンクの「#」より後ろはインターネットに送信されません。
+ *  開いたあとはアドレス欄からも消すので、履歴にも残りません。
+ *  （ただしリンク自体は URL を含みます。社内にだけ送ってください）
+ * ============================================================ */
+(function(){
+  'use strict';
+
+  function pfx(){ return (typeof insPrefix === 'function') ? insPrefix() : 'pivot_'; }
+  function urlKey(){ return pfx() + 'cloud_url'; }
+
+  function getUrl(){
+    try{
+      if(typeof getCloudUrl === 'function') return getCloudUrl();
+      return (localStorage.getItem(urlKey()) || '').trim();
+    }catch(e){ return ''; }
+  }
+  function putUrl(v){
+    try{
+      if(typeof setCloudUrl === 'function') setCloudUrl(v);
+      else localStorage.setItem(urlKey(), v);
+    }catch(e){}
+  }
+
+  /* ---- 受け取る側：リンクで開かれたとき ---- */
+  (function takeFromLink(){
+    var h = '';
+    try{ h = location.hash || ''; }catch(e){ return; }
+    var m = /[#&]gas=([^&]+)/.exec(h);
+    if(!m) return;
+
+    var v = '';
+    try{ v = decodeURIComponent(m[1]); }catch(e){ v = m[1]; }
+    v = (v || '').trim();
+
+    /* 中身の確認。GAS 以外のあて先は受け付けません */
+    if(!/^https:\/\/script\.google\.com\/macros\/s\/[^\/]+\/exec/.test(v)){
+      try{ alert('引き継ぎリンクの中身が正しくありません。\n作り直して送ってもらってください。'); }catch(e){}
+      return;
+    }
+
+    var before = getUrl();
+    if(before && before === v){
+      /* すでに同じ設定。何もしません */
+    } else if(before && before !== v){
+      var ok = false;
+      try{
+        ok = confirm('この端末には、別のクラウド設定がすでに入っています。\n\n' +
+                     'リンクの設定に入れ替えますか？\n\n' +
+                     '【OK】入れ替える\n【キャンセル】いまのままにする');
+      }catch(e){ ok = false; }
+      if(!ok){ clearHash(); return; }
+      putUrl(v);
+      try{ alert('クラウドの設定を入れ替えました。'); }catch(e){}
+    } else {
+      putUrl(v);
+      try{ alert('この端末にクラウドの設定が入りました。\n\nこのあとログインすると、そのまま使えます。'); }catch(e){}
+    }
+    clearHash();
+  })();
+
+  /* リンクの中身をアドレス欄から消します（履歴に残さないため） */
+  function clearHash(){
+    try{ history.replaceState(null, '', location.pathname + location.search); }
+    catch(e){ try{ location.hash = ''; }catch(e2){} }
+  }
+
+  /* ---- 渡す側：引き継ぎリンクを作る ---- */
+  window.pvShareSetup = function(){
+    var u = getUrl();
+    if(!u){
+      try{ alert('この端末には、まだクラウドの設定が入っていません。\n先に 設定 →「クラウド連携」で URL を入れてください。'); }catch(e){}
+      return;
+    }
+    var link = location.origin + location.pathname + '#gas=' + encodeURIComponent(u);
+    var msg  = '新しい端末で、このリンクを1回開いてください。\n' +
+               'そのあとログインすれば、そのまま使えます。\n\n' +
+               '※ 社内の人にだけ送ってください。';
+
+    function fallback(){
+      try{ window.prompt(msg + '\n\n（下の文字をコピーしてください）', link); }catch(e){}
+    }
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(link).then(function(){
+          try{ alert('引き継ぎリンクをコピーしました。\n\n' + msg); }catch(e){}
+        }, fallback);
+        return;
+      }
+    }catch(e){}
+    fallback();
+  };
+
+  /* 設定メニューにボタンを足します（index.html はさわりません） */
+  function addShareButton(){
+    var menu = document.getElementById('settings-menu');
+    if(!menu || document.getElementById('btn-share-setup')) return;
+    var btn = document.createElement('button');
+    btn.id = 'btn-share-setup';
+    btn.textContent = '引き継ぎリンクを作る';
+    btn.onclick = function(){
+      if(typeof closeSettingsMenu === 'function') closeSettingsMenu();
+      window.pvShareSetup();
+    };
+    menu.appendChild(btn);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addShareButton);
+  else addShareButton();
+})();
+
+/* ============================================================
+ *  ㉝ 「日付を選んで戻す」— 何日ぶんかの控えを自動で残します
+ *
+ *  いちばん困るのは「登録したものが無くなること」です。
+ *  これまでの自動退避は 1世代だけで、次に上書きされていました。
+ *  ここでは 1日1回、その日の最初に開いたときに控えを取り、
+ *  直近5日ぶんを端末の中に残します。
+ *
+ *  設定 →「日付を選んで戻す」で、日付を選んで戻せます。
+ *  戻したあとは、㉚ の合体ガードを通してクラウドへ送るので、
+ *  戻した内容がほかの端末にも伝わり、しかも何も消えません。
+ *
+ *  ※ これは「端末の中」の控えです。端末が壊れたら一緒に消えます。
+ *    クラウド側の日次バックアップ（コード.gs への追記）は別に用意します。
+ * ============================================================ */
+(function(){
+  'use strict';
+
+  var KEEP = 5;   /* 残す日数 */
+
+  function pfx(){ return (typeof insPrefix === 'function') ? insPrefix() : 'pivot_'; }
+  function bKey(){ return (typeof pbKey === 'function') ? pbKey() : pfx() + 'blds'; }
+  function cKey(){ return (typeof ctKey === 'function') ? ctKey() : pfx() + 'contract_kanban_v2'; }
+  function oKey(){ return pfx() + 'rent_owner_send_owners_v1'; }
+  function preKey(){ return pfx() + 'prerestore_backup'; }
+  function head(){ return pfx() + 'snap_'; }
+
+  function pj(s, d){ try{ return JSON.parse(s || d); }catch(e){ return JSON.parse(d); } }
+  function two(n){ return (n < 10 ? '0' : '') + n; }
+  function stamp(d){ return '' + d.getFullYear() + two(d.getMonth()+1) + two(d.getDate()); }
+  function ymd(s){ return s.slice(0,4) + '/' + s.slice(4,6) + '/' + s.slice(6,8); }
+
+  function tally(blds){
+    var t = { bld:0, spot:0, layout:0 };
+    Object.keys(blds || {}).forEach(function(id){
+      var b = blds[id]; if(!b) return;
+      t.bld++; t.spot += (b.spots || []).length;
+      if(b.layout_id) t.layout++;
+      if(b.layout2_id) t.layout++;
+    });
+    return t;
+  }
+  function cnt(o){ return Object.keys(o || {}).length; }
+
+  /* 残っている控えの日付を、新しい順で返します */
+  function days(){
+    var out = [], h = head();
+    try{
+      for(var i = 0; i < localStorage.length; i++){
+        var k = localStorage.key(i);
+        if(k && k.indexOf(h) === 0) out.push(k.slice(h.length));
+      }
+    }catch(e){}
+    out.sort(); out.reverse();
+    return out;
+  }
+
+  function trim(keep){
+    var d = days();
+    for(var i = keep; i < d.length; i++){
+      try{ localStorage.removeItem(head() + d[i]); }catch(e){}
+    }
+  }
+
+  /* その日の控えを1回だけ取ります */
+  function keepToday(){
+    var key = head() + stamp(new Date());
+    try{ if(localStorage.getItem(key)) return; }catch(e){ return; }
+
+    var b = '', c = '', o = '';
+    try{
+      b = localStorage.getItem(bKey()) || '{}';
+      c = localStorage.getItem(cKey()) || '{}';
+      o = localStorage.getItem(oKey()) || '[]';
+    }catch(e){ return; }
+    /* 空の状態を控えても意味がないので、何か入っているときだけ */
+    if(cnt(pj(b,'{}')) === 0 && cnt(pj(c,'{}')) === 0) return;
+
+    var body = JSON.stringify({ at:new Date().toISOString(), buildings:b, contracts:c, owners:o });
+
+    /* 容量が足りなければ、古い日から順に捨てて入れ直します */
+    for(var n = KEEP; n >= 1; n--){
+      try{ localStorage.setItem(key, body); trim(KEEP); return; }
+      catch(e){ trim(n - 1); }
+    }
+  }
+
+  /* 戻す */
+  function restore(day){
+    var s = null;
+    try{ s = JSON.parse(localStorage.getItem(head() + day) || 'null'); }catch(e){ s = null; }
+    if(!s){ alert('その日の控えが見つかりませんでした。'); return; }
+
+    var nowB = pj(localStorage.getItem(bKey()), '{}');
+    var nowC = pj(localStorage.getItem(cKey()), '{}');
+    var oldB = pj(s.buildings, '{}');
+    var oldC = pj(s.contracts, '{}');
+    var a = tally(nowB), b = tally(oldB);
+
+    var msg = ymd(day) + ' の控えに戻します。\n\n' +
+              '【いま → 戻したあと】\n' +
+              '　物件　： ' + a.bld    + ' → ' + b.bld    + '\n' +
+              '　区画　： ' + a.spot   + ' → ' + b.spot   + '\n' +
+              '　配置図： ' + a.layout + ' → ' + b.layout + '\n' +
+              '　契約　： ' + cnt(nowC) + ' → ' + cnt(oldC) + '\n\n' +
+              'いまの状態は「復元前に戻す」で呼び戻せるよう退避します。\n' +
+              'よろしいですか？';
+    if(!confirm(msg)) return;
+
+    try{
+      localStorage.setItem(preKey(), JSON.stringify({
+        at: new Date().toISOString(),
+        buildings: localStorage.getItem(bKey()) || '{}',
+        contracts: localStorage.getItem(cKey()) || '{}',
+        owners:    localStorage.getItem(oKey()) || '[]'
+      }));
+      localStorage.setItem(bKey(), s.buildings);
+      localStorage.setItem(cKey(), s.contracts);
+      if(s.owners) localStorage.setItem(oKey(), s.owners);
+    }catch(e){ alert('戻せませんでした: ' + e); return; }
+
+    alert(ymd(day) + ' の内容に戻しました。\n\nこのあとクラウドへ送ります。\n' +
+          '確認の画面が出たら【OK】を押してください（何も消えません）。');
+    try{ if(typeof window.__scheduleAutoPush === 'function') window.__scheduleAutoPush(); }catch(e){}
+    setTimeout(function(){ location.reload(); }, 2500);
+  }
+
+  /* 選ぶ画面 */
+  window.pvPickDay = function(){
+    var d = days();
+    if(!d.length){ alert('まだ控えがありません。\n明日以降、開いたときから残りはじめます。'); return; }
+
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;' +
+                       'display:flex;align-items:center;justify-content:center;padding:16px;';
+    var rows = d.map(function(day){
+      var s = null;
+      try{ s = JSON.parse(localStorage.getItem(head() + day) || 'null'); }catch(e){}
+      var t = tally(pj(s && s.buildings, '{}'));
+      var c = cnt(pj(s && s.contracts, '{}'));
+      return '<button data-day="' + day + '" style="display:block;width:100%;text-align:left;' +
+             'padding:12px 14px;margin:6px 0;border:1px solid #d4d4d8;border-radius:10px;' +
+             'background:#fff;font-size:14px;cursor:pointer">' +
+             '<b style="font-size:16px">' + ymd(day) + '</b><br>' +
+             '<span style="color:#52525b">物件 ' + t.bld + '／区画 ' + t.spot +
+             '／配置図 ' + t.layout + '／契約 ' + c + '</span></button>';
+    }).join('');
+    ov.innerHTML = '<div style="background:#fff;border-radius:14px;padding:18px;max-width:460px;' +
+                   'width:100%;max-height:80vh;overflow:auto">' +
+                   '<div style="font-size:17px;font-weight:800;margin-bottom:4px">日付を選んで戻す</div>' +
+                   '<div style="font-size:12px;color:#71717a;margin-bottom:12px">' +
+                   'この端末に残っている控えです。選ぶとその日の内容に戻します。</div>' +
+                   rows +
+                   '<button id="pv-day-cancel" style="width:100%;margin-top:10px;padding:11px;' +
+                   'border:0;border-radius:10px;background:#e4e4e7;font-size:14px;cursor:pointer">やめる</button>' +
+                   '</div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function(ev){
+      if(ev.target === ov || ev.target.id === 'pv-day-cancel'){ ov.remove(); return; }
+      var btn = ev.target.closest ? ev.target.closest('button[data-day]') : null;
+      if(btn){ ov.remove(); restore(btn.getAttribute('data-day')); }
+    });
+  };
+
+  /* 設定メニューにボタンを足します */
+  function addPickButton(){
+    var menu = document.getElementById('settings-menu');
+    if(!menu || document.getElementById('btn-pick-day')) return;
+    var btn = document.createElement('button');
+    btn.id = 'btn-pick-day';
+    btn.textContent = '日付を選んで戻す';
+    btn.onclick = function(){
+      if(typeof closeSettingsMenu === 'function') closeSettingsMenu();
+      window.pvPickDay();
+    };
+    var ref = document.getElementById('btn-undo-restore');
+    if(ref && ref.parentNode === menu) menu.insertBefore(btn, ref);
+    else menu.appendChild(btn);
+  }
+
+  function boot(){ keepToday(); addPickButton(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
