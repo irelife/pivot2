@@ -533,10 +533,64 @@
     return t;
   }
 
-  /* 区画の見分け方: 棟 + 区画番号 */
+  /* 区画の見分け方: 区画番号だけ（v22）
+     以前は「棟＋区画番号」で見ていたため、同じ区画番号でも棟の記入が
+     ちがうだけで別の区画とみなされ、古い内容が二重に足されていました。
+     （例: ラコリーヌの 7・8・10・13・14 が2行ずつになっていました） */
   function spotKey(s){
     if(!s) return '';
-    return String(s.tou || '') + '|' + String(s.no != null ? s.no : '');
+    return String(s.no != null ? s.no : '');
+  }
+
+  /* -------------------------------------------------------
+   *  ㊵ 区画を消したときに、消えたままにします（v22）
+   *
+   *  クラウドから読んだときの中身を「土台」として覚えておきます。
+   *  送るときに「土台にはあったのに、いま手元に無い区画」は
+   *  この端末でわざと消したものなので、足し戻しません。
+   *  「土台にも無かった区画」は、ほかの端末が増やした分なので足します。
+   * ------------------------------------------------------- */
+  function baseKey(){ return pfx() + 'sync_base'; }
+
+  function writeSyncBase(blds){
+    try{
+      var m = {};
+      Object.keys(blds || {}).forEach(function(id){
+        var a = [], b = blds[id];
+        ((b && b.spots) || []).forEach(function(s){ a.push(spotKey(s)); });
+        m[id] = a;
+      });
+      localStorage.setItem(baseKey(), JSON.stringify(m));
+    }catch(e){}
+  }
+
+  function readSyncBase(){
+    try{
+      var v = JSON.parse(localStorage.getItem(baseKey()) || 'null');
+      return (v && typeof v === 'object') ? v : null;
+    }catch(e){ return null; }
+  }
+
+  /* 送るとき用: 「この端末でわざと消した区画」の一覧を作ります */
+  function droppedSpots(pay, cloud){
+    var base = readSyncBase();
+    if(!base) return null;                      /* まだ一度も読んでいない端末 → 何も消さない */
+    var out = null, n = 0;
+    Object.keys(cloud || {}).forEach(function(id){
+      var bs = base[id]; if(!bs || !bs.length) return;
+      var mineB = (pay || {})[id];
+      if(!mineB) return;                        /* 物件ごと無い → 物件の安全装置にまかせます */
+      var have = {};
+      ((mineB.spots) || []).forEach(function(s){ have[spotKey(s)] = 1; });
+      bs.forEach(function(k){
+        if(have[k]) return;
+        if(!out) out = {};
+        if(!out[id]) out[id] = {};
+        if(!out[id][k]){ out[id][k] = 1; n++; }
+      });
+    });
+    if(out) out.__n = n;
+    return out;
   }
 
   /* この端末で「わざと消した」と分かる物件IDの一覧 */
@@ -555,7 +609,7 @@
    *  base の中身は書き換えません（消えるものを補うだけ）。
    *  戻り値: { blds, add:{bld,spot,layout}, names:[物件名…] }
    * ------------------------------------------------------- */
-  function mergeBlds(base, other, respectDeleted){
+  function mergeBlds(base, other, respectDeleted, dropped){
     var out = {}, add = { bld:0, spot:0, layout:0 }, names = [];
     var known = respectDeleted ? knownIds() : [];
     base  = base  || {};
@@ -584,7 +638,13 @@
       var os = (o && o.spots) ? o.spots : [];
       var have = {}, miss = [];
       bs.forEach(function(s){ have[spotKey(s)] = 1; });
-      os.forEach(function(s){ if(!have[spotKey(s)]){ miss.push(s); have[spotKey(s)] = 1; } });
+      var drop = (dropped && dropped[id]) ? dropped[id] : null;
+      os.forEach(function(s){
+        var k = spotKey(s);
+        if(have[k]) return;
+        if(drop && drop[k]) return;          /* ここでわざと消した区画 → 戻さない */
+        miss.push(s); have[k] = 1;
+      });
 
       var needLayout  = (!b.layout_id  && o.layout_id);
       var needLayout2 = (!b.layout2_id && o.layout2_id);
@@ -777,6 +837,7 @@
             if(body && body.action === 'load' && r && r.ok && r.payload){
               _cloud = r.payload; _cloudAt = Date.now();
               try{ _cloudSig = JSON.stringify(r.payload.buildings || {}); }catch(e){ _cloudSig = null; }
+              writeSyncBase(r.payload.buildings || {});   /* ㊵ 土台を更新 */
             }
             return r;
           });
@@ -796,15 +857,34 @@
           try{ _cloudSig = JSON.stringify(cloud.buildings || {}); }catch(e){ _cloudSig = null; }
 
           var pay = body.payload || {};
-          var mB, mC, mO;
+          var mB, mC, mO, dropped = null, delN = 0;
+          try{ dropped = droppedSpots(pay.buildings || {}, cloud.buildings || {}); }catch(e){ dropped = null; }
+          if(dropped){ delN = dropped.__n || 0; }
+
+          /* ㊵ たくさん消えるときだけ、念のため確認します */
+          if(delN >= 20){
+            var okDel = true;
+            try{
+              okDel = window.confirm('この端末で区画 ' + delN + ' 件を消したことになっています。\n\n' +
+                                     '【OK】そのまま消して送ります\n' +
+                                     '【キャンセル】消さずに残して送ります（安全）');
+            }catch(e){ okDel = false; }
+            if(!okDel) dropped = null;
+          }
+
           try{
-            mB = mergeBlds(pay.buildings || {}, cloud.buildings || {}, true);
+            mB = mergeBlds(pay.buildings || {}, cloud.buildings || {}, true, dropped);
             mC = mergeMap(pay.contracts || {}, cloud.contracts || {});
             mO = mergeOwners(pay.owners || [], cloud.owners || []);
           }catch(e){ return ORIG_POST(url, body, timeoutMs); }
 
           var n = mB.add.bld + mB.add.spot + mB.add.layout + mC.add + mO.add;
-          if(!n) return ORIG_POST(url, body, timeoutMs);   /* 消えるものが無い → そのまま送る */
+          if(!n){                                          /* 消えるものが無い → そのまま送る */
+            return Promise.resolve(ORIG_POST(url, body, timeoutMs)).then(function(res){
+              if(res && res.ok) writeSyncBase(pay.buildings || {});
+              return res;
+            });
+          }
 
           var msg = '⚠️ このまま送ると、クラウドにあるデータが消えます。\n\n' +
                     '【クラウドにあって、この端末に無いもの】\n' +
@@ -848,6 +928,7 @@
 
           return Promise.resolve(ORIG_POST(url, nb, timeoutMs)).then(function(res){
             try{ if(res && res.ok && typeof setSyncStatus === 'function') setSyncStatus('saved', '✅ 両方を残して送りました'); }catch(e){}
+            if(res && res.ok) writeSyncBase(nb.payload.buildings || {});
             return res;
           });
         });
