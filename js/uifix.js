@@ -670,13 +670,28 @@
   var _cloudSig = null;
   var _hookedPost = false;
 
+  /* ㉞ 同じ内容を何度も聞かないようにします。
+     いちど「どちらも残す」と答えた差分と同じものが、また届いたとき、
+     黙って合体だけして、確認は出しません。
+     （クラウド側が保存できていないと、5分ごとに同じ確認が出てしまうため） */
+  function ackKey(){ return pfx() + 'merge_ack'; }
+  function sigOf(m){
+    return [m.add.bld, m.add.spot, m.add.layout, m.names.slice(0, 8).join('|')].join('/');
+  }
+  function readAck(){
+    try{ return JSON.parse(localStorage.getItem(ackKey()) || 'null'); }catch(e){ return null; }
+  }
+  function writeAck(o){
+    try{ localStorage.setItem(ackKey(), JSON.stringify(o)); }catch(e){}
+  }
+
   window.pbSaveRaw = function(incoming){
     var mine, m;
     /* 取り込みでなければ、そのまま保存します */
     if(_hookedPost){
-      var sig = null;
-      try{ sig = JSON.stringify(incoming || {}); }catch(e){ sig = null; }
-      if(sig === null || sig !== _cloudSig) return writeThrough(incoming);
+      var sig0 = null;
+      try{ sig0 = JSON.stringify(incoming || {}); }catch(e){ sig0 = null; }
+      if(sig0 === null || sig0 !== _cloudSig) return writeThrough(incoming);
     }
     try{
       mine = obj(localStorage.getItem(bKey()));
@@ -686,7 +701,28 @@
 
     /* 手元が空（初回）／減るものが無い → そのまま取り込みます */
     if(!Object.keys(mine).length || (!m.add.bld && !m.add.spot && !m.add.layout)){
+      try{ if(readAck()) localStorage.removeItem(ackKey()); }catch(e){}   /* 直った */
       return writeThrough(incoming);
+    }
+
+    /* ㉞ 一度答えた差分と同じなら、聞かずに合体します */
+    var sig = sigOf(m);
+    var ack = readAck();
+    if(ack && ack.sig === sig && (Date.now() - (ack.at || 0)) < 86400000){
+      keepBefore();
+      writeThrough(m.blds);
+      var n = (ack.n || 1) + 1;
+      writeAck({ sig: sig, at: ack.at, n: n });
+      try{
+        if(typeof setSyncStatus === 'function'){
+          setSyncStatus('error', '⚠️ クラウドに保存できていない項目があります（' + m.names.slice(0,2).join('・') + '）');
+        }
+      }catch(e){}
+      /* 送り直しても直らないときは、通信を増やさないよう2回でやめます */
+      if(n <= 2){
+        try{ if(typeof window.__scheduleAutoPush === 'function') window.__scheduleAutoPush(); }catch(e){}
+      }
+      return;
     }
 
     var now = tally(mine), inc = tally(incoming || {});
@@ -710,6 +746,7 @@
 
     keepBefore();
     writeThrough(m.blds);
+    writeAck({ sig: sig, at: Date.now(), n: 1 });   /* ㉞ 同じ内容は次から聞きません */
     try{ if(typeof setSyncStatus === 'function') setSyncStatus('saved', '✅ 両方を残して取り込みました'); }catch(e){}
     /* クラウドにも足した内容を送り直して、全部の端末をそろえます */
     try{ if(typeof window.__scheduleAutoPush === 'function') window.__scheduleAutoPush(); }catch(e){}
