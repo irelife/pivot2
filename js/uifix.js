@@ -571,6 +571,37 @@
     }catch(e){ return null; }
   }
 
+  /* 読み込む直前の土台。読み込みで土台を書き替える前に控えます */
+  var _prevBase = null;
+
+  /* 受けるとき用: 「ほかの端末で消された区画」の一覧を作ります。
+     ・届いた内容に無い ＋ 土台にはあった ＋ 手元にある → ほかの端末が消した → 消えたままにします
+     ・届いた内容に無い ＋ 土台にも無かった            → この端末が足した分  → 残します
+     いちどに30件以上消えるときは、事故のおそれがあるので何も消しません。 */
+  function droppedOnReceive(incoming, mine){
+    var base = _prevBase || readSyncBase();
+    if(!base) return null;
+    var out = null, n = 0;
+    Object.keys(mine || {}).forEach(function(id){
+      var inc = (incoming || {})[id];
+      if(!inc) return;                          /* 物件ごと無い → 物件の安全装置にまかせます */
+      var bs = base[id];
+      if(!bs || !bs.length) return;
+      var incHave = {};
+      ((inc.spots) || []).forEach(function(s){ incHave[spotKey(s)] = 1; });
+      ((mine[id].spots) || []).forEach(function(s){
+        var k = spotKey(s);
+        if(incHave[k]) return;
+        if(bs.indexOf(k) < 0) return;           /* 土台にも無かった → この端末で足した分 */
+        if(!out) out = {};
+        if(!out[id]) out[id] = {};
+        if(!out[id][k]){ out[id][k] = 1; n++; }
+      });
+    });
+    if(out && n >= 30) return null;             /* 大量に消えるときは安全側（消しません） */
+    return out;
+  }
+
   /* 送るとき用: 「この端末でわざと消した区画」の一覧を作ります */
   function droppedSpots(pay, cloud){
     var base = readSyncBase();
@@ -755,8 +786,9 @@
     }
     try{
       mine = obj(localStorage.getItem(bKey()));
-      /* 届いた内容を土台に、この端末にしか無い分を足します */
-      m = mergeBlds(incoming || {}, mine, true);
+      /* 届いた内容を土台に、この端末にしか無い分を足します。
+         ただし「ほかの端末で消された区画」は足し戻しません（㊵）。 */
+      m = mergeBlds(incoming || {}, mine, true, droppedOnReceive(incoming || {}, mine));
     }catch(e){ return writeThrough(incoming); }
 
     /* 手元が空（初回）／減るものが無い → そのまま取り込みます */
@@ -837,6 +869,7 @@
             if(body && body.action === 'load' && r && r.ok && r.payload){
               _cloud = r.payload; _cloudAt = Date.now();
               try{ _cloudSig = JSON.stringify(r.payload.buildings || {}); }catch(e){ _cloudSig = null; }
+              _prevBase = readSyncBase();                /* ㊵ 書き替える前の土台を控えます */
               writeSyncBase(r.payload.buildings || {});   /* ㊵ 土台を更新 */
             }
             return r;
