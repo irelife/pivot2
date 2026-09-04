@@ -818,3 +818,110 @@
     };
   }
 })();
+
+/* ============================================================
+ *  ㉛ どの端末でも、いつも最新が見えるようにします
+ *
+ *  ご希望は「最新状態をどのPCでもいつも見れるようにしたい」でした。
+ *  これまでは、開いたときに一度だけ確認するだけだったので、
+ *  ・開きっぱなしにしていると、他の端末の変更に気づかない
+ *  ・この端末のほうが時刻が新しいと、そもそも確認しない
+ *  という状態でした。
+ *
+ *  ここでは次の3つをします。
+ *   1. タブに戻ったとき（別の画面から切り替えたとき）に、最新を確認する
+ *   2. 開いている間は 5分ごとに、静かに最新を確認する
+ *   3. 画面に「最終更新 ○/○ ○:○○」を出して、いつの内容かが分かるようにする
+ *
+ *  取り込みは ㉚ の合体ガードを通るので、確認しても中身は減りません。
+ *  編集中（未保存）のときは、もとの仕組みが取り込みを見送ります。
+ * ============================================================ */
+(function(){
+  'use strict';
+
+  var EVERY   = 5 * 60 * 1000;   /* 開いている間の自動確認：5分ごと */
+  var MIN_GAP = 20 * 1000;       /* 立て続けの確認を避ける間隔：20秒 */
+
+  var _last = 0;      /* 最後に確認した時刻 */
+  var _busy = false;
+  var _mtime = 0;     /* クラウド側の最終更新時刻 */
+
+  /* クラウドの最終更新時刻を、通信のついでに受け取ります */
+  (function(){
+    var P = window.postToGas;
+    if(typeof P !== 'function') return;
+    window.postToGas = function(url, body, timeoutMs){
+      var r = P(url, body, timeoutMs);
+      try{
+        return Promise.resolve(r).then(function(res){
+          try{
+            if(res && res.ok && res.payload && res.payload.mtime){
+              var v = parseInt(res.payload.mtime, 10);
+              if(v && v > _mtime){ _mtime = v; showStamp(); }
+            }
+          }catch(e){}
+          return res;
+        });
+      }catch(e){ return r; }
+    };
+  })();
+
+  function two(n){ return (n < 10 ? '0' : '') + n; }
+  function stampText(){
+    if(!_mtime) return '';
+    var d = new Date(_mtime), n = new Date();
+    var day = (d.getMonth()+1) + '/' + d.getDate();
+    var hm  = two(d.getHours()) + ':' + two(d.getMinutes());
+    var same = (d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate());
+    return '最終更新 ' + (same ? '' : day + ' ') + hm;
+  }
+
+  /* 同期の表示のとなりに、小さく出します */
+  function showStamp(){
+    try{
+      var host = document.getElementById('sync-status');
+      if(!host || !host.parentNode) return;
+      var el = document.getElementById('pv-stamp');
+      if(!el){
+        el = document.createElement('span');
+        el.id = 'pv-stamp';
+        el.style.cssText = 'margin-left:10px;font-size:12px;color:#6b7280;white-space:nowrap;';
+        host.parentNode.insertBefore(el, host.nextSibling);
+      }
+      el.textContent = stampText();
+    }catch(e){}
+  }
+
+  /* 最新を確認します（取り込みは ㉚ のガードを通ります） */
+  function check(force){
+    try{
+      if(_busy) return;
+      if(document.hidden) return;
+      if(!force && (Date.now() - _last) < MIN_GAP) return;
+      if(typeof getCloudUrl !== 'function' || !getCloudUrl()) return;
+      if(typeof backgroundPull !== 'function') return;
+      /* ログイン前（画面がまだ出ていない）は動かしません */
+      var app = document.getElementById('app') || document.querySelector('.app');
+      if(app && app.style && app.style.display === 'none') return;
+
+      _busy = true; _last = Date.now();
+      Promise.resolve(backgroundPull())
+        .catch(function(){})
+        .then(function(){ _busy = false; showStamp(); });
+    }catch(e){ _busy = false; }
+  }
+  try{ window.__pvCheckLatest = function(){ check(true); }; }catch(e){}
+
+  /* 1. タブに戻ったとき／ウィンドウに焦点が戻ったとき */
+  document.addEventListener('visibilitychange', function(){ if(!document.hidden) check(false); });
+  window.addEventListener('focus', function(){ check(false); });
+  window.addEventListener('online', function(){ check(true); });
+
+  /* 2. 開いている間は5分ごと */
+  setInterval(function(){ check(false); }, EVERY);
+
+  /* 3. 起動してひと呼吸おいてから、表示を出します */
+  function boot(){ setTimeout(showStamp, 1500); setTimeout(function(){ check(true); }, 4000); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
