@@ -1566,12 +1566,38 @@
 
       var cur = getUrl();
       if(cur === v) return;           /* すでに同じ */
+
+      /* ★ すでに別の URL が入っている端末は、勝手に書き換えません。
+           Firebase 側に取り違えた URL が入っていると、
+           その端末が丸ごと別インスタンス（岡山↔福山）につながってしまうためです。
+           知らせるだけにして、直すかどうかは人が決めます。 */
+      if(cur){
+        try{
+          if(typeof setSyncStatus === 'function'){
+            setSyncStatus('error', '⚠️ Firebase の接続先が、この端末の設定と違います（この端末はそのままです）');
+          }
+        }catch(e){}
+        try{
+          console.warn('[PIVOT] Firebase の gasUrl がこの端末の設定と違います。' +
+                       '\n  この端末: ' + cur + '\n  Firebase : ' + v +
+                       '\n  どちらが正しいか確かめて、設定 →「クラウド同期」か Firebase 側を直してください。');
+        }catch(e){}
+        return;
+      }
+
       putUrl(v);
 
       if(!cur){
-        /* この端末は初めて。すぐ最新を取りに行きます */
-        try{ if(typeof setSyncStatus === 'function') setSyncStatus('saved', '✅ クラウドの設定が入りました'); }catch(e){}
-        try{ if(typeof window.__pvCheckLatest === 'function') window.__pvCheckLatest(); }catch(e){}
+        /* この端末は初めて。最新を取り込んで、そのあと1回だけ画面を作り直します。
+           （requestRender は物件しか描き直さないため、契約の一覧が空のままになります。
+             初回の1回だけなので、読み込み直すのがいちばん確実です） */
+        try{ if(typeof setSyncStatus === 'function') setSyncStatus('loading', '⏳ クラウドの設定が入りました。読み込んでいます…'); }catch(e){}
+        var p = null;
+        try{ if(typeof backgroundPull === 'function') p = backgroundPull(); }catch(e){}
+        Promise.resolve(p).catch(function(){}).then(function(){
+          try{ if(typeof setSyncStatus === 'function') setSyncStatus('saved', '✅ 読み込みました'); }catch(e){}
+          setTimeout(function(){ try{ location.reload(); }catch(e){} }, 800);
+        });
       }else{
         try{ if(typeof setSyncStatus === 'function') setSyncStatus('saved', '✅ クラウドの接続先を更新しました'); }catch(e){}
       }
