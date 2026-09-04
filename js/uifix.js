@@ -1506,3 +1506,86 @@
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addCloudButton);
   else addCloudButton();
 })();
+
+/* ============================================================
+ *  ㊳ GAS の URL を Firebase から受け取ります
+ *
+ *  新しいPC・新しい社員でも「ログインするだけ」で使えるようにします。
+ *  引き継ぎリンク（㉜）も残しますが、こちらが本命です。
+ *
+ *  ・URL は Firebase に置きます（公開リポジトリには書きません）
+ *  ・ログインした人だけが読めるようにルールを設定します
+ *  ・辞めた社員のアカウントを止めれば、その端末は URL を取り直せません
+ *
+ *  Firestore を SDK なしで読むため、REST を直接呼んでいます。
+ *  （index.html に読み込む部品を増やさずに済みます）
+ * ============================================================ */
+(function(){
+  'use strict';
+
+  function pfx(){ return (typeof insPrefix === 'function') ? insPrefix() : 'pivot_'; }
+  function insName(){ return pfx().replace(/_+$/, '') || 'pivot'; }   /* pivot2 / pivot3 */
+  function project(){
+    try{ return (window.FIREBASE_CONFIG && FIREBASE_CONFIG.projectId) || ''; }catch(e){ return ''; }
+  }
+  function getUrl(){
+    try{ return (typeof getCloudUrl === 'function') ? getCloudUrl() : ''; }catch(e){ return ''; }
+  }
+  function putUrl(v){
+    try{
+      if(typeof setCloudUrl === 'function') setCloudUrl(v);
+      else localStorage.setItem(pfx() + 'cloud_url', v);
+    }catch(e){}
+  }
+
+  var _tried = false;
+
+  function pull(){
+    if(_tried) return;
+    var pid = project();
+    if(!pid) return;
+    var user = null;
+    try{ user = window.firebase && firebase.auth && firebase.auth().currentUser; }catch(e){ return; }
+    if(!user) return;
+    _tried = true;
+
+    user.getIdToken().then(function(tok){
+      var api = 'https://firestore.googleapis.com/v1/projects/' + pid +
+                '/databases/(default)/documents/config/' + encodeURIComponent(insName());
+      return fetch(api, { headers: { Authorization: 'Bearer ' + tok } });
+    }).then(function(res){
+      if(!res || !res.ok) throw new Error('not ok');
+      return res.json();
+    }).then(function(j){
+      var v = '';
+      try{ v = (j.fields && j.fields.gasUrl && j.fields.gasUrl.stringValue) || ''; }catch(e){}
+      v = String(v).trim();
+      /* GAS 以外のあて先は受け付けません */
+      if(!/^https:\/\/script\.google\.com\/macros\/s\/[^\/]+\/exec/.test(v)) return;
+
+      var cur = getUrl();
+      if(cur === v) return;           /* すでに同じ */
+      putUrl(v);
+
+      if(!cur){
+        /* この端末は初めて。すぐ最新を取りに行きます */
+        try{ if(typeof setSyncStatus === 'function') setSyncStatus('saved', '✅ クラウドの設定が入りました'); }catch(e){}
+        try{ if(typeof window.__pvCheckLatest === 'function') window.__pvCheckLatest(); }catch(e){}
+      }else{
+        try{ if(typeof setSyncStatus === 'function') setSyncStatus('saved', '✅ クラウドの接続先を更新しました'); }catch(e){}
+      }
+    }).catch(function(){
+      /* 取れなくても、これまでどおり手元の設定で動きます */
+      _tried = false;
+    });
+  }
+  try{ window.pvPullGasUrl = function(){ _tried = false; pull(); }; }catch(e){}
+
+  /* ログインが済んだ時点で読みに行きます */
+  try{
+    if(window.firebase && firebase.auth){
+      firebase.auth().onAuthStateChanged(function(u){ if(u){ _tried = false; setTimeout(pull, 300); } });
+    }
+  }catch(e){}
+  setTimeout(pull, 2500);
+})();
