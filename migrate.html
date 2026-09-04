@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PIVOT データ移行（第1段-A）</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;background:#f5f5f6;color:#17171a;padding:24px}
+.w{max-width:760px;margin:0 auto;background:#fff;border-radius:14px;padding:26px 28px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+h1{font-size:22px;margin-bottom:6px}
+.sub{font-size:14px;color:#6b6b73;margin-bottom:20px}
+.box{border:2px solid #17171a;border-radius:10px;padding:14px 16px;margin:14px 0;font-size:15px;line-height:1.7}
+.box.warn{border-color:#b45309;background:#fffbeb}
+button{font:inherit;font-weight:800;padding:14px 22px;border-radius:10px;border:2px solid #17171a;
+       background:#17171a;color:#fff;cursor:pointer;margin-right:10px}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.sec{background:#fff;color:#17171a}
+#log{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.6;
+     background:#fafafa;border:1px solid #ddd;border-radius:8px;padding:12px;margin-top:16px;max-height:420px;overflow:auto}
+b.k{font-size:17px}
+</style>
+</head>
+<body>
+<div class="w">
+  <h1>PIVOT データ移行（第1段-A）</h1>
+  <div class="sub" id="inst">インスタンスを判定中…</div>
+
+  <div class="box">
+    このページは <b>クラウド（スプレッドシート）の内容を Firestore に写すだけ</b> です。<br>
+    <b>スプレッドシートには一切書き込みません。</b> 何も消えません。<br>
+    いま動いている PIVOT の動作も変わりません（この時点では、まだ Firestore は使われません）。
+  </div>
+
+  <div class="box warn">
+    <b>実行する前に</b><br>
+    ・PIVOT を開いて <b>強制再読み込み</b> し、最新であることを確認してください<br>
+    ・移行中は、ほかの端末で保存操作をしないでください
+  </div>
+
+  <div id="who" class="box" style="display:none"></div>
+
+  <p>
+    <button id="btn-login" class="sec">① ログイン</button>
+    <button id="btn-dry" disabled>② 下見（写さずに数だけ確認）</button>
+    <button id="btn-run" disabled>③ 実行（Firestore に写す）</button>
+  </p>
+
+  <div id="log">準備中…</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script>
+/* インスタンス名（pivot2 / pivot3）は URL のフォルダ名から決めます。
+   js/core.js の insPrefix() と同じ考え方です。 */
+function insPrefix(){
+  try{
+    var seg = (location.pathname || '').split('/').filter(function(s){ return s; });
+    var name = seg.length ? seg[seg.length - 1] : '';
+    if(/\.html?$/i.test(name)) name = seg.length > 1 ? seg[seg.length - 2] : '';
+    return name ? (name + '_') : 'pivot_';
+  }catch(e){ return 'pivot_'; }
+}
+var INS = insPrefix().replace(/_+$/, '') || 'pivot';
+document.getElementById('inst').textContent =
+  'インスタンス： ' + INS + '　（' + (INS === 'pivot2' ? '広島・福山' : INS === 'pivot3' ? '岡山' : '不明') + '）';
+
+var logEl = document.getElementById('log');
+function log(s){ logEl.textContent += '\n' + s; logEl.scrollTop = logEl.scrollHeight; }
+function clr(){ logEl.textContent = ''; }
+
+var CLOUD_URL_KEY = INS + '_cloud_url';
+function gasUrl(){ return (localStorage.getItem(CLOUD_URL_KEY) || '').trim(); }
+
+async function postToGas(url, body){
+  var res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(body),
+    redirect: 'follow'
+  });
+  var text = await res.text();
+  try{ return JSON.parse(text); }catch(e){ throw new Error('GASの応答が不正: ' + text.slice(0,200)); }
+}
+
+/* 区画の配列を「番号をキーにした入れ物」に変えます */
+function spotsToMap(spots){
+  var m = {}, dup = [];
+  (spots || []).forEach(function(s){
+    var k = String(s && s.no != null ? s.no : '');
+    if(!k) return;
+    if(m[k]){ if(dup.indexOf(k) < 0) dup.push(k); return; }   /* 二重は最初の1件だけ採用 */
+    m[k] = {
+      no: s.no, type: s.type || '並', tou: s.tou || '', room: s.room == null ? '' : s.room,
+      user: s.user || '', price: s.price || 0, status: s.status || '空', note: s.note || ''
+    };
+    ['end_date','res_date','res_tou','res_room','res_user','res_price','res_note'].forEach(function(f){
+      if(s[f] != null && s[f] !== '') m[k][f] = s[f];
+    });
+  });
+  return { map: m, dup: dup };
+}
+
+var _payload = null;
+
+async function fetchCloud(){
+  var u = gasUrl();
+  if(!u) throw new Error('この端末に GAS の URL がありません。先に PIVOT を開いてログインしてください。');
+  log('クラウドから読み込み中…');
+  var r = await postToGas(u, { action: 'load' });
+  if(!r || !r.ok || !r.payload) throw new Error('クラウドから読めませんでした: ' + JSON.stringify(r).slice(0,200));
+  return r.payload;
+}
+
+function summarize(payload){
+  var b = payload.buildings || {};
+  var ids = Object.keys(b), spot = 0, layout = 0, dupAll = [];
+  ids.forEach(function(id){
+    var x = b[id], c = spotsToMap(x.spots);
+    spot += Object.keys(c.map).length;
+    if(c.dup.length) dupAll.push((x.name || id) + '： P' + c.dup.join('・P'));
+    if(x.layout_id) layout++;
+    if(x.layout2_id) layout++;
+  });
+  return { bld: ids.length, spot: spot, layout: layout, dup: dupAll };
+}
+
+document.getElementById('btn-login').onclick = async function(){
+  try{
+    clr(); log('ログインを確認します…');
+    var u = firebase.auth().currentUser;
+    if(!u){
+      var em = prompt('メールアドレス'); if(!em) return;
+      var pw = prompt('パスワード');     if(!pw) return;
+      await firebase.auth().signInWithEmailAndPassword(em, pw);
+      u = firebase.auth().currentUser;
+    }
+    document.getElementById('who').style.display = '';
+    document.getElementById('who').innerHTML = 'ログイン中： <b>' + u.email + '</b>';
+    log('ログインできました： ' + u.email);
+    document.getElementById('btn-dry').disabled = false;
+  }catch(e){ log('❌ ' + e.message); }
+};
+
+document.getElementById('btn-dry').onclick = async function(){
+  try{
+    clr(); log('【下見】Firestore には何も書きません。');
+    _payload = await fetchCloud();
+    var s = summarize(_payload);
+    log('');
+    log('  インスタンス ： ' + INS);
+    log('  物件　　　　 ： ' + s.bld + ' 件');
+    log('  区画　　　　 ： ' + s.spot);
+    log('  配置図　　　 ： ' + s.layout);
+    log('  契約　　　　 ： ' + Object.keys(_payload.contracts || {}).length + ' 件（今回は写しません）');
+    log('  オーナー　　 ： ' + ((_payload.owners || []).length) + ' 件（今回は写しません）');
+    if(s.dup.length){
+      log('');
+      log('  ⚠️ 区画番号が二重の物件（最初の1件だけ残します）:');
+      s.dup.forEach(function(x){ log('     ' + x); }); 
+    } else {
+      log('');
+      log('  ✅ 区画番号の二重はありません');
+    }
+    log('');
+    log('この数で合っていれば「③ 実行」を押してください。');
+    document.getElementById('btn-run').disabled = false;
+  }catch(e){ log('❌ ' + e.message); }
+};
+
+document.getElementById('btn-run').onclick = async function(){
+  if(!_payload){ log('先に「② 下見」を押してください。'); return; }
+  var s = summarize(_payload);
+  if(!confirm(INS + ' の Firestore に、物件 ' + s.bld + '件・区画 ' + s.spot + ' を写します。\n\n' +
+              'スプレッドシートには一切書き込みません。\n\nよろしいですか？')) return;
+  try{
+    this.disabled = true;
+    clr(); log('【実行】Firestore へ書き込みます…');
+    var db = firebase.firestore();
+    var b = _payload.buildings || {};
+    var ids = Object.keys(b);
+    var now = new Date().toISOString();
+    var me  = (firebase.auth().currentUser || {}).email || '';
+    var done = 0, batch = db.batch(), n = 0;
+
+    for(var i = 0; i < ids.length; i++){
+      var id = ids[i], x = b[id], c = spotsToMap(x.spots);
+      var doc = {
+        id: id,
+        name: x.name || '',
+        addr: x.addr || '',
+        spots: c.map,
+        rev: 1,
+        updatedAt: now,
+        updatedBy: me,
+        migratedAt: now
+      };
+      if(x.layout_id)  doc.layout_id  = x.layout_id;
+      if(x.layout2_id) doc.layout2_id = x.layout2_id;
+      if(x.photo_ids)  doc.photo_ids  = x.photo_ids;
+      if(x.mime)       doc.mime       = x.mime;
+
+      batch.set(db.collection(INS).doc('data').collection('buildings').doc(id), doc);
+      n++; 
+      if(n >= 400){ await batch.commit(); done += n; log('　' + done + ' / ' + ids.length + ' 件…'); batch = db.batch(); n = 0; }
+    }
+    if(n){ await batch.commit(); done += n; }
+    log('　' + done + ' / ' + ids.length + ' 件');
+
+    await db.collection(INS).doc('data').set({
+      instance: INS, migratedAt: now, migratedBy: me,
+      count: { bld: s.bld, spot: s.spot, layout: s.layout }
+    }, { merge: true });
+
+    log('');
+    log('✅ 完了しました。');
+    log('   物件 ' + s.bld + ' 件 ／ 区画 ' + s.spot + ' を Firestore に写しました。');
+    log('   スプレッドシートは何も変わっていません。');
+    log('');
+    log('   Firebase コンソール → Firestore Database で、');
+    log('   ' + INS + ' / data / buildings に入っているか確認できます。');
+  }catch(e){
+    log('❌ ' + e.message);
+    log('（権限エラーのときは、Firestore のルールがまだ入っていません）');
+    this.disabled = false;
+  }
+};
+
+logEl.textContent = '「① ログイン」から始めてください。';
+</script>
+</body>
+</html>
