@@ -482,3 +482,101 @@
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addUndoButton);
   else addUndoButton();
 })();
+
+/* ============================================================
+ *  ㉙ クラウドから取り込むときも、中身が減るなら止めます
+ *
+ *  ㉔（復元ボタンの安全装置）だけでは、
+ *  「起動時のクラウド取り込み」や「クラウドから読込」で
+ *  古い内容に戻ってしまうのを止められませんでした。
+ *
+ *  もとのガード（js/core.js）は物件の「件数」しか見ていないため、
+ *  物件67件のまま区画や配置図だけ古い、というデータは素通りします。
+ *  ここでは 物件・区画・配置図 の3つを突き合わせ、
+ *  減るときは取り込みを止めて確認を出します。
+ *  （【OK】が「取り込まない＝守る」側です）
+ * ============================================================ */
+(function(){
+  'use strict';
+
+  function pfx(){ return (typeof insPrefix === 'function') ? insPrefix() : 'pivot_'; }
+  function bKey(){ return (typeof pbKey === 'function') ? pbKey() : pfx() + 'blds'; }
+  function cKey(){ return (typeof ctKey === 'function') ? ctKey() : pfx() + 'contract_kanban_v2'; }
+  function oKey(){ return pfx() + 'rent_owner_send_owners_v1'; }
+  function preKey(){ return pfx() + 'prerestore_backup'; }
+
+  function pj(s){ try{ return JSON.parse(s || '{}'); }catch(e){ return {}; } }
+
+  /* 物件のかたまりを数えます（物件／区画／配置図） */
+  function tally(blds){
+    var t = { bld:0, spot:0, layout:0 };
+    Object.keys(blds || {}).forEach(function(id){
+      var b = blds[id]; if(!b) return;
+      t.bld++;
+      t.spot += (b.spots || []).length;
+      if(b.layout_id || b.layout2_id) t.layout++;
+    });
+    return t;
+  }
+  function row(label, now, inc){
+    var d = inc - now;
+    return '　' + label + '： ' + now + ' → ' + inc +
+           (d < 0 ? '　← ' + (-d) + ' 減ります' : '') + '\n';
+  }
+  /* 上書きされる前の状態を退避します（設定 →「復元前に戻す」で戻せます）*/
+  function keepBefore(){
+    try{
+      localStorage.setItem(preKey(), JSON.stringify({
+        at: new Date().toISOString(),
+        buildings: localStorage.getItem(bKey()) || '{}',
+        contracts: localStorage.getItem(cKey()) || '{}',
+        owners: localStorage.getItem(oKey()) || '[]'
+      }));
+    }catch(e){}
+  }
+
+  var ORIG = window.pbSaveRaw;
+  function writeThrough(obj){
+    if(typeof ORIG === 'function') return ORIG(obj);
+    try{ localStorage.setItem(bKey(), JSON.stringify(obj || {})); }catch(e){}
+  }
+
+  window.pbSaveRaw = function(obj){
+    var now, inc;
+    try{
+      now = tally(pj(localStorage.getItem(bKey())));
+      inc = tally(obj);
+    }catch(e){ return writeThrough(obj); }
+
+    /* 手元が空のとき（初回）や、取り込むほうが減らないときは、そのまま取り込みます */
+    var lost = [];
+    if(inc.bld    < now.bld)    lost.push('物件');
+    if(inc.spot   < now.spot)   lost.push('区画');
+    if(inc.layout < now.layout) lost.push('配置図');
+    if(now.bld === 0 || lost.length === 0) return writeThrough(obj);
+
+    /* 減る → 止めて確認します */
+    var msg = '⚠️ クラウドから取り込もうとしたデータが、この端末より少ないです。\n\n' +
+              '【いまの端末 → 取り込んだあと】\n' +
+              row('物件　', now.bld,    inc.bld) +
+              row('区画　', now.spot,   inc.spot) +
+              row('配置図', now.layout, inc.layout) +
+              '\n減るもの： ' + lost.join('・') + '\n\n' +
+              'このまま取り込むと、上の分がこの端末から消えます。\n' +
+              '別の端末に古い状態が残っていて、それがクラウドへ送られた可能性があります。\n\n' +
+              '【OK】取り込まない（この端末のデータを守る）\n' +
+              '【キャンセル】取り込む（古い内容で上書きする）';
+
+    var take = false;
+    try{ take = !window.confirm(msg); }catch(e){ take = false; }
+
+    if(!take){
+      /* 守る。手元はそのまま。クラウドへ送り直せるよう、未保存あつかいにします */
+      try{ if(typeof setSyncStatus === 'function') setSyncStatus('error', '⚠️ 古いデータの取り込みを止めました'); }catch(e){}
+      try{ if(typeof window.__scheduleAutoPush === 'function') window.__scheduleAutoPush(); }catch(e){}
+      return;
+    }
+    keepBefore();
+    writeThrough(obj);
+  };
+})();
