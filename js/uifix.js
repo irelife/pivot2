@@ -882,6 +882,7 @@
   var _last = 0;      /* 最後に確認した時刻 */
   var _busy = false;
   var _mtime = 0;     /* クラウド側の最終更新時刻 */
+  var _device = '';   /* 最後に更新した端末の名前 */
 
   /* クラウドの最終更新時刻を、通信のついでに受け取ります */
   (function(){
@@ -894,7 +895,11 @@
           try{
             if(res && res.ok && res.payload && res.payload.mtime){
               var v = parseInt(res.payload.mtime, 10);
-              if(v && v > _mtime){ _mtime = v; showStamp(); }
+              if(v && v >= _mtime){
+                _mtime = v;
+                _device = String(res.payload.device || '');
+                showStamp();
+              }
             }
           }catch(e){}
           return res;
@@ -910,7 +915,12 @@
     var day = (d.getMonth()+1) + '/' + d.getDate();
     var hm  = two(d.getHours()) + ':' + two(d.getMinutes());
     var same = (d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate());
-    return '最終更新 ' + (same ? '' : day + ' ') + hm;
+    var who = '';
+    try{
+      var me = localStorage.getItem((typeof insPrefix==='function'?insPrefix():'pivot_') + 'device_name') || '';
+      if(_device) who = '（' + _device + (me && me === _device ? '＝この端末' : '') + '）';
+    }catch(e){}
+    return '最終更新 ' + (same ? '' : day + ' ') + hm + who;
   }
 
   /* 同期の表示のとなりに、小さく出します */
@@ -1273,4 +1283,226 @@
   function boot(){ keepToday(); addPickButton(); }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
+})();
+
+/* ============================================================
+ *  ㉟ この端末に名前をつけます
+ *
+ *  「最終更新 9/4 18:30（福山PC）」のように、
+ *  最後に更新したのがどの端末かを画面に出します。
+ *  何かおかしいとき、原因の端末がその場で分かります。
+ *
+ *  設定 →「この端末の名前」で登録します。1回だけで済みます。
+ * ============================================================ */
+(function(){
+  'use strict';
+
+  function pfx(){ return (typeof insPrefix === 'function') ? insPrefix() : 'pivot_'; }
+  function nameKey(){ return pfx() + 'device_name'; }
+
+  function getName(){
+    try{ return (localStorage.getItem(nameKey()) || '').trim(); }catch(e){ return ''; }
+  }
+  try{ window.pvDeviceName = getName; }catch(e){}
+
+  /* 送るときに、端末の名前を一緒に届けます */
+  (function(){
+    var P = window.postToGas;
+    if(typeof P !== 'function') return;
+    window.postToGas = function(url, body, timeoutMs){
+      try{
+        if(body && body.action === 'save' && body.payload){
+          var nm = getName();
+          if(nm) body.payload.device = nm;
+        }
+      }catch(e){}
+      return P(url, body, timeoutMs);
+    };
+  })();
+
+  window.pvSetDeviceName = function(){
+    var now = getName();
+    var v = null;
+    try{
+      v = window.prompt(
+        'この端末の名前を入れてください。\n\n' +
+        '「最終更新 9/4 18:30（福山PC）」のように画面に出ます。\n' +
+        'おかしいことが起きたとき、どの端末が原因か分かります。\n\n' +
+        '例： 福山PC ／ 広島ノート ／ 岡山PC ／ 社用スマホ',
+        now || '');
+    }catch(e){ return; }
+    if(v === null) return;                 /* やめた */
+    v = String(v).trim().slice(0, 20);
+    try{
+      if(v) localStorage.setItem(nameKey(), v);
+      else  localStorage.removeItem(nameKey());
+    }catch(e){}
+    try{ alert(v ? ('この端末を「' + v + '」として記録します。') : '端末の名前を消しました。'); }catch(e){}
+    /* 名前をクラウドへ反映しておきます */
+    try{ if(typeof window.__scheduleAutoPush === 'function') window.__scheduleAutoPush(); }catch(e){}
+  };
+
+  function addNameButton(){
+    var menu = document.getElementById('settings-menu');
+    if(!menu || document.getElementById('btn-device-name')) return;
+    var btn = document.createElement('button');
+    btn.id = 'btn-device-name';
+    btn.textContent = 'この端末の名前';
+    btn.onclick = function(){
+      if(typeof closeSettingsMenu === 'function') closeSettingsMenu();
+      window.pvSetDeviceName();
+    };
+    menu.appendChild(btn);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addNameButton);
+  else addNameButton();
+})();
+
+/* ============================================================
+ *  ㊱ クラウドのバックアップから、日付を選んで戻します
+ *
+ *  ㉝ は「この端末の中」の控え（5日ぶん）でした。
+ *  こちらは「クラウド（Google ドライブ）」の控え（30日ぶん）です。
+ *  端末が壊れても、別の端末からここに戻せます。
+ *  契約とオーナーも一緒に戻ります。
+ *
+ *  戻したあとはクラウドへ送り直すので、ほかの端末にも伝わります。
+ *  ㉚ の合体を通るので、戻しても何かが消えることはありません。
+ * ============================================================ */
+(function(){
+  'use strict';
+
+  function pfx(){ return (typeof insPrefix === 'function') ? insPrefix() : 'pivot_'; }
+  function bKey(){ return (typeof pbKey === 'function') ? pbKey() : pfx() + 'blds'; }
+  function cKey(){ return (typeof ctKey === 'function') ? ctKey() : pfx() + 'contract_kanban_v2'; }
+  function oKey(){ return pfx() + 'rent_owner_send_owners_v1'; }
+  function preKey(){ return pfx() + 'prerestore_backup'; }
+
+  function ymd(d){ return d.slice(0,4) + '/' + d.slice(4,6) + '/' + d.slice(6,8); }
+  function cnt(o){ return Object.keys(o || {}).length; }
+  function tally(blds){
+    var t = { bld:0, spot:0, layout:0 };
+    Object.keys(blds || {}).forEach(function(id){
+      var b = blds[id]; if(!b) return;
+      t.bld++; t.spot += (b.spots || []).length;
+      if(b.layout_id) t.layout++;
+      if(b.layout2_id) t.layout++;
+    });
+    return t;
+  }
+  function url(){ return (typeof getCloudUrl === 'function') ? getCloudUrl() : ''; }
+
+  function overlay(html){
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;' +
+                       'display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.innerHTML = '<div style="background:#fff;border-radius:14px;padding:18px;max-width:460px;' +
+                   'width:100%;max-height:80vh;overflow:auto">' + html + '</div>';
+    document.body.appendChild(ov);
+    return ov;
+  }
+
+  window.pvCloudRestore = function(){
+    var u = url();
+    if(!u){ alert('クラウドの設定がありません。'); return; }
+    try{ if(typeof setSyncStatus === 'function') setSyncStatus('loading', 'バックアップを確認中…'); }catch(e){}
+
+    Promise.resolve(postToGas(u, { action:'listBackups' })).then(function(r){
+      try{ if(typeof setSyncStatus === 'function') setSyncStatus('idle',''); }catch(e){}
+      if(!r || !r.ok || !r.days || !r.days.length){
+        alert('クラウドにバックアップがまだありません。\n\n' +
+              '1日1回、はじめて保存したときに作られます。\n明日以降に貯まりはじめます。');
+        return;
+      }
+      var rows = r.days.map(function(d){
+        return '<button data-day="' + d + '" style="display:block;width:100%;text-align:left;' +
+               'padding:12px 14px;margin:6px 0;border:1px solid #d4d4d8;border-radius:10px;' +
+               'background:#fff;font-size:16px;font-weight:700;cursor:pointer">' + ymd(d) + '</button>';
+      }).join('');
+      var ov = overlay(
+        '<div style="font-size:17px;font-weight:800;margin-bottom:4px">クラウドのバックアップから戻す</div>' +
+        '<div style="font-size:12px;color:#71717a;margin-bottom:12px">' +
+        'その日のはじめての保存の直前の状態です（' + r.days.length + '日ぶん）。<br>' +
+        '物件・区画・配置図に加えて、契約とオーナーも戻ります。</div>' + rows +
+        '<button id="pv-cb-cancel" style="width:100%;margin-top:10px;padding:11px;border:0;' +
+        'border-radius:10px;background:#e4e4e7;font-size:14px;cursor:pointer">やめる</button>');
+      ov.addEventListener('click', function(ev){
+        if(ev.target === ov || ev.target.id === 'pv-cb-cancel'){ ov.remove(); return; }
+        var btn = ev.target.closest ? ev.target.closest('button[data-day]') : null;
+        if(btn){ ov.remove(); pick(btn.getAttribute('data-day')); }
+      });
+    }).catch(function(){
+      try{ if(typeof setSyncStatus === 'function') setSyncStatus('error', '⚠️ バックアップの確認に失敗'); }catch(e){}
+      alert('バックアップの一覧を取れませんでした。通信を確かめてください。');
+    });
+  };
+
+  function pick(day){
+    var u = url();
+    try{ if(typeof setSyncStatus === 'function') setSyncStatus('loading', ymd(day) + ' を読み込み中…'); }catch(e){}
+
+    Promise.resolve(postToGas(u, { action:'loadBackup', day: day })).then(function(r){
+      try{ if(typeof setSyncStatus === 'function') setSyncStatus('idle',''); }catch(e){}
+      if(!r || !r.ok || !r.payload){
+        alert((r && r.message) || 'その日のバックアップを読めませんでした。');
+        return;
+      }
+      var p = r.payload;
+      var oldB = p.buildings || {}, oldC = p.contracts || {}, oldO = p.owners || [];
+
+      var nowB = {}, nowC = {}, nowO = [];
+      try{ nowB = JSON.parse(localStorage.getItem(bKey()) || '{}'); }catch(e){}
+      try{ nowC = JSON.parse(localStorage.getItem(cKey()) || '{}'); }catch(e){}
+      try{ nowO = JSON.parse(localStorage.getItem(oKey()) || '[]'); }catch(e){}
+
+      var a = tally(nowB), b = tally(oldB);
+      var msg = ymd(day) + ' のバックアップに戻します。\n\n' +
+                '【いま → 戻したあと】\n' +
+                '　物件　　： ' + a.bld    + ' → ' + b.bld    + '\n' +
+                '　区画　　： ' + a.spot   + ' → ' + b.spot   + '\n' +
+                '　配置図　： ' + a.layout + ' → ' + b.layout + '\n' +
+                '　契約　　： ' + cnt(nowC) + ' → ' + cnt(oldC) + '\n' +
+                '　オーナー： ' + (nowO.length || 0) + ' → ' + (oldO.length || 0) + '\n\n' +
+                'いまの状態は「復元前に戻す」で呼び戻せるよう退避します。\n' +
+                'よろしいですか？';
+      if(!confirm(msg)) return;
+
+      try{
+        localStorage.setItem(preKey(), JSON.stringify({
+          at: new Date().toISOString(),
+          buildings: localStorage.getItem(bKey()) || '{}',
+          contracts: localStorage.getItem(cKey()) || '{}',
+          owners:    localStorage.getItem(oKey()) || '[]'
+        }));
+        localStorage.setItem(bKey(), JSON.stringify(oldB));
+        localStorage.setItem(cKey(), JSON.stringify(oldC));
+        localStorage.setItem(oKey(), JSON.stringify(oldO));
+      }catch(e){ alert('戻せませんでした: ' + e); return; }
+
+      alert(ymd(day) + ' の内容に戻しました。\n\nこのあとクラウドへ送ります。\n' +
+            '確認の画面が出たら【OK】を押してください（何も消えません）。');
+      try{ if(typeof window.__scheduleAutoPush === 'function') window.__scheduleAutoPush(); }catch(e){}
+      setTimeout(function(){ location.reload(); }, 2500);
+    }).catch(function(){
+      try{ if(typeof setSyncStatus === 'function') setSyncStatus('error', '⚠️ 読み込みに失敗'); }catch(e){}
+      alert('バックアップを読めませんでした。通信を確かめてください。');
+    });
+  }
+
+  function addCloudButton(){
+    var menu = document.getElementById('settings-menu');
+    if(!menu || document.getElementById('btn-cloud-restore')) return;
+    var btn = document.createElement('button');
+    btn.id = 'btn-cloud-restore';
+    btn.textContent = 'クラウドのバックアップから戻す';
+    btn.onclick = function(){
+      if(typeof closeSettingsMenu === 'function') closeSettingsMenu();
+      window.pvCloudRestore();
+    };
+    var ref = document.getElementById('btn-pick-day');
+    if(ref && ref.parentNode === menu && ref.nextSibling) menu.insertBefore(btn, ref.nextSibling);
+    else menu.appendChild(btn);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addCloudButton);
+  else addCloudButton();
 })();
