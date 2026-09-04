@@ -639,3 +639,17 @@
       （js/mobilesheet.js の #pv-hint。中身はさわっていません）
    ------------------------------------------------------------ */
 #pv-hint{ display:none !important; }
+
+/* ============================================================
+ *  ㊲ 棟マスターの説明文を消します
+ *
+ *  使い方が分かったので、3行の案内と
+ *  「(棟別住所は未登録…)」の灰色の注記を出しません。
+ *  枠・見出し「棟マスター」・「＋ 棟を追加」はそのまま残ります。
+ *  index.html と buildings.js はさわっていません。
+ * ============================================================ */
+.tou-master-lead{ display:none !important; }
+#tou-addr-list > div[style*="color:#888"]{ display:none !important; }
+/* 説明が無くなったぶん、枠を詰めます */
+.tou-master{ padding:14px 18px 12px !important; }
+.tou-master-head{ margin-bottom:0 !important; padding-bottom:0 !important; border-bottom:0 !important; }
