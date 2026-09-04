@@ -1539,6 +1539,7 @@
   }
 
   var _tried = false;
+  var _retry = 0;
 
   function pull(){
     if(_tried) return;
@@ -1575,17 +1576,65 @@
         try{ if(typeof setSyncStatus === 'function') setSyncStatus('saved', '✅ クラウドの接続先を更新しました'); }catch(e){}
       }
     }).catch(function(){
-      /* 取れなくても、これまでどおり手元の設定で動きます */
+      /* 取れなくても、これまでどおり手元の設定で動きます。少し待って数回だけ試し直します */
       _tried = false;
+      _retry++;
+      if(_retry <= 3) setTimeout(pull, 2000 * _retry);
     });
   }
-  try{ window.pvPullGasUrl = function(){ _tried = false; pull(); }; }catch(e){}
+  try{ window.pvPullGasUrl = function(){ _tried = false; _retry = 0; pull(); }; }catch(e){}
 
   /* ログインが済んだ時点で読みに行きます */
   try{
     if(window.firebase && firebase.auth){
-      firebase.auth().onAuthStateChanged(function(u){ if(u){ _tried = false; setTimeout(pull, 300); } });
+      firebase.auth().onAuthStateChanged(function(u){ if(u){ _tried = false; _retry = 0; setTimeout(pull, 300); } });
     }
   }catch(e){}
   setTimeout(pull, 2500);
+})();
+
+/* ============================================================
+ *  ㊴ GAS の URL が未設定でも、ログイン画面を出します
+ *
+ *  js/core.js の showLoginScreen() は、いちばん最初に
+ *      if(!getCloudUrl()){ return; }   // クラウド未設定なら…
+ *  としています。「クラウドを使わず、この端末だけで使う」ための作りです。
+ *
+ *  ところが ㊳（URL を Firebase から受け取る）は
+ *  「ログインしたあとに URL を取る」仕組みなので、
+ *  　　新しいPC → URL が無い → ログイン画面が出ない → ログインできない
+ *  　　　　　　→ URL を受け取れない
+ *  という堂々めぐりになっていました。
+ *
+ *  ここでは、URL が無くても Firebase が使えるならログイン画面を出します。
+ *  やり方は「showLoginScreen を呼ぶあいだだけ getCloudUrl の返事を差し替える」だけで、
+ *  localStorage には何も書きません。呼び終わったら元に戻します。
+ *
+ *  Firebase が読み込めていないときは、これまでどおり
+ *  「この端末だけで使う」動きのままにしています。
+ * ============================================================ */
+(function(){
+  'use strict';
+
+  var ORIG = window.showLoginScreen;
+  if(typeof ORIG !== 'function') return;
+
+  window.showLoginScreen = function(){
+    var url = '';
+    try{ url = (typeof getCloudUrl === 'function') ? getCloudUrl() : ''; }catch(e){}
+    if(url) return ORIG.apply(this, arguments);      /* 設定済み → これまでどおり */
+
+    var canLogin = false;
+    try{ canLogin = !!(window.firebase && firebase.auth && firebase.auth()); }catch(e){ canLogin = false; }
+    if(!canLogin) return ORIG.apply(this, arguments); /* Firebase が無い → これまでどおり */
+
+    /* この呼び出しのあいだだけ「設定あり」と答えさせて、ログイン画面を出させます */
+    var g = window.getCloudUrl;
+    try{
+      window.getCloudUrl = function(){ return 'pending'; };
+      return ORIG.apply(this, arguments);
+    } finally {
+      window.getCloudUrl = g;                        /* すぐ元に戻します */
+    }
+  };
 })();
