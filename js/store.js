@@ -44,8 +44,24 @@
     catch(e){ return {}; }
   }
   function writeMap(k, o){ try{ localStorage.setItem(k, JSON.stringify(o || {})); }catch(e){} }
+  /* 中身の指紋。
+     項目の並び順が違うだけで「変わった」と判定しないよう、
+     いつも同じ順番（名前順）に並べ替えてから文字にします。
+     ここを揃えないと、何も直していないのに全物件が書き換え扱いになり、
+     ほかの端末が全部「衝突」になってしまいます。 */
+  function canon(x){
+    if(x === null || typeof x !== 'object') return x;
+    if(Array.isArray(x)){
+      var a = [], i;
+      for(i = 0; i < x.length; i++) a.push(canon(x[i]));
+      return a;
+    }
+    var o = {}, ks = Object.keys(x).sort(), j;
+    for(j = 0; j < ks.length; j++) o[ks[j]] = canon(x[ks[j]]);
+    return o;
+  }
   function sig(x){
-    try{ return JSON.stringify(x); }catch(e){ return String(Math.random()); }
+    try{ return JSON.stringify(canon(x)); }catch(e){ return String(Math.random()); }
   }
 
   /* ---------- 区画：配列 ⇔ 番号キーの一覧 ---------- */
@@ -387,6 +403,8 @@
       }catch(e){}
     }
 
+    /* 画面のじゃまをしないよう、右下に小さく出します。
+       上に貼ると、ログアウトや設定のボタンに重なってしまいます。 */
     function show(list){
       try{
         var id = 'pv-others-bar', el = document.getElementById(id);
@@ -395,11 +413,13 @@
           el = document.createElement('div');
           el.id = id;
           el.style.cssText =
-            'position:fixed;left:0;right:0;top:0;z-index:99998;background:#1d4ed8;color:#fff;' +
-            'font-weight:700;font-size:13px;padding:6px 14px;text-align:center;letter-spacing:.2px';
+            'position:fixed;right:10px;bottom:10px;z-index:99998;background:rgba(29,78,216,.92);' +
+            'color:#fff;font-weight:700;font-size:12px;padding:6px 12px;border-radius:16px;' +
+            'box-shadow:0 2px 8px rgba(0,0,0,.25);pointer-events:none;max-width:60vw;' +
+            'white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
           document.body.appendChild(el);
         }
-        el.textContent = '👥 ' + list.join('　') + ' も開いています（同時に編集できます）';
+        el.textContent = '👥 ' + list.join('・') + ' も編集中';
       }catch(e){}
     }
 
@@ -432,5 +452,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v4 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v6 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
