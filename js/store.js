@@ -276,6 +276,7 @@
       return Promise.all(gets).then(function(snaps){
         var bad = [], j, cur, d;
         for(j = 0; j < jobs.length; j++){
+          jobs[j].prev = snaps[j].exists ? (snaps[j].data() || null) : null;   /* 履歴・ごみ箱用 */
           cur = snaps[j].exists ? ((snaps[j].data() || {}).rev || 0) : 0;
           if(cur !== jobs[j].base){
             bad.push({ name:jobs[j].name, by:(snaps[j].exists ? ((snaps[j].data() || {}).updatedBy || '') : '') });
@@ -417,6 +418,7 @@
       try{
         console.log('[D] 保存：更新 ' + pl.changed.length + ' 件 / 削除 ' + pl.removed.length + ' 件');
       }catch(e){}
+      try{ writeLog(jobs); }catch(e){}
       return readAll();
     }).then(function(fs){
       /* スプレッドシートへは Firestore の内容を送ります（両者が必ず一致します） */
@@ -441,6 +443,266 @@
       return { ok:false, error:String(e && e.message || e) };
     });
   }
+
+
+  /* ============================================================
+   *  ㊷ 変更履歴 と ごみ箱（30日）
+   *
+   *  保存が通るたびに「誰が・いつ・どこを・どう変えたか」を残します。
+   *  消した区画・物件は、30日間ごみ箱に取っておきます。
+   *  設定メニューの「変更履歴・ごみ箱」から見られます。
+   * ============================================================ */
+
+  function logCol(){  return db().collection(INS).doc('logs').collection('history'); }
+  function trashCol(){ return db().collection(INS).doc('logs').collection('trash'); }
+  var SKIP = { rev:1, updatedAt:1, updatedBy:1, migratedAt:1, spots:1 };
+  var SF = ['no','type','tou','room','user','price','status','note','res_user','res_room','res_date','res_price','res_note','end_date'];
+  var SJ = { no:'区画番号', type:'種別', tou:'棟', room:'号室', user:'使用者', price:'月額', status:'状況', note:'備考',
+             res_user:'予約者', res_room:'予約号室', res_date:'予約日', res_price:'予約金額', res_note:'予約備考', end_date:'終了日' };
+  function v0(x){ return (x === null || x === undefined) ? '' : String(x); }
+
+  /* 直前の内容と、いまの内容の違いを取り出します */
+  function diffDoc(prev, next){
+    var d = { fields:[], added:[], removed:[], changed:[] }, k, f, i;
+    for(k in next){
+      if(SKIP[k] || !Object.prototype.hasOwnProperty.call(next, k)) continue;
+      if(sig(next[k]) !== sig(prev ? prev[k] : undefined)) d.fields.push(k);
+    }
+    var ps = (prev && prev.spots) || {}, ns = (next && next.spots) || {};
+    for(k in ns){
+      if(!Object.prototype.hasOwnProperty.call(ns, k)) continue;
+      if(!Object.prototype.hasOwnProperty.call(ps, k)){ d.added.push(k); continue; }
+      if(sig(ns[k]) === sig(ps[k])) continue;
+      var one = { no:k, was:{}, now:{} };
+      for(i = 0; i < SF.length; i++){
+        f = SF[i];
+        if(v0(ps[k][f]) !== v0(ns[k][f])){ one.was[f] = v0(ps[k][f]); one.now[f] = v0(ns[k][f]); }
+      }
+      d.changed.push(one);
+    }
+    for(k in ps){ if(!Object.prototype.hasOwnProperty.call(ns, k)) d.removed.push(k); }
+    return d;
+  }
+
+  /* 履歴とごみ箱を書きます（保存が通ったあと。失敗しても本体には影響しません） */
+  function writeLog(jobs){
+    if(!jobs || !jobs.length) return;
+    var who = me() || '(名前なし)', at = new Date().toISOString();
+    var until = new Date(Date.now() + 30 * 86400000).toISOString();
+    var batch = db().batch(), wrote = 0, i, j, k;
+
+    for(i = 0; i < jobs.length; i++){
+      var job = jobs[i], prev = job.prev || null;
+
+      if(job.kind === 'del'){
+        batch.set(logCol().doc(), { at:at, by:who, bld:job.id, name:(prev && prev.name) || job.name || job.id,
+                                    kind:'物件を削除', note:'区画 ' + count(prev && prev.spots) + ' 件ごと' });
+        batch.set(trashCol().doc(), { at:at, by:who, until:until, kind:'building',
+                                      bld:job.id, name:(prev && prev.name) || job.id, data:prev || {} });
+        wrote += 2;
+        continue;
+      }
+
+      var d = diffDoc(prev, job.doc);
+      if(!prev){
+        batch.set(logCol().doc(), { at:at, by:who, bld:job.id, name:job.doc.name || job.id,
+                                    kind:'物件を追加', note:'区画 ' + count(job.doc.spots) + ' 件' });
+        wrote++;
+        continue;
+      }
+      if(!d.fields.length && !d.added.length && !d.removed.length && !d.changed.length) continue;
+
+      batch.set(logCol().doc(), {
+        at:at, by:who, bld:job.id, name:job.doc.name || job.id, kind:'変更',
+        fields:d.fields.slice(0, 20),
+        added:d.added.slice(0, 50),
+        removed:d.removed.slice(0, 50),
+        changed:d.changed.slice(0, 40)
+      });
+      wrote++;
+
+      for(j = 0; j < d.removed.length && j < 50; j++){
+        k = d.removed[j];
+        batch.set(trashCol().doc(), { at:at, by:who, until:until, kind:'spot',
+                                      bld:job.id, name:job.doc.name || job.id, no:k,
+                                      data:(prev.spots || {})[k] || {} });
+        wrote++;
+      }
+      if(wrote > 400) break;                 /* 一度に書きすぎないように */
+    }
+    if(!wrote) return;
+    batch.commit().then(function(){
+      try{ console.log('[D] 履歴を残しました（' + wrote + ' 件）'); }catch(e){}
+    }).catch(function(e){
+      try{ console.warn('[D] 履歴を残せませんでした', e); }catch(x){}
+    });
+  }
+
+
+  /* ---------- 画面：変更履歴とごみ箱 ---------- */
+  function esc(s){
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function jtime(iso){
+    try{
+      var d = new Date(iso);
+      var p = function(x){ return (x < 10 ? '0' : '') + x; };
+      return (d.getMonth()+1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }catch(e){ return String(iso || ''); }
+  }
+  function overlay(html){
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.45);' +
+                       'display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:14px;max-width:760px;width:100%;padding:18px 20px;' +
+                        'box-shadow:0 10px 40px rgba(0,0,0,.3);font-size:14px;line-height:1.7';
+    box.innerHTML = html;
+    ov.appendChild(box);
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function(ev){ if(ev.target === ov) ov.remove(); });
+    return ov;
+  }
+
+  function lineOf(h){
+    var t = [], i, c;
+    if(h.kind === '物件を削除') return '物件ごと削除（' + esc(h.note || '') + '）';
+    if(h.kind === '物件を追加') return '物件を追加（' + esc(h.note || '') + '）';
+    if(h.added && h.added.length)   t.push('区画を追加 ' + esc(h.added.join('・')));
+    if(h.removed && h.removed.length) t.push('<b style="color:#b91c1c">区画を削除 ' + esc(h.removed.join('・')) + '</b>');
+    if(h.fields && h.fields.length) t.push('物件情報（' + esc(h.fields.join('・')) + '）');
+    if(h.changed && h.changed.length){
+      for(i = 0; i < h.changed.length && i < 8; i++){
+        c = h.changed[i];
+        var fs = [], f;
+        for(f in c.now){
+          if(!Object.prototype.hasOwnProperty.call(c.now, f)) continue;
+          fs.push((SJ[f] || f) + '：' + esc(c.was[f] || '(空欄)') + ' → ' + esc(c.now[f] || '(空欄)'));
+        }
+        t.push('区画' + esc(c.no) + '　' + fs.join('／'));
+      }
+      if(h.changed.length > 8) t.push('ほか ' + (h.changed.length - 8) + ' 区画');
+    }
+    return t.length ? t.join('<br>　　') : '（変化なし）';
+  }
+
+  function showHistory(){
+    var ov = overlay('<div style="font-size:17px;font-weight:800;margin-bottom:10px">変更履歴</div>' +
+                     '<div id="pv-h-body">読み込んでいます…</div>' +
+                     '<div style="margin-top:14px;text-align:right">' +
+                     '<button id="pv-h-trash" style="font:inherit;padding:9px 16px;border:2px solid #111;background:#fff;border-radius:8px;cursor:pointer;margin-right:8px">ごみ箱を見る</button>' +
+                     '<button id="pv-h-close" style="font:inherit;padding:9px 16px;border:0;background:#e4e4e7;border-radius:8px;cursor:pointer">閉じる</button></div>');
+    ov.querySelector('#pv-h-close').onclick = function(){ ov.remove(); };
+    ov.querySelector('#pv-h-trash').onclick = function(){ ov.remove(); showTrash(); };
+    logCol().orderBy('at','desc').limit(120).get().then(function(qs){
+      var h = [], rows = [];
+      qs.forEach(function(d){ rows.push(d.data() || {}); });
+      if(!rows.length){ ov.querySelector('#pv-h-body').innerHTML = 'まだ履歴がありません。<br>次に保存したときから残りはじめます。'; return; }
+      for(var i = 0; i < rows.length; i++){
+        var r = rows[i];
+        h.push('<div style="border-bottom:1px solid #eee;padding:8px 0">' +
+               '<div style="font-size:12px;color:#71717a">' + esc(jtime(r.at)) + '　' + esc(r.by || '') + '</div>' +
+               '<div><b>' + esc(r.name || r.bld) + '</b>　' + lineOf(r) + '</div></div>');
+      }
+      ov.querySelector('#pv-h-body').innerHTML = h.join('');
+    }).catch(function(e){
+      ov.querySelector('#pv-h-body').textContent = '読み込めませんでした： ' + (e && e.message ? e.message : e);
+    });
+  }
+
+  function showTrash(){
+    var ov = overlay('<div style="font-size:17px;font-weight:800;margin-bottom:4px">ごみ箱</div>' +
+                     '<div style="font-size:12px;color:#71717a;margin-bottom:10px">消したものを30日間とっておきます。【戻す】で元に戻せます。</div>' +
+                     '<div id="pv-t-body">読み込んでいます…</div>' +
+                     '<div style="margin-top:14px;text-align:right">' +
+                     '<button id="pv-t-hist" style="font:inherit;padding:9px 16px;border:2px solid #111;background:#fff;border-radius:8px;cursor:pointer;margin-right:8px">履歴を見る</button>' +
+                     '<button id="pv-t-close" style="font:inherit;padding:9px 16px;border:0;background:#e4e4e7;border-radius:8px;cursor:pointer">閉じる</button></div>');
+    ov.querySelector('#pv-t-close').onclick = function(){ ov.remove(); };
+    ov.querySelector('#pv-t-hist').onclick = function(){ ov.remove(); showHistory(); };
+    trashCol().orderBy('at','desc').limit(150).get().then(function(qs){
+      var h = [], ids = [];
+      qs.forEach(function(d){
+        var r = d.data() || {};
+        ids.push(d.id);
+        var what = (r.kind === 'building')
+          ? ('物件ごと（区画 ' + count(r.data && r.data.spots) + ' 件）')
+          : ('区画 ' + esc(r.no) + '　' + esc((r.data && r.data.user) || '(空欄)') +
+             '　' + esc((r.data && r.data.room) || '') + '号室');
+        h.push('<div style="border-bottom:1px solid #eee;padding:8px 0;display:flex;gap:10px;align-items:center">' +
+               '<div style="flex:1"><div style="font-size:12px;color:#71717a">' + esc(jtime(r.at)) + '　' + esc(r.by || '') + '</div>' +
+               '<div><b>' + esc(r.name || r.bld) + '</b>　' + what + '</div></div>' +
+               '<button data-id="' + esc(d.id) + '" style="font:inherit;font-weight:700;padding:7px 14px;border:2px solid #111;background:#111;color:#fff;border-radius:8px;cursor:pointer">戻す</button></div>');
+      });
+      var body = ov.querySelector('#pv-t-body');
+      body.innerHTML = ids.length ? h.join('') : 'ごみ箱は空です。';
+      body.addEventListener('click', function(ev){
+        var b = ev.target.closest ? ev.target.closest('button[data-id]') : null;
+        if(!b) return;
+        b.disabled = true; b.textContent = '戻しています…';
+        restoreTrash(b.getAttribute('data-id'));
+      });
+    }).catch(function(e){
+      ov.querySelector('#pv-t-body').textContent = '読み込めませんでした： ' + (e && e.message ? e.message : e);
+    });
+  }
+
+  function restoreTrash(id){
+    var ref = trashCol().doc(id);
+    ref.get().then(function(d){
+      if(!d.exists) throw new Error('見つかりませんでした');
+      var r = d.data() || {};
+      var bref = col().doc(r.bld);
+      return db().runTransaction(function(tx){
+        return tx.get(bref).then(function(sn){
+          var now = sn.exists ? (sn.data() || {}) : null;
+          if(r.kind === 'building'){
+            if(now) throw new Error('その物件はもう存在します。個別に直してください。');
+            var doc = r.data || {};
+            doc.rev = 1; doc.updatedAt = new Date().toISOString(); doc.updatedBy = (me() || '(名前なし)') + '（ごみ箱から復元）';
+            tx.set(bref, doc);
+          }else{
+            if(!now) throw new Error('その物件が見つかりません。');
+            if(now.spots && now.spots[r.no]) throw new Error('区画 ' + r.no + ' はすでにあります。');
+            var sp = now.spots || {};
+            sp[String(r.no)] = r.data || {};
+            now.spots = sp;
+            now.rev = (now.rev || 0) + 1;
+            now.updatedAt = new Date().toISOString();
+            now.updatedBy = (me() || '(名前なし)') + '（ごみ箱から復元）';
+            tx.set(bref, now);
+          }
+        });
+      }).then(function(){ return ref.delete().catch(function(){}); });
+    }).then(function(){
+      try{ window.alert('戻しました。ページを読み込み直します。'); }catch(e){}
+      try{ location.reload(); }catch(e){}
+    }).catch(function(e){
+      try{ window.alert('戻せませんでした。\n\n' + (e && e.message ? e.message : e)); }catch(x){}
+    });
+  }
+
+  /* 設定メニューにボタンを足します */
+  function addHistoryButton(){
+    try{
+      var menu = document.getElementById('settings-menu');
+      if(!menu || document.getElementById('btn-pv-history')) return;
+      var btn = document.createElement('button');
+      btn.id = 'btn-pv-history';
+      btn.textContent = '変更履歴・ごみ箱';
+      btn.onclick = function(){
+        if(typeof closeSettingsMenu === 'function') closeSettingsMenu();
+        showHistory();
+      };
+      menu.appendChild(btn);
+    }catch(e){}
+  }
+  try{
+    if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addHistoryButton);
+    else addHistoryButton();
+    setTimeout(addHistoryButton, 1500);
+  }catch(e){}
+  try{ window.__pvHistory = showHistory; window.__pvTrash = showTrash; window.__pvRestore = restoreTrash; }catch(e){}
 
   /* ---------- 出入口を包みます ---------- */
   try{
@@ -525,5 +787,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v8 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v9 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
