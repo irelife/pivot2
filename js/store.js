@@ -516,6 +516,7 @@
   function owRevK(){ return pfx() + 'fs_ow_rev'; }
 
   var CMETA = { rev:1, updatedAt2:1, updatedBy2:1 };
+  var _seedC = false, _seedO = false;   /* 移行を二度走らせないための印 */
   function ctDoc(id, c){
     var d = {}, f;
     for(f in c){
@@ -560,6 +561,8 @@
 
   /* はじめの1回だけ、いまの内容を Firestore へ写します */
   function seedCts(map){
+    if(_seedC) return Promise.resolve(false);
+    _seedC = true;
     var ids = [], k;
     for(k in map){ if(Object.prototype.hasOwnProperty.call(map, k)) ids.push(k); }
     if(ids.length < 3) return Promise.resolve(false);
@@ -578,6 +581,8 @@
     });
   }
   function seedOws(list){
+    if(_seedO) return Promise.resolve(false);
+    _seedO = true;
     if(!Array.isArray(list) || list.length < 3) return Promise.resolve(false);
     return owRef().set({ list:list, rev:1, updatedAt2:new Date().toISOString(),
                          updatedBy2:(me() || '(名前なし)') + '（移行）' }).then(function(){
@@ -644,6 +649,51 @@
     return { changed:changed, removed:removed };
   }
 
+  /* 契約の変更を履歴に残します */
+  function writeCtLog(jobs){
+    if(!jobs || !jobs.length) return;
+    var who = me() || '(名前なし)', at = new Date().toISOString();
+    var until = new Date(Date.now() + 30 * 86400000).toISOString();
+    var batch = db().batch(), wrote = 0, i, j, f;
+    for(i = 0; i < jobs.length && wrote < 300; i++){
+      var job = jobs[i], prev = job.prev || null;
+      if(job.kind === 'del'){
+        batch.set(logCol().doc(), { at:at, by:who, bld:'(契約)', name:'契約　' + (job.label || job.id),
+                                    kind:'契約を削除', note:'' });
+        batch.set(trashCol().doc(), { at:at, by:who, until:until, kind:'contract',
+                                      bld:'(契約)', name:'契約　' + (job.label || job.id),
+                                      no:job.id, data:prev || {} });
+        wrote += 2; continue;
+      }
+      if(!prev){
+        batch.set(logCol().doc(), { at:at, by:who, bld:'(契約)', name:'契約　' + (job.label || job.id),
+                                    kind:'契約を追加', note:'' });
+        wrote++; continue;
+      }
+      var one = { no:job.id, was:{}, now:{} }, any = false;
+      for(f in job.doc){
+        if(!Object.prototype.hasOwnProperty.call(job.doc, f) || CMETA[f]) continue;
+        if(sig(prev[f]) !== sig(job.doc[f])){
+          one.was[f] = (typeof prev[f] === 'object') ? '（内訳）' : v0(prev[f]);
+          one.now[f] = (typeof job.doc[f] === 'object') ? '（内訳）' : v0(job.doc[f]);
+          any = true;
+        }
+      }
+      for(f in prev){
+        if(!Object.prototype.hasOwnProperty.call(prev, f) || CMETA[f]) continue;
+        if(!Object.prototype.hasOwnProperty.call(job.doc, f)){ one.was[f] = v0(prev[f]); one.now[f] = ''; any = true; }
+      }
+      if(!any) continue;
+      batch.set(logCol().doc(), { at:at, by:who, bld:'(契約)', name:'契約　' + (job.label || job.id),
+                                  kind:'変更', changed:[one] });
+      wrote++;
+    }
+    if(!wrote) return;
+    batch.commit().then(function(){
+      try{ console.log('[E] 契約の履歴を残しました（' + wrote + ' 件）'); }catch(e){}
+    }).catch(function(){});
+  }
+
   /* 契約・オーナーを保存します（物件の保存が通ったあとに呼びます） */
   function saveCtOw(body){
     try{ if(!(window.firebase && firebase.firestore)) return Promise.resolve(null); }catch(e){ return Promise.resolve(null); }
@@ -668,6 +718,7 @@
         if(!okDel){ var e2 = new Error('cancel'); e2.__cancel = true; return Promise.reject(e2); }
       }
       return commitCts(pl).then(function(js){
+        try{ writeCtLog(js); }catch(e){}
         var revs = readMap(ctRevK()), sigs = readMap(ctSigK()), i;
         for(i = 0; i < js.length; i++){
           if(js[i].kind === 'del'){ delete revs[js[i].id]; delete sigs[js[i].id]; }
@@ -717,7 +768,10 @@
   var SKIP = { rev:1, updatedAt:1, updatedBy:1, migratedAt:1, spots:1 };
   var SF = ['no','type','tou','room','user','price','status','note','res_user','res_room','res_date','res_price','res_note','end_date'];
   var SJ = { no:'区画番号', type:'種別', tou:'棟', room:'号室', user:'使用者', price:'月額', status:'状況', note:'備考',
-             res_user:'予約者', res_room:'予約号室', res_date:'予約日', res_price:'予約金額', res_note:'予約備考', end_date:'終了日' };
+             res_user:'予約者', res_room:'予約号室', res_date:'予約日', res_price:'予約金額', res_note:'予約備考', end_date:'終了日',
+             property:'物件', contractor:'契約者', stage:'進捗', applyDate:'申込日', contractDate:'契約日',
+             parking:'駐車場', staff:'担当', broker:'仲介', memo:'メモ', dealStatus:'状態', type2:'区分',
+             keyHandover:'鍵渡し', paymentDate:'入金日', sendDate:'送付日', returnDate:'返送日', warn:'不備' };
   function v0(x){ return (x === null || x === undefined) ? '' : String(x); }
 
   /* 直前の内容と、いまの内容の違いを取り出します */
@@ -1046,5 +1100,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v10 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v11 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
