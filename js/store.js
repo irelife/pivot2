@@ -1,176 +1,436 @@
 /* ============================================================
- *  store.js  ―  Firestore への控え（第1段-B）
+ *  store.js  v3  ―  第1段-D（Firestore を「正」にする）
  *
- *  いまの役割は「控えを取るだけ」です。
- *    ・画面が表示する内容は、これまでどおりスプレッドシート由来です
- *    ・保存の動きも、これまでどおりです
- *    ・そのうえで、変わった物件だけを Firestore にも書き写します
+ *  これまで：スプレッドシートが正。保存のたびに全データをまるごと上書き。
+ *            → 古いコピーを持った端末が保存すると、他の人の修正が消えた。
  *
- *  つまり、このファイルに不具合があっても
- *  「Firestore 側の控えがずれる」だけで、実データは無傷です。
+ *  ここから：Firestore が正。保存は「変わった物件だけ」。
+ *            さらに保存の直前に「他の人が先に保存していないか」を確かめ、
+ *            先を越されていたら保存を止める（黙って上書きしない）。
  *
- *  1〜2週間、毎朝の点検でスプレッドシートと Firestore を突き合わせ、
- *  差が出ないことを確認してから、第1段-D で読み書きを切り替えます。
+ *  ・PIVOT 本体（core.js）には手を入れていません。
+ *    データの出入口 postToGas を包むだけです。
+ *  ・スプレッドシートにも今までどおり書き続けます（戻せるようにするため）。
+ *    ただし送る中身は Firestore から読み直したものなので、両者は必ず一致します。
+ *  ・元に戻すには index.html の store.js の行を消すだけです。
+ *
+ *  置き場所： 物件 → pivot2/data/buildings/{物件ID}
+ *            区画は「番号をキーにした一覧」で持ちます  spots:{ "1":{...}, "2":{...} }
+ *            rev（版番号）が保存のたびに1つ増えます。これで追い越しを見つけます。
  * ============================================================ */
 (function(){
   'use strict';
 
-  /* Firestore が読み込めていなければ、何もしません */
   var ok = false;
   try{ ok = !!(window.firebase && firebase.firestore && firebase.auth); }catch(e){ ok = false; }
-  if(!ok){ return; }
+  if(!ok){ try{ console.warn('[D] Firestore が読み込めていないので、従来どおり動きます'); }catch(e){} return; }
 
+  /* ---------- 共通 ---------- */
   function pfx(){ return (typeof insPrefix === 'function') ? insPrefix() : 'pivot_'; }
-  function bKey(){ return (typeof pbKey === 'function') ? pbKey() : pfx() + 'blds'; }
   var INS = pfx().replace(/_+$/, '') || 'pivot';
-  function mirrorKey(){ return pfx() + 'fs_mirror'; }
+  function db(){ return firebase.firestore(); }
+  function col(){ return db().collection(INS).doc('data').collection('buildings'); }
+  function revKey(){ return pfx() + 'fs_rev';  }   /* 物件ごとの版番号 */
+  function sigKey(){ return pfx() + 'fs_sig';  }   /* 物件ごとの中身の指紋 */
 
-  function col(){
-    return firebase.firestore().collection(INS).doc('data').collection('buildings');
-  }
   function me(){
-    try{ return (firebase.auth().currentUser || {}).email || ''; }catch(e){ return ''; }
+    try{
+      if(typeof window.pvDeviceName === 'function') return (window.pvDeviceName() || '').trim();
+      return (localStorage.getItem(pfx() + 'device_name') || '').trim();
+    }catch(e){ return ''; }
   }
-  function signedIn(){
-    try{ return !!firebase.auth().currentUser; }catch(e){ return false; }
+  function readMap(k){
+    try{ var o = JSON.parse(localStorage.getItem(k) || '{}'); return (o && typeof o === 'object') ? o : {}; }
+    catch(e){ return {}; }
   }
-
-  function readLocal(){
-    try{ return JSON.parse(localStorage.getItem(bKey()) || '{}') || {}; }catch(e){ return {}; }
-  }
-  function readMirror(){
-    try{ return JSON.parse(localStorage.getItem(mirrorKey()) || '{}') || {}; }catch(e){ return {}; }
-  }
-  function writeMirror(m){
-    try{ localStorage.setItem(mirrorKey(), JSON.stringify(m)); }catch(e){}
+  function writeMap(k, o){ try{ localStorage.setItem(k, JSON.stringify(o || {})); }catch(e){} }
+  function sig(x){
+    try{ return JSON.stringify(x); }catch(e){ return String(Math.random()); }
   }
 
-  /* 区画の配列 → 番号をキーにした入れ物 */
+  /* ---------- 区画：配列 ⇔ 番号キーの一覧 ---------- */
   function spotsToMap(spots){
-    var m = {};
-    (spots || []).forEach(function(s){
-      var k = String(s && s.no != null ? s.no : '');
-      if(!k || m[k]) return;                       /* 同じ番号は最初の1件だけ */
-      var o = {
-        no: s.no, type: s.type || '並', tou: s.tou || '',
-        room: s.room == null ? '' : s.room, user: s.user || '',
-        price: s.price || 0, status: s.status || '空', note: s.note || ''
-      };
-      ['end_date','res_date','res_tou','res_room','res_user','res_price','res_note'].forEach(function(f){
-        if(s[f] != null && s[f] !== '') o[f] = s[f];
-      });
+    var m = {}, i, s, k, o, f;
+    for(i = 0; i < (spots || []).length; i++){
+      s = spots[i] || {};
+      k = (s.no === null || s.no === undefined) ? '' : String(s.no);
+      if(!k || m[k]) continue;                    /* 番号なし・二重は入れません */
+      o = {};
+      for(f in s){ if(Object.prototype.hasOwnProperty.call(s, f) && s[f] !== undefined) o[f] = s[f]; }
+      o.no = s.no;
+      o.type   = s.type   || '並';
+      o.tou    = s.tou    || '';
+      o.room   = (s.room === null || s.room === undefined) ? '' : s.room;
+      o.user   = s.user   || '';
+      o.price  = s.price  || 0;
+      o.status = s.status || '空';
+      o.note   = s.note   || '';
       m[k] = o;
-    });
+    }
     return m;
   }
+  function mapToSpots(m){
+    var a = [], k;
+    for(k in (m || {})){ if(Object.prototype.hasOwnProperty.call(m, k)) a.push(m[k]); }
+    a.sort(function(x, y){
+      var nx = parseFloat(x && x.no), ny = parseFloat(y && y.no);
+      var bx = !isNaN(nx), by = !isNaN(ny);
+      if(bx && by && nx !== ny) return nx - ny;
+      if(bx !== by) return bx ? -1 : 1;
+      return String((x && x.no) || '').localeCompare(String((y && y.no) || ''));
+    });
+    return a;
+  }
 
-  function docOf(b){
-    var d = {
-      id:    b.id || '',
-      name:  b.name || '',
-      addr:  b.addr || '',
-      spots: spotsToMap(b.spots)
-    };
-    if(b.layout_id)  d.layout_id  = b.layout_id;
-    if(b.layout2_id) d.layout2_id = b.layout2_id;
-    if(b.photo_ids)  d.photo_ids  = b.photo_ids;
-    if(b.mime)       d.mime       = b.mime;
+  var META = { rev:1, updatedAt:1, updatedBy:1, migratedAt:1 };
+
+  var _loaded = false;   /* この画面で Firestore から読み込めたか */
+
+  function toDoc(id, b){
+    var d = {}, f;
+    for(f in b){
+      if(!Object.prototype.hasOwnProperty.call(b, f)) continue;
+      if(f === 'spots' || META[f]) continue;
+      if(b[f] === undefined) continue;
+      d[f] = b[f];
+    }
+    d.id    = id;
+    d.name  = b.name || '';
+    d.addr  = b.addr || '';
+    d.spots = spotsToMap(b.spots);
     return d;
   }
-
-  function sig(o){ try{ return JSON.stringify(o); }catch(e){ return ''; } }
-
-  /* ---- 書き写し（変わった物件だけ） ---- */
-  var _timer = null, _busy = false;
-
-  function schedule(ms){
-    if(_timer) clearTimeout(_timer);
-    _timer = setTimeout(run, typeof ms === 'number' ? ms : 2500);
+  function fromDoc(d){
+    var b = {}, f;
+    for(f in d){
+      if(!Object.prototype.hasOwnProperty.call(d, f)) continue;
+      if(f === 'spots' || META[f]) continue;
+      b[f] = d[f];
+    }
+    b.spots = mapToSpots(d.spots);
+    return b;
   }
 
-  function run(){
-    if(_busy){ schedule(4000); return; }
-    if(!signedIn()){ return; }                     /* 未ログインなら何もしません */
-
-    var local, mirror;
-    try{ local = readLocal(); mirror = readMirror(); }catch(e){ return; }
-
-    var changed = [], removed = [];
-    Object.keys(local).forEach(function(id){
-      var b = local[id]; if(!b) return;
-      var d = docOf(b), s = sig(d);
-      if(mirror[id] !== s) changed.push({ id: id, doc: d, sig: s });
-    });
-    Object.keys(mirror).forEach(function(id){
-      if(!Object.prototype.hasOwnProperty.call(local, id)) removed.push(id);
-    });
-    if(!changed.length && !removed.length) return;
-
-    _busy = true;
-    var now = new Date().toISOString(), who = me();
-    var db = firebase.firestore();
-    var jobs = [], i, batch = db.batch(), n = 0;
-
-    function flush(){
-      if(n){ jobs.push(batch.commit()); batch = db.batch(); n = 0; }
-    }
-    for(i = 0; i < changed.length; i++){
-      var c = changed[i], d2 = {};
-      Object.keys(c.doc).forEach(function(k){ d2[k] = c.doc[k]; });
-      d2.updatedAt = now; d2.updatedBy = who; d2.shadow = true;
-      batch.set(col().doc(c.id), d2);
-      if(++n >= 400) flush();
-    }
-    for(i = 0; i < removed.length; i++){
-      batch.delete(col().doc(removed[i]));
-      if(++n >= 400) flush();
-    }
-    flush();
-
-    Promise.all(jobs).then(function(){
-      changed.forEach(function(c){ mirror[c.id] = c.sig; });
-      removed.forEach(function(id){ delete mirror[id]; });
-      writeMirror(mirror);
-      _busy = false;
-      try{
-        console.log('[store] Firestore に控えました　更新 ' + changed.length +
-                    '件 / 削除 ' + removed.length + '件');
-      }catch(e){}
+  /* ---------- Firestore から全物件を読む ---------- */
+  function readAll(){
+    return col().get().then(function(qs){
+      var b = {}, revs = {}, sigs = {};
+      qs.forEach(function(doc){
+        var d = doc.data() || {}, id = doc.id;
+        b[id]    = fromDoc(d);
+        revs[id] = d.rev || 0;
+        sigs[id] = sig(toDoc(id, b[id]));
+      });
+      return { buildings:b, revs:revs, sigs:sigs };
     }).catch(function(e){
-      _busy = false;
-      try{ console.warn('[store] 控えに失敗しました（実データには影響しません）:', e); }catch(e2){}
-      schedule(60000);                              /* 1分後にもう一度 */
+      try{ console.warn('[D] Firestore を読めませんでした', e); }catch(x){}
+      return null;
+    });
+  }
+  function count(o){ var n = 0, k; for(k in (o||{})) if(Object.prototype.hasOwnProperty.call(o,k)) n++; return n; }
+  function status(kind, msg){ try{ if(typeof setSyncStatus === 'function') setSyncStatus(kind, msg); }catch(e){} }
+
+  /* ============================================================
+   *  読み込み：Firestore の内容に差し替えます
+   * ============================================================ */
+  function onLoad(P, url, body, t){
+    var gas = Promise.resolve(P(url, body, t)).catch(function(e){ return { ok:false, message:String(e && e.message || e) }; });
+    return Promise.all([gas, readAll()]).then(function(a){
+      var r = a[0], fs = a[1];
+      if(!fs) return r;                                   /* Firestore が読めない → 従来どおり */
+      var n = count(fs.buildings);
+      if(n === 0) return r;                               /* 移行前 → 従来どおり */
+      if(!(r && r.ok && r.payload)) return r;             /* スプレッドシート側が失敗 → 触らない
+                                                             （契約・オーナーが空で返って消えるのを防ぐ） */
+      var localN = 0;
+      try{ localN = count((typeof pbLoadAll === 'function') ? pbLoadAll() : {}); }catch(e){}
+      if(localN >= 3 && n < localN * 0.5){                /* 安全装置：極端に少ない → 差し替えない */
+        status('error', '⚠️ 安全のため取り込みを止めました');
+        try{ console.warn('[D] Firestore の物件が手元より大幅に少ないため差し替えを中止 ' + n + ' < ' + localN); }catch(e){}
+        return r;
+      }
+      r.payload.buildings = fs.buildings;
+      r.buildingCount     = n;
+      _loaded = true;
+      /* uifix.js の「両方を残す」合体を止めます。
+         あれは消したものを足し戻すので、わざと消した区画が復活します。 */
+      try{ window.__fsPrimary = true; }catch(e){}
+      writeMap(revKey(), fs.revs);
+      writeMap(sigKey(), fs.sigs);
+      try{ console.log('[D] 読み込み：Firestore から物件 ' + n + ' 件'); }catch(e){}
+      return r;
     });
   }
 
-  /* ---- 保存のたびに控えます（元の動きはそのまま） ---- */
+  /* ============================================================
+   *  保存：変わった物件だけ。先を越されていたら止めます
+   * ============================================================ */
+  function plan(buildings){
+    var revs = readMap(revKey()), sigs = readMap(sigKey());
+    var changed = [], removed = [], id, d, s;
+    for(id in buildings){
+      if(!Object.prototype.hasOwnProperty.call(buildings, id)) continue;
+      d = toDoc(id, buildings[id]);
+      s = sig(d);
+      if(sigs[id] !== s) changed.push({ id:id, doc:d, sig:s, base:(revs[id] || 0), name:(d.name || id) });
+    }
+    var known = count(revs), here = count(buildings);
+    if(known >= 3 && here < known * 0.5){
+      /* 手元が極端に少ない＝読み込みが途中で止まった等。消す判断はしません。 */
+      try{ console.warn('[D] 手元の物件が少ないため、削除の判定を見送りました ' + here + ' < ' + known); }catch(e){}
+      return { changed:changed, removed:[] };
+    }
+    for(id in revs){
+      if(!Object.prototype.hasOwnProperty.call(revs, id)) continue;
+      if(!Object.prototype.hasOwnProperty.call(buildings, id)) removed.push({ id:id, base:(revs[id] || 0), name:id });
+    }
+    return { changed:changed, removed:removed };
+  }
+
+  /* 版番号の控えが無いまま保存すると、全物件が衝突扱いになってしまいます。
+     そうならないよう、先に Firestore を読んで土台を作ります。 */
+  function ensureBase(){
+    if(count(readMap(revKey())) > 0) return Promise.resolve(true);
+    return readAll().then(function(fs){
+      if(!fs) return false;
+      writeMap(revKey(), fs.revs);
+      writeMap(sigKey(), fs.sigs);
+      try{ console.log('[D] 版番号の土台を作りました（' + count(fs.revs) + ' 件）'); }catch(e){}
+      return true;
+    });
+  }
+
+  function commit(pl){
+    return db().runTransaction(function(tx){
+      var jobs = [], i, c, r;
+      for(i = 0; i < pl.changed.length; i++){
+        c = pl.changed[i];
+        jobs.push({ kind:'set', id:c.id, name:c.name, base:c.base, doc:c.doc, sig:c.sig, ref:col().doc(c.id) });
+      }
+      for(i = 0; i < pl.removed.length; i++){
+        r = pl.removed[i];
+        jobs.push({ kind:'del', id:r.id, name:r.name, base:r.base, ref:col().doc(r.id) });
+      }
+      var gets = [];
+      for(i = 0; i < jobs.length; i++) gets.push(tx.get(jobs[i].ref));
+      return Promise.all(gets).then(function(snaps){
+        var bad = [], j, cur, d;
+        for(j = 0; j < jobs.length; j++){
+          cur = snaps[j].exists ? ((snaps[j].data() || {}).rev || 0) : 0;
+          if(cur !== jobs[j].base){
+            bad.push({ name:jobs[j].name, by:(snaps[j].exists ? ((snaps[j].data() || {}).updatedBy || '') : '') });
+          }
+        }
+        if(bad.length){
+          var e = new Error('conflict'); e.__conflict = bad; throw e;
+        }
+        for(j = 0; j < jobs.length; j++){
+          if(jobs[j].kind === 'del'){ tx.delete(jobs[j].ref); continue; }
+          d = jobs[j].doc;
+          d.rev       = jobs[j].base + 1;
+          d.updatedAt = new Date().toISOString();
+          d.updatedBy = me() || '(名前なし)';
+          tx.set(jobs[j].ref, d);
+        }
+        return jobs;
+      });
+    });
+  }
+
+  function tellConflict(bad){
+    var names = [], i;
+    for(i = 0; i < bad.length && i < 5; i++) names.push('・' + bad[i].name + (bad[i].by ? '（' + bad[i].by + 'さんが保存）' : ''));
+    status('error', '⚠️ 他の人が先に保存しました（保存していません）');
+    var msg = 'ほかの人が先に保存したため、この内容は保存できませんでした。\n\n' +
+              names.join('\n') + (bad.length > 5 ? '\n・ほか ' + (bad.length - 5) + ' 件' : '') + '\n\n' +
+              'あなたの入力は、この端末に残っています。\n' +
+              '【OK】を押すと最新を読み込みます。そのあと、もう一度入力してください。';
+    var go = false;
+    try{ go = window.confirm(msg); }catch(e){ go = false; }
+    if(go){ try{ location.reload(); }catch(e){} }
+  }
+
+  function spotCount(bm){
+    var n = 0, id, s;
+    for(id in (bm || {})){
+      if(!Object.prototype.hasOwnProperty.call(bm, id)) continue;
+      s = bm[id] && bm[id].spots;
+      n += Array.isArray(s) ? s.length : count(s);
+    }
+    return n;
+  }
+
+  function onSave(P, url, body, t){
+    var bl = body && body.payload && body.payload.buildings;
+    if(!bl || typeof bl !== 'object') return P(url, body, t);   /* 形が違えば従来どおり */
+
+    if(_loaded){
+      return ensureBase().then(function(){ return saveNow(P, url, body, t, bl); })
+                         .catch(function(){ return P(url, body, t); });
+    }
+
+    /* ★ まだ一度も読み込んでいない状態での保存が、いちばん危ないところです。
+       古い内容を持ったままの端末が保存すると、
+       　・消した区画が復活する（9/5 に実際に起きたのはこれ）
+       　・他の人の修正が消える
+       のどちらも起こります。増える向きも減る向きも、どちらも危険です。
+       そこで「読み込む前に、中身が変わる保存」は一切通しません。 */
+    return readAll().then(function(fs){
+      if(!fs || count(fs.buildings) === 0) return P(url, body, t);   /* 移行前・通信不可 → 従来どおり */
+      writeMap(revKey(), fs.revs);
+      writeMap(sigKey(), fs.sigs);
+      var pl;
+      try{ pl = plan(bl); }catch(e){ pl = { changed:[], removed:[] }; }
+      if(!pl.changed.length && !pl.removed.length){
+        return saveNow(P, url, body, t, bl);        /* 中身が同じ → 通してよい */
+      }
+      var mine = spotCount(bl), cloud = spotCount(fs.buildings);
+      status('error', '⚠️ 最新を読み込む前だったので、保存を止めました');
+      try{ console.warn('[D] 読み込む前の保存を止めました 手元' + mine + '区画 / 最新' + cloud + '区画'); }catch(e){}
+      try{
+        window.alert('保存を止めました。\n\n' +
+                     'この端末は、まだ最新の内容を読み込んでいません。\n' +
+                     'このまま保存すると、消したはずの区画が復活したり、\n' +
+                     'ほかの人の入力が消えたりします。\n\n' +
+                     '（この端末 ' + mine + ' 区画 ／ 最新 ' + cloud + ' 区画）\n\n' +
+                     'ページを開き直してから、もう一度入力してください。');
+      }catch(e){}
+      return { ok:false, error:'not-loaded', message:'最新を読み込む前の保存を止めました' };
+    }).catch(function(){ return P(url, body, t); });
+  }
+
+  function saveNow(P, url, body, t, bl){
+    var pl;
+    try{ pl = plan(bl); }catch(e){ return P(url, body, t); }
+
+    /* たくさん消えるときだけ、念のため確認します */
+    if(pl.removed.length >= 20){
+      var okDel = true;
+      try{
+        okDel = window.confirm('この保存で ' + pl.removed.length + ' 件の物件が消えます。\n\n' +
+                               '本当に消してよろしいですか？\n（心当たりがなければ「キャンセル」を選んでください）');
+      }catch(e){ okDel = false; }
+      if(!okDel){
+        status('idle', '');
+        return Promise.resolve({ ok:false, message:'保存を取りやめました' });
+      }
+    }
+
+    var work = (pl.changed.length || pl.removed.length) ? commit(pl) : Promise.resolve([]);
+
+    return work.then(function(jobs){
+      var revs = readMap(revKey()), sigs = readMap(sigKey()), i;
+      for(i = 0; i < jobs.length; i++){
+        if(jobs[i].kind === 'del'){ delete revs[jobs[i].id]; delete sigs[jobs[i].id]; }
+        else { revs[jobs[i].id] = jobs[i].base + 1; sigs[jobs[i].id] = jobs[i].sig; }
+      }
+      writeMap(revKey(), revs); writeMap(sigKey(), sigs);
+      try{
+        console.log('[D] 保存：更新 ' + pl.changed.length + ' 件 / 削除 ' + pl.removed.length + ' 件');
+      }catch(e){}
+      return readAll();
+    }).then(function(fs){
+      /* スプレッドシートへは Firestore の内容を送ります（両者が必ず一致します） */
+      if(fs && count(fs.buildings) > 0){
+        body.payload.buildings = fs.buildings;
+        writeMap(revKey(), fs.revs);
+        writeMap(sigKey(), fs.sigs);
+      }
+      return P(url, body, t);
+    }).catch(function(e){
+      if(e && e.__conflict){
+        tellConflict(e.__conflict);
+        return { ok:false, error:'conflict', message:'他の人が先に保存しました' };
+      }
+      status('error', '⚠️ 保存できませんでした');
+      try{
+        window.alert('保存できませんでした。\n\n' +
+                     '入力した内容はこの端末に残っています。\n' +
+                     'ネットにつながっているか確認して、もう一度お試しください。\n\n' +
+                     '（' + (e && e.message ? e.message : e) + '）');
+      }catch(x){}
+      return { ok:false, error:String(e && e.message || e) };
+    });
+  }
+
+  /* ---------- 出入口を包みます ---------- */
   try{
-    var S = window.saveAll;
-    if(typeof S === 'function'){
-      window.saveAll = function(){
-        var r = S.apply(this, arguments);
-        try{ schedule(); }catch(e){}
-        return r;
+    var P0 = window.postToGas;
+    if(typeof P0 === 'function'){
+      window.postToGas = function(url, body, timeoutMs){
+        var act = body && body.action;
+        if(act === 'load') return onLoad(P0, url, body, timeoutMs);
+        if(act === 'save') return onSave(P0, url, body, timeoutMs);
+        return P0(url, body, timeoutMs);
       };
     }
   }catch(e){}
 
-  try{
-    var P = window.pbSaveRaw;
-    if(typeof P === 'function'){
-      window.pbSaveRaw = function(){
-        var r = P.apply(this, arguments);
-        try{ schedule(); }catch(e){}
-        return r;
-      };
+  /* ============================================================
+   *  だれが開いているか（◯◯さんも開いています）
+   * ============================================================ */
+  (function(){
+    var idKey = pfx() + 'device_id';
+    var myId = '';
+    try{
+      myId = localStorage.getItem(idKey) || '';
+      if(!myId){ myId = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); localStorage.setItem(idKey, myId); }
+    }catch(e){ myId = 'd' + Math.random().toString(36).slice(2, 9); }
+
+    function pcol(){ return db().collection(INS).doc('presence').collection('devices'); }
+
+    function beat(){
+      try{
+        if(!firebase.auth().currentUser) return;
+        if(document.hidden) return;
+        pcol().doc(myId).set({ name:(me() || '(名前なし)'), at:Date.now() }).catch(function(){});
+      }catch(e){}
     }
-  }catch(e){}
 
-  /* ---- ログインしたとき／起動したときにも1回 ---- */
+    function show(list){
+      try{
+        var id = 'pv-others-bar', el = document.getElementById(id);
+        if(!list.length){ if(el && el.parentNode) el.parentNode.removeChild(el); return; }
+        if(!el){
+          el = document.createElement('div');
+          el.id = id;
+          el.style.cssText =
+            'position:fixed;left:0;right:0;top:0;z-index:99998;background:#1d4ed8;color:#fff;' +
+            'font-weight:700;font-size:13px;padding:6px 14px;text-align:center;letter-spacing:.2px';
+          document.body.appendChild(el);
+        }
+        el.textContent = '👥 ' + list.join('　') + ' も開いています（同時に編集できます）';
+      }catch(e){}
+    }
+
+    function watch(){
+      try{
+        if(!firebase.auth().currentUser) return;
+        pcol().onSnapshot(function(qs){
+          var now = Date.now(), list = [];
+          qs.forEach(function(d){
+            if(d.id === myId) return;
+            var v = d.data() || {};
+            if(now - (v.at || 0) < 120000) list.push(v.name || '(名前なし)');
+          });
+          show(list);
+        }, function(){});
+      }catch(e){}
+    }
+
+    try{ firebase.auth().onAuthStateChanged(function(u){ if(u){ beat(); setTimeout(watch, 600); } }); }catch(e){}
+    try{ setInterval(beat, 60000); }catch(e){}
+    try{ document.addEventListener('visibilitychange', function(){ if(!document.hidden) beat(); }); }catch(e){}
+  })();
+
+  /* ---------- 確認用 ---------- */
   try{
-    firebase.auth().onAuthStateChanged(function(u){ if(u) schedule(6000); });
+    window.__d1Info = function(){
+      return { instance:INS, device:(me() || '(名前なし)'),
+               rev:readMap(revKey()), buildings:count(readMap(revKey())) };
+    };
+    window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  /* 手で確かめたいとき用（開発者ツールから __fsMirrorNow() ） */
-  try{ window.__fsMirrorNow = function(){ _busy = false; run(); return '控えを試みました'; }; }catch(e){}
+  try{ console.log('[D] store.js v4 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
