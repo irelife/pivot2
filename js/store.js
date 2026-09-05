@@ -109,6 +109,13 @@
 
   var _loaded = false;   /* この画面で Firestore から読み込めたか */
 
+  /* ㊹ 古い画面のまま使っている端末を見つけます。
+     Firestore の config/<instance> に  minStore: 12  のように書いておくと、
+     それより古い版で開いている端末は、赤い帯を出して保存を止めます。
+     「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
+  var STORE_VER = 12;
+  var _tooOld = false;
+
   function toDoc(id, b){
     var d = {}, f;
     for(f in b){
@@ -1017,12 +1024,160 @@
   }catch(e){}
   try{ window.__pvHistory = showHistory; window.__pvTrash = showTrash; window.__pvRestore = restoreTrash; }catch(e){}
 
+
+  /* ============================================================
+   *  ㊺ 他の端末の変更を、開いたまま静かに取り込みます
+   *
+   *  1分おきに Firestore を見て、他の端末が直した物件だけを
+   *  そっと最新にします。次の場合は何もしません（じゃまをしないため）。
+   *    ・入力中（どこかの欄にカーソルがある）
+   *    ・編集画面（モーダル）が開いている
+   *    ・まだ保存していない直しが手元にある
+   *    ・画面を見ていない（別のタブ）
+   * ============================================================ */
+  (function(){
+
+    function busy(){
+      try{
+        if(document.hidden) return true;
+        var a = document.activeElement;
+        if(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName || '')) return true;
+        if(typeof _hasUnsavedChanges !== 'undefined' && _hasUnsavedChanges) return true;
+        if(typeof _autoPushInFlight  !== 'undefined' && _autoPushInFlight)  return true;
+        var m = document.querySelectorAll('.modal, .overlay, .sheet, [id*="modal"], [class*="modal"]');
+        for(var i = 0; i < m.length; i++){
+          if(m[i].offsetParent !== null && m[i].getBoundingClientRect().height > 40) return true;
+        }
+      }catch(e){ return true; }
+      return false;
+    }
+
+    function toast(n){
+      try{
+        var id = 'pv-sync-toast', el = document.getElementById(id);
+        if(!el){
+          el = document.createElement('div');
+          el.id = id;
+          el.style.cssText =
+            'position:fixed;right:10px;bottom:44px;z-index:99997;background:rgba(22,101,52,.94);' +
+            'color:#fff;font-weight:700;font-size:12px;padding:7px 13px;border-radius:16px;' +
+            'box-shadow:0 2px 8px rgba(0,0,0,.25);pointer-events:none';
+          document.body.appendChild(el);
+        }
+        el.textContent = '🔄 ' + n + ' 件の物件を最新にしました';
+        el.style.opacity = '1';
+        setTimeout(function(){ try{ el.style.transition = 'opacity .6s'; el.style.opacity = '0'; }catch(e){} }, 4000);
+      }catch(e){}
+    }
+
+    function quietSync(){
+      if(!_loaded || _tooOld || busy()) return;
+      try{ if(!firebase.auth().currentUser) return; }catch(e){ return; }
+
+      readAll().then(function(fs){
+        if(!fs || count(fs.buildings) === 0) return;
+        if(busy()) return;                       /* 読んでいる間に触りはじめたら、やめます */
+
+        var mine = {};
+        try{ mine = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : {}; }catch(e){ return; }
+        var base = readMap(sigKey());
+        var out = {}, id, changed = 0, mySig;
+
+        for(id in mine){ if(Object.prototype.hasOwnProperty.call(mine, id)) out[id] = mine[id]; }
+
+        for(id in fs.buildings){
+          if(!Object.prototype.hasOwnProperty.call(fs.buildings, id)) continue;
+          if(Object.prototype.hasOwnProperty.call(mine, id)){
+            try{ mySig = sig(toDoc(id, mine[id])); }catch(e){ continue; }
+            if(mySig !== base[id]) continue;                 /* 手元に未保存の直しがある → 触りません */
+            if(mySig === fs.sigs[id]) continue;              /* 同じ内容 */
+          }
+          out[id] = fs.buildings[id];
+          changed++;
+        }
+        for(id in mine){
+          if(!Object.prototype.hasOwnProperty.call(mine, id)) continue;
+          if(Object.prototype.hasOwnProperty.call(fs.buildings, id)) continue;
+          if(base[id] === undefined) continue;               /* 元から知らない物件 → 触りません */
+          try{ mySig = sig(toDoc(id, mine[id])); }catch(e){ continue; }
+          if(mySig !== base[id]) continue;                   /* 手元で直しかけ → 触りません */
+          delete out[id];                                    /* 他の端末で消された */
+          changed++;
+        }
+
+        if(!changed) return;
+        if(busy()) return;
+
+        try{ if(typeof pbSaveRaw === 'function') pbSaveRaw(out); }catch(e){ return; }
+        writeMap(revKey(), fs.revs);
+        writeMap(sigKey(), fs.sigs);
+        try{ if(typeof requestRender === 'function') requestRender('buildings'); }catch(e){}
+        try{ console.log('[S] 他の端末の変更を取り込みました（' + changed + ' 件）'); }catch(e){}
+        toast(changed);
+      }).catch(function(){});
+    }
+
+    try{ setInterval(quietSync, 60000); }catch(e){}
+    try{ document.addEventListener('visibilitychange', function(){ if(!document.hidden) setTimeout(quietSync, 1500); }); }catch(e){}
+    try{ window.__pvSyncNow = quietSync; }catch(e){}
+  })();
+
+  /* ---------- 古い画面かどうかを確かめます ---------- */
+  function oldBar(){
+    try{
+      var id = 'pv-oldver-bar', el = document.getElementById(id);
+      if(!_tooOld){ if(el && el.parentNode){ el.parentNode.removeChild(el); document.body.style.paddingTop = ''; } return; }
+      if(!el){
+        el = document.createElement('div');
+        el.id = id;
+        el.style.cssText =
+          'position:fixed;left:0;right:0;top:0;z-index:100001;background:#b91c1c;color:#fff;' +
+          'font-weight:800;font-size:14px;padding:10px 14px;text-align:center;cursor:pointer;' +
+          'box-shadow:0 2px 8px rgba(0,0,0,.3)';
+        el.onclick = function(){ try{ location.reload(true); }catch(e){ location.reload(); } };
+        document.body.appendChild(el);
+        try{ document.body.style.paddingTop = '40px'; }catch(e){}
+      }
+      el.textContent = '⚠️ この画面は古い版です。保存できません。ここを押して開き直してください。';
+    }catch(e){}
+  }
+
+  function checkVer(){
+    try{
+      if(!firebase.auth().currentUser) return;
+      db().collection('config').doc(INS).get().then(function(d){
+        var need = 0;
+        try{ need = Number((d.exists && d.data() && d.data().minStore) || 0) || 0; }catch(e){ need = 0; }
+        var old = (need > 0 && STORE_VER < need);
+        if(old !== _tooOld){
+          _tooOld = old;
+          oldBar();
+          try{ console.warn('[V] この画面の版 ' + STORE_VER + ' ／ 必要な版 ' + need +
+                            ' → ' + (old ? '★古いので保存を止めます' : 'OK')); }catch(e){}
+        }
+      }).catch(function(){});
+    }catch(e){}
+  }
+  try{ firebase.auth().onAuthStateChanged(function(u){ if(u) setTimeout(checkVer, 1200); }); }catch(e){}
+  try{ setTimeout(checkVer, 3000); }catch(e){}
+  try{ setInterval(checkVer, 10 * 60 * 1000); }catch(e){}
+  try{ window.__pvCheckVer = checkVer; }catch(e){}
+
   /* ---------- 出入口を包みます ---------- */
   try{
     var P0 = window.postToGas;
     if(typeof P0 === 'function'){
       window.postToGas = function(url, body, timeoutMs){
         var act = body && body.action;
+        if(_tooOld && (act === 'save' || act === 'uploadImage' || act === 'deleteImage' || act === 'deleteContract')){
+          status('error', '⚠️ この画面は古い版です（保存しませんでした）');
+          try{
+            window.alert('この画面は古い版のままです。\n\n' +
+                         'そのまま保存すると、直したはずの内容が元に戻ることがあります。\n' +
+                         'ページを開き直してから、もう一度お願いします。');
+          }catch(e){}
+          return Promise.resolve({ ok:false, error:'old-version', message:'古い画面のため保存しませんでした' });
+        }
         if(act === 'load') return onLoad(P0, url, body, timeoutMs);
         if(act === 'save') return onSave(P0, url, body, timeoutMs);
         return P0(url, body, timeoutMs);
@@ -1100,5 +1255,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v11 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v12 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
