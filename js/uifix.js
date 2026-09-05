@@ -778,6 +778,11 @@
 
   window.pbSaveRaw = function(incoming){
     var mine, m;
+    /* ★ Firestore が「正」のときは、この合体をしません。
+       合体は「消えたものを足し戻す」動きなので、
+       わざと消した区画まで復活させてしまいます（9/5 に実際に起きました）。
+       Firestore では版番号で追い越しを見つけるので、合体は不要です。 */
+    if(window.__fsPrimary) return writeThrough(incoming);
     /* 取り込みでなければ、そのまま保存します */
     if(_hookedPost){
       var sig0 = null;
@@ -861,6 +866,10 @@
     try{ window.pvMissingFromLocal = function(){ return []; }; }catch(e){}
 
     window.postToGas = function(url, body, timeoutMs){
+      /* ★ Firestore が「正」のときは、足し合わせずにそのまま送ります */
+      if(window.__fsPrimary && body && body.action === 'save'){
+        return ORIG_POST(url, body, timeoutMs);
+      }
       /* 送信でなければ素通り。ただし読み込みの結果は覚えておきます */
       if(!body || body.action !== 'save'){
         var p = ORIG_POST(url, body, timeoutMs);
