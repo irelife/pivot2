@@ -32,6 +32,12 @@
   function col(){ return db().collection(INS).doc('data').collection('buildings'); }
   function revKey(){ return pfx() + 'fs_rev';  }   /* 物件ごとの版番号 */
   function ctKey2(){ return pfx() + 'last_ct'; }   /* 最後に見た 契約／オーナー の件数 */
+  function myCtKey(){ return pfx() + 'contract_kanban_v2'; }            /* この端末の契約 */
+  function myOwKey(){ return pfx() + 'rent_owner_send_owners_v1'; }     /* この端末のオーナー */
+  function readRaw(k, dflt){
+    try{ var v = JSON.parse(localStorage.getItem(k) || 'null'); return (v === null) ? dflt : v; }
+    catch(e){ return dflt; }
+  }
   function sigKey(){ return pfx() + 'fs_sig';  }   /* 物件ごとの中身の指紋 */
 
   function me(){
@@ -169,6 +175,37 @@
       r.payload.buildings = fs.buildings;
       r.buildingCount     = n;
       _loaded = true;
+
+      /* ★ 読み込み側の守り。
+         通信が一瞬こけて「契約0件」が返ってくることがあります。
+         そのまま取り込むと、この端末の契約表示が全部消えます
+         （クラウドは保存側で守っていますが、画面が空になるのは困ります）。
+         大きく減って届いたときは、この端末の内容をそのまま使います。 */
+      try{
+        var lastN = readMap(ctKey2());
+        var inCt  = (r.payload.contracts && typeof r.payload.contracts === 'object') ? count(r.payload.contracts) : -1;
+        var inOw  = Array.isArray(r.payload.owners) ? r.payload.owners.length : -1;
+        var kept  = '';
+        if(lastN.ct >= 3 && inCt >= 0 && inCt < lastN.ct * 0.5){
+          var mine = readRaw(myCtKey(), null);
+          if(mine && typeof mine === 'object' && count(mine) > inCt){
+            r.payload.contracts = mine;
+            kept += '　契約　　： 届いた ' + inCt + ' 件 → この端末の ' + count(mine) + ' 件を使いました\n';
+          }
+        }
+        if(lastN.ow >= 3 && inOw >= 0 && inOw < lastN.ow * 0.5){
+          var mo = readRaw(myOwKey(), null);
+          if(Array.isArray(mo) && mo.length > inOw){
+            r.payload.owners = mo;
+            kept += '　オーナー： 届いた ' + inOw + ' 件 → この端末の ' + mo.length + ' 件を使いました\n';
+          }
+        }
+        if(kept){
+          status('error', '⚠️ 届いた契約が少なかったので、この端末の内容を残しました');
+          try{ console.warn('[D] 少ない契約／オーナーが届いたので取り込みを見送りました\n' + kept); }catch(e){}
+        }
+      }catch(e){}
+
       try{
         var pc = r.payload.contracts, po = r.payload.owners;
         var nc = (pc && typeof pc === 'object') ? count(pc) : -1;
@@ -488,5 +525,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v7 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v8 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
