@@ -31,6 +31,7 @@
   function db(){ return firebase.firestore(); }
   function col(){ return db().collection(INS).doc('data').collection('buildings'); }
   function revKey(){ return pfx() + 'fs_rev';  }   /* 物件ごとの版番号 */
+  function ctKey2(){ return pfx() + 'last_ct'; }   /* 最後に見た 契約／オーナー の件数 */
   function sigKey(){ return pfx() + 'fs_sig';  }   /* 物件ごとの中身の指紋 */
 
   function me(){
@@ -168,6 +169,12 @@
       r.payload.buildings = fs.buildings;
       r.buildingCount     = n;
       _loaded = true;
+      try{
+        var pc = r.payload.contracts, po = r.payload.owners;
+        var nc = (pc && typeof pc === 'object') ? count(pc) : -1;
+        var no = Array.isArray(po) ? po.length : -1;
+        if(nc >= 0 || no >= 0) writeMap(ctKey2(), { ct:nc, ow:no, at:Date.now() });
+      }catch(e){}
       /* uifix.js の「両方を残す」合体を止めます。
          あれは消したものを足し戻すので、わざと消した区画が復活します。 */
       try{ window.__fsPrimary = true; }catch(e){}
@@ -276,9 +283,38 @@
     return n;
   }
 
+  /* 契約・オーナーが激減する保存を止めます。
+     物件・区画は版番号で守っていますが、契約とオーナーは素通しでした。
+     契約を持っていない端末が保存すると、クラウドの契約が全部消えます
+     （9/5 に実際に起きました）。 */
+  function keepsContracts(body){
+    var last = readMap(ctKey2());
+    var pay  = (body && body.payload) || {};
+    var nc = (pay.contracts && typeof pay.contracts === 'object') ? count(pay.contracts) : -1;
+    var no = Array.isArray(pay.owners) ? pay.owners.length : -1;
+    var msg = '';
+    if(last.ct >= 3 && nc >= 0 && nc < last.ct * 0.5) msg += '　契約　　： ' + last.ct + ' 件 → ' + nc + ' 件\n';
+    if(last.ow >= 3 && no >= 0 && no < last.ow * 0.5) msg += '　オーナー： ' + last.ow + ' 件 → ' + no + ' 件\n';
+    if(!msg) return '';
+    return msg;
+  }
+
   function onSave(P, url, body, t){
     var bl = body && body.payload && body.payload.buildings;
     if(!bl || typeof bl !== 'object') return P(url, body, t);   /* 形が違えば従来どおり */
+
+    var lost = keepsContracts(body);
+    if(lost){
+      status('error', '⚠️ 契約が大きく減る保存を止めました');
+      try{ console.warn('[D] 契約／オーナーが激減する保存を止めました\n' + lost); }catch(e){}
+      try{
+        window.alert('保存を止めました。\n\n' +
+                     'この保存で、次のものが大きく減ります。\n\n' + lost + '\n' +
+                     'この端末が古い内容を持っている可能性があります。\n' +
+                     'ページを開き直して、最新を読み込んでください。');
+      }catch(e){}
+      return Promise.resolve({ ok:false, error:'contracts-drop', message:'契約が大きく減る保存を止めました' });
+    }
 
     if(_loaded){
       return ensureBase().then(function(){ return saveNow(P, url, body, t, bl); })
@@ -452,5 +488,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v6 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v7 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
