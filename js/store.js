@@ -158,8 +158,8 @@
    * ============================================================ */
   function onLoad(P, url, body, t){
     var gas = Promise.resolve(P(url, body, t)).catch(function(e){ return { ok:false, message:String(e && e.message || e) }; });
-    return Promise.all([gas, readAll()]).then(function(a){
-      var r = a[0], fs = a[1];
+    return Promise.all([gas, readAll(), readCts(), readOws()]).then(function(a){
+      var r = a[0], fs = a[1], cts = a[2], ows = a[3];
       if(!fs) return r;                                   /* Firestore が読めない → 従来どおり */
       var n = count(fs.buildings);
       if(n === 0) return r;                               /* 移行前 → 従来どおり */
@@ -175,6 +175,48 @@
       r.payload.buildings = fs.buildings;
       r.buildingCount     = n;
       _loaded = true;
+
+      /* ㊸ 契約・オーナーも Firestore を正にします */
+      var after = [];
+      try{
+        var inCt = (r.payload.contracts && typeof r.payload.contracts === 'object') ? count(r.payload.contracts) : 0;
+        if(cts){
+          var cn = count(cts.map);
+          if(cn === 0 && inCt >= 3){
+            after.push(seedCts(r.payload.contracts).then(function(okk){
+              if(!okk) return;
+              return readCts().then(function(c2){
+                if(c2){ writeMap(ctRevK(), c2.revs); writeMap(ctSigK(), c2.sigs); }
+              });
+            }));
+          }else if(cn > 0){
+            if(inCt >= 3 && cn < inCt * 0.5){
+              status('error', '⚠️ 契約が少なかったので取り込みを止めました');
+              try{ console.warn('[E] Firestore の契約が少ないため差し替え中止 ' + cn + ' < ' + inCt); }catch(e){}
+            }else{
+              r.payload.contracts = cts.map;
+              writeMap(ctRevK(), cts.revs); writeMap(ctSigK(), cts.sigs);
+              try{ console.log('[E] 読み込み：Firestore から契約 ' + cn + ' 件'); }catch(e){}
+            }
+          }
+        }
+        var inOw = Array.isArray(r.payload.owners) ? r.payload.owners.length : 0;
+        if(ows){
+          if(!ows.list && inOw >= 3){
+            after.push(seedOws(r.payload.owners).then(function(okk){
+              if(okk) writeMap(owRevK(), { rev:1, sig:sig(r.payload.owners) });
+            }));
+          }else if(ows.list && ows.list.length){
+            if(inOw >= 3 && ows.list.length < inOw * 0.5){
+              status('error', '⚠️ オーナーが少なかったので取り込みを止めました');
+            }else{
+              r.payload.owners = ows.list;
+              writeMap(owRevK(), { rev:ows.rev, sig:sig(ows.list) });
+              try{ console.log('[E] 読み込み：Firestore からオーナー ' + ows.list.length + ' 件'); }catch(e){}
+            }
+          }
+        }
+      }catch(e){}
 
       /* ★ 読み込み側の守り。
          通信が一瞬こけて「契約0件」が返ってくることがあります。
@@ -218,6 +260,7 @@
       writeMap(revKey(), fs.revs);
       writeMap(sigKey(), fs.sigs);
       try{ console.log('[D] 読み込み：Firestore から物件 ' + n + ' 件'); }catch(e){}
+      if(after.length) return Promise.all(after).then(function(){ return r; }).catch(function(){ return r; });
       return r;
     });
   }
@@ -419,7 +462,11 @@
         console.log('[D] 保存：更新 ' + pl.changed.length + ' 件 / 削除 ' + pl.removed.length + ' 件');
       }catch(e){}
       try{ writeLog(jobs); }catch(e){}
-      return readAll();
+      return saveCtOw(body).then(function(){ return readAll(); }, function(e){
+        if(e && (e.__conflict || e.__cancel)) throw e;
+        try{ console.warn('[E] 契約・オーナーの保存でつまずきました', e); }catch(x){}
+        return readAll();
+      });
     }).then(function(fs){
       /* スプレッドシートへは Firestore の内容を送ります（両者が必ず一致します） */
       if(fs && count(fs.buildings) > 0){
@@ -429,6 +476,10 @@
       }
       return P(url, body, t);
     }).catch(function(e){
+      if(e && e.__cancel){
+        status('idle', '');
+        return { ok:false, message:'保存を取りやめました' };
+      }
       if(e && e.__conflict){
         tellConflict(e.__conflict);
         return { ok:false, error:'conflict', message:'他の人が先に保存しました' };
@@ -444,6 +495,214 @@
     });
   }
 
+
+
+  /* ============================================================
+   *  ㊸ 契約・オーナーも Firestore へ（第1段-E）
+   *
+   *  契約　　： 1件ずつ別々に保存します（物件と同じ考え方）。
+   *            版番号で追い越しを見つけ、他の人の入力を消しません。
+   *  オーナー： 111件をひとまとめで1件として保存します。
+   *            並び順に意味があるので、まとめて扱います。
+   *
+   *  はじめて動いたときに、いまスプレッドシートにある内容を
+   *  そのまま Firestore へ写します（1回だけ・自動）。
+   * ============================================================ */
+
+  function ctCol(){ return db().collection(INS).doc('data').collection('contracts'); }
+  function owRef(){ return db().collection(INS).doc('data').collection('misc').doc('owners'); }
+  function ctRevK(){ return pfx() + 'fs_ct_rev'; }
+  function ctSigK(){ return pfx() + 'fs_ct_sig'; }
+  function owRevK(){ return pfx() + 'fs_ow_rev'; }
+
+  var CMETA = { rev:1, updatedAt2:1, updatedBy2:1 };
+  function ctDoc(id, c){
+    var d = {}, f;
+    for(f in c){
+      if(!Object.prototype.hasOwnProperty.call(c, f) || CMETA[f] || c[f] === undefined) continue;
+      d[f] = c[f];
+    }
+    d.id = id;
+    return d;
+  }
+  function ctFrom(d){
+    var c = {}, f;
+    for(f in d){
+      if(!Object.prototype.hasOwnProperty.call(d, f) || CMETA[f]) continue;
+      c[f] = d[f];
+    }
+    return c;
+  }
+
+  function readCts(){
+    try{
+    return ctCol().get().then(function(qs){
+      var m = {}, revs = {}, sigs = {};
+      qs.forEach(function(doc){
+        var d = doc.data() || {}, id = doc.id;
+        m[id]    = ctFrom(d);
+        revs[id] = d.rev || 0;
+        sigs[id] = sig(ctDoc(id, m[id]));
+      });
+      return { map:m, revs:revs, sigs:sigs };
+    }).catch(function(){ return null; });
+    }catch(e){ return Promise.resolve(null); }
+  }
+  function readOws(){
+    try{
+    return owRef().get().then(function(d){
+      if(!d.exists) return { list:null, rev:0 };
+      var v = d.data() || {};
+      return { list:(Array.isArray(v.list) ? v.list : null), rev:(v.rev || 0) };
+    }).catch(function(){ return null; });
+    }catch(e){ return Promise.resolve(null); }
+  }
+
+  /* はじめの1回だけ、いまの内容を Firestore へ写します */
+  function seedCts(map){
+    var ids = [], k;
+    for(k in map){ if(Object.prototype.hasOwnProperty.call(map, k)) ids.push(k); }
+    if(ids.length < 3) return Promise.resolve(false);
+    var batch = db().batch(), at = new Date().toISOString(), i, d;
+    for(i = 0; i < ids.length && i < 450; i++){
+      d = ctDoc(ids[i], map[ids[i]]);
+      d.rev = 1; d.updatedAt2 = at; d.updatedBy2 = (me() || '(名前なし)') + '（移行）';
+      batch.set(ctCol().doc(ids[i]), d);
+    }
+    return batch.commit().then(function(){
+      try{ console.log('[E] 契約 ' + Math.min(ids.length,450) + ' 件を Firestore に写しました'); }catch(e){}
+      return true;
+    }).catch(function(e){
+      try{ console.warn('[E] 契約の移行に失敗', e); }catch(x){}
+      return false;
+    });
+  }
+  function seedOws(list){
+    if(!Array.isArray(list) || list.length < 3) return Promise.resolve(false);
+    return owRef().set({ list:list, rev:1, updatedAt2:new Date().toISOString(),
+                         updatedBy2:(me() || '(名前なし)') + '（移行）' }).then(function(){
+      try{ console.log('[E] オーナー ' + list.length + ' 件を Firestore に写しました'); }catch(e){}
+      return true;
+    }).catch(function(){ return false; });
+  }
+
+  /* 契約の書き込み（版番号で追い越しを見つけます） */
+  function commitCts(pl){
+    return db().runTransaction(function(tx){
+      var jobs = [], i, c;
+      for(i = 0; i < pl.changed.length; i++){
+        c = pl.changed[i];
+        jobs.push({ kind:'set', id:c.id, base:c.base, doc:c.doc, sig:c.sig, ref:ctCol().doc(c.id), label:c.label });
+      }
+      for(i = 0; i < pl.removed.length; i++){
+        jobs.push({ kind:'del', id:pl.removed[i].id, base:pl.removed[i].base, ref:ctCol().doc(pl.removed[i].id), label:pl.removed[i].label });
+      }
+      var gets = [];
+      for(i = 0; i < jobs.length; i++) gets.push(tx.get(jobs[i].ref));
+      return Promise.all(gets).then(function(snaps){
+        var bad = [], j, cur, d;
+        for(j = 0; j < jobs.length; j++){
+          jobs[j].prev = snaps[j].exists ? (snaps[j].data() || null) : null;
+          cur = snaps[j].exists ? ((snaps[j].data() || {}).rev || 0) : 0;
+          if(cur !== jobs[j].base) bad.push({ name:jobs[j].label, by:(jobs[j].prev && jobs[j].prev.updatedBy2) || '' });
+        }
+        if(bad.length){ var e = new Error('conflict'); e.__conflict = bad; throw e; }
+        for(j = 0; j < jobs.length; j++){
+          if(jobs[j].kind === 'del'){ tx.delete(jobs[j].ref); continue; }
+          d = jobs[j].doc;
+          d.rev = jobs[j].base + 1;
+          d.updatedAt2 = new Date().toISOString();
+          d.updatedBy2 = me() || '(名前なし)';
+          tx.set(jobs[j].ref, d);
+        }
+        return jobs;
+      });
+    });
+  }
+
+  function planCts(map){
+    var revs = readMap(ctRevK()), sigs = readMap(ctSigK());
+    var changed = [], removed = [], id, d, s;
+    for(id in map){
+      if(!Object.prototype.hasOwnProperty.call(map, id)) continue;
+      d = ctDoc(id, map[id]); s = sig(d);
+      if(sigs[id] !== s){
+        changed.push({ id:id, doc:d, sig:s, base:(revs[id] || 0),
+                       label:((map[id] && (map[id].property || '')) + ' ' + (map[id] && (map[id].room || '')) + ' ' +
+                              (map[id] && (map[id].contractor || ''))).trim() || id });
+      }
+    }
+    var known = count(revs), here = count(map);
+    if(known >= 3 && here < known * 0.5){
+      try{ console.warn('[E] 手元の契約が少ないため、削除の判定を見送りました ' + here + ' < ' + known); }catch(e){}
+      return { changed:changed, removed:[] };
+    }
+    for(id in revs){
+      if(!Object.prototype.hasOwnProperty.call(revs, id)) continue;
+      if(!Object.prototype.hasOwnProperty.call(map, id)) removed.push({ id:id, base:(revs[id] || 0), label:id });
+    }
+    return { changed:changed, removed:removed };
+  }
+
+  /* 契約・オーナーを保存します（物件の保存が通ったあとに呼びます） */
+  function saveCtOw(body){
+    try{ if(!(window.firebase && firebase.firestore)) return Promise.resolve(null); }catch(e){ return Promise.resolve(null); }
+    var pay = (body && body.payload) || {};
+    var map = (pay.contracts && typeof pay.contracts === 'object') ? pay.contracts : null;
+    var list = Array.isArray(pay.owners) ? pay.owners : null;
+    /* 契約が1件も入っていない保存では、契約には一切さわりません。
+       （空で届いたときに全部消してしまうのを防ぎます） */
+    if(map && count(map) === 0) map = null;
+    if(list && !list.length) list = null;
+    var jobs = [];
+
+    var stepC = !map ? Promise.resolve(null) : (function(){
+      var pl;
+      try{ pl = planCts(map); }catch(e){ return Promise.resolve([]); }
+      if(!pl.changed.length && !pl.removed.length) return Promise.resolve([]);
+      if(pl.removed.length >= 20){
+        var okDel = true;
+        try{
+          okDel = window.confirm('この保存で 契約 ' + pl.removed.length + ' 件が消えます。\n\n本当に消してよろしいですか？');
+        }catch(e){ okDel = false; }
+        if(!okDel){ var e2 = new Error('cancel'); e2.__cancel = true; return Promise.reject(e2); }
+      }
+      return commitCts(pl).then(function(js){
+        var revs = readMap(ctRevK()), sigs = readMap(ctSigK()), i;
+        for(i = 0; i < js.length; i++){
+          if(js[i].kind === 'del'){ delete revs[js[i].id]; delete sigs[js[i].id]; }
+          else { revs[js[i].id] = js[i].base + 1; sigs[js[i].id] = js[i].sig; }
+        }
+        writeMap(ctRevK(), revs); writeMap(ctSigK(), sigs);
+        try{ console.log('[E] 契約：更新 ' + pl.changed.length + ' 件 / 削除 ' + pl.removed.length + ' 件'); }catch(e){}
+        jobs = js;
+        return js;
+      });
+    })();
+
+    return stepC.then(function(){
+      if(!list) return null;
+      var base = readMap(owRevK());
+      var cur = sig(list);
+      if(base.sig === cur) return null;                    /* 変わっていない */
+      return db().runTransaction(function(tx){
+        return tx.get(owRef()).then(function(sn){
+          var now = sn.exists ? (sn.data() || {}) : null;
+          var rv = now ? (now.rev || 0) : 0;
+          if(base.rev !== undefined && rv !== (base.rev || 0)){
+            var e = new Error('conflict'); e.__conflict = [{ name:'オーナー一覧', by:(now && now.updatedBy2) || '' }]; throw e;
+          }
+          tx.set(owRef(), { list:list, rev:rv + 1, updatedAt2:new Date().toISOString(),
+                            updatedBy2:(me() || '(名前なし)') });
+          return rv + 1;
+        });
+      }).then(function(rv){
+        writeMap(owRevK(), { rev:rv, sig:cur });
+        try{ console.log('[E] オーナー ' + list.length + ' 件を保存しました'); }catch(e){}
+        return rv;
+      });
+    }).then(function(){ return jobs; });
+  }
 
   /* ============================================================
    *  ㊷ 変更履歴 と ごみ箱（30日）
@@ -787,5 +1046,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v9 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v10 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
