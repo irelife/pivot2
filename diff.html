@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PIVOT　いつ何が増えたか調べる</title>
+<style>
+body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;background:#f2f3f5;margin:0;padding:18px;color:#1a1a1a}
+.box{max-width:900px;margin:0 auto;background:#fff;border-radius:12px;padding:20px 22px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+h1{font-size:20px;margin:0 0 6px}
+.sub{color:#777;font-size:13px;margin-bottom:14px}
+.note{border:2px solid #111;border-radius:8px;padding:12px 14px;font-size:13.5px;line-height:1.9;margin-bottom:14px}
+button{font:inherit;font-weight:800;font-size:15px;padding:11px 20px;border-radius:8px;border:2px solid #111;background:#111;color:#fff;cursor:pointer;margin:4px 6px 4px 0}
+button.day{background:#fff;color:#111}
+pre{background:#fafafa;border:1px solid #ddd;border-radius:8px;padding:14px;font-size:12.5px;line-height:1.7;white-space:pre-wrap;word-break:break-all;margin-top:14px;max-height:70vh;overflow:auto}
+</style>
+</head>
+<body>
+<div class="box">
+<h1>いつ何が増えたか調べます</h1>
+<div class="sub" id="inst"></div>
+<div class="note">
+<b>このページは読むだけです。</b>　スプレッドシートにも Firestore にも一切書き込みません。<br>
+スプレッドシートに残っている<b>その日の最初の保存の直前の控え</b>と、いまの内容を1件ずつ比べます。
+</div>
+<button id="go">控えの一覧を出す</button>
+<div id="days"></div>
+<pre id="log">ボタンを押してください。</pre>
+</div>
+<script>
+function insPrefix(){
+  try{
+    var seg=(location.pathname||'').split('/').filter(function(s){return s;});
+    var n=seg.length?seg[seg.length-1]:'';
+    if(/\.html?$/i.test(n)) n=seg.length>1?seg[seg.length-2]:'';
+    return n?(n+'_'):'pivot_';
+  }catch(e){ return 'pivot_'; }
+}
+var INS=insPrefix().replace(/_+$/,'')||'pivot';
+document.getElementById('inst').textContent='インスタンス： '+INS;
+var logEl=document.getElementById('log');
+function log(s){ logEl.textContent+='\n'+s; }
+function clr(){ logEl.textContent=''; }
+function gasUrl(){ return (localStorage.getItem(INS+'_cloud_url')||'').trim(); }
+function v(x){ return (x===null||x===undefined)?'':String(x); }
+async function post(b){
+  var u=gasUrl();
+  if(!u) throw new Error('この端末に GAS の URL がありません。先に PIVOT を開いてログインしてください。');
+  var res=await fetch(u,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(b),redirect:'follow'});
+  var t=await res.text();
+  try{ return JSON.parse(t); }catch(e){ throw new Error('GASの応答が不正: '+t.slice(0,200)); }
+}
+function mapOf(p){
+  var out={},b=(p&&p.buildings)||{},id;
+  for(id in b){
+    var x=b[id],m={};
+    (x.spots||[]).forEach(function(s){
+      var k=(s&&s.no!=null)?String(s.no):'';
+      if(!k||m[k])return; m[k]=s;
+    });
+    out[id]={name:(x&&x.name)||id,spots:m};
+  }
+  return out;
+}
+function total(o){ var n=0,id; for(id in o) n+=Object.keys(o[id].spots).length; return n; }
+
+document.getElementById('go').onclick=async function(){
+  this.disabled=true;
+  try{
+    clr(); log('控えの一覧を取っています…');
+    var r=await post({action:'listBackups'});
+    if(!(r&&r.ok&&r.days&&r.days.length)) throw new Error('控えがありません');
+    clr(); log('比べたい日を選んでください（その日の最初の保存の直前の状態です）');
+    var box=document.getElementById('days'); box.innerHTML='';
+    r.days.forEach(function(d){
+      var b=document.createElement('button');
+      b.className='day'; b.textContent=d;
+      b.onclick=function(){ run(d); };
+      box.appendChild(b);
+    });
+  }catch(e){ log(''); log('❌ '+(e&&e.message?e.message:e)); }
+  this.disabled=false;
+};
+
+async function run(day){
+  try{
+    clr(); log(day+' の控えと、いまの内容を比べています…');
+    var a=await post({action:'loadBackup',day:day});
+    if(!(a&&a.ok&&a.payload)) throw new Error('控えを読めませんでした');
+    var b=await post({action:'load'});
+    if(!(b&&b.ok&&b.payload)) throw new Error('いまの内容を読めませんでした');
+    var A=mapOf(a.payload), B=mapOf(b.payload);
+    var addS=[],delS=[],addB=[],delB=[],id,k;
+    for(id in B){
+      if(!A[id]){ addB.push(B[id].name+'（区画 '+Object.keys(B[id].spots).length+' 件）'); continue; }
+      for(k in B[id].spots){
+        if(!A[id].spots[k]){
+          var s=B[id].spots[k];
+          addS.push('＋ '+B[id].name+'　区画 '+k+'　号室:'+(v(s.room)||'-')+'　使用者:'+(v(s.user)||'(空欄)')+'　料金:'+v(s.price)+'　状態:'+v(s.status));
+        }
+      }
+      for(k in A[id].spots){ if(!B[id].spots[k]) delS.push('－ '+A[id].name+'　区画 '+k+'（消えました）'); }
+    }
+    for(id in A){ if(!B[id]) delB.push(A[id].name+'（区画 '+Object.keys(A[id].spots).length+' 件）'); }
+    clr();
+    log('　控え（'+day+'）　物件 '+Object.keys(A).length+' 件 / 区画 '+total(A)+' 件');
+    log('　いま　　　　　　物件 '+Object.keys(B).length+' 件 / 区画 '+total(B)+' 件');
+    log('');
+    log('■ 増えた区画　'+addS.length+' 件');
+    if(addS.length){ addS.forEach(function(s){ log('   '+s); }); } else { log('   ありません'); }
+    log('');
+    log('■ 消えた区画　'+delS.length+' 件');
+    if(delS.length){ delS.forEach(function(s){ log('   '+s); }); } else { log('   ありません'); }
+    log('');
+    log('■ 増えた物件　'+addB.length+' 件');
+    if(addB.length){ addB.forEach(function(s){ log('   ＋ '+s); }); } else { log('   ありません'); }
+    log('');
+    log('■ 消えた物件　'+delB.length+' 件');
+    if(delB.length){ delB.forEach(function(s){ log('   － '+s); }); } else { log('   ありません'); }
+  }catch(e){ log(''); log('❌ '+(e&&e.message?e.message:e)); }
+}
+</script>
+</body>
+</html>
