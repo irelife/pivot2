@@ -67,8 +67,26 @@
     for(j = 0; j < ks.length; j++) o[ks[j]] = canon(x[ks[j]]);
     return o;
   }
+  /* 指紋。以前は中身の文字そのものを控えていましたが、
+     それだと物件・契約の「もう1部のコピー」を端末に置くのと同じで、
+     iPhone の保存できる量（およそ5MB）をすぐに使い切っていました。
+     いまは短い符号（20文字ほど）だけを控えます。中身は同じだけ見分けられます。 */
+  function hash32(str, seed){
+    var h = seed >>> 0, i;
+    for(i = 0; i < str.length; i++){
+      h ^= str.charCodeAt(i);
+      h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+    }
+    return h >>> 0;
+  }
   function sig(x){
-    try{ return JSON.stringify(canon(x)); }catch(e){ return String(Math.random()); }
+    var t;
+    try{ t = JSON.stringify(canon(x)); }catch(e){ return 'r' + Math.random(); }
+    if(t === undefined) t = '';
+    /* 別々の数え方を2つ重ねます（たまたま同じ符号になるのを防ぐため） */
+    return t.length.toString(36) + '.' +
+           hash32(t, 2166136261).toString(36) + '.' +
+           hash32(t, 5381).toString(36);
   }
 
   /* ---------- 区画：配列 ⇔ 番号キーの一覧 ---------- */
@@ -113,7 +131,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 12;
+  var STORE_VER = 13;
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -182,6 +200,11 @@
       r.payload.buildings = fs.buildings;
       r.buildingCount     = n;
       _loaded = true;
+
+      /* 版番号・指紋の控えを、いま読んだ Firestore の中身にそろえます。
+         （そろえておかないと、次の保存で「全部が変わった」と誤解します） */
+      writeMap(revKey(), fs.revs);
+      writeMap(sigKey(), fs.sigs);
 
       /* ㊸ 契約・オーナーも Firestore を正にします */
       var after = [];
@@ -493,10 +516,16 @@
       }
       status('error', '⚠️ 保存できませんでした');
       try{
-        window.alert('保存できませんでした。\n\n' +
-                     '入力した内容はこの端末に残っています。\n' +
-                     'ネットにつながっているか確認して、もう一度お試しください。\n\n' +
-                     '（' + (e && e.message ? e.message : e) + '）');
+        if(isQuota(e)){
+          var m = quotaMsg();
+          tidy();                                   /* 消しても困らない控えを片付けます */
+          window.alert('保存できませんでした。\n\n' + m);
+        }else{
+          window.alert('保存できませんでした。\n\n' +
+                       '入力した内容はこの端末に残っています。\n' +
+                       'ネットにつながっているか確認して、もう一度お試しください。\n\n' +
+                       '（' + (e && e.message ? e.message : e) + '）');
+        }
       }catch(x){}
       return { ok:false, error:String(e && e.message || e) };
     });
@@ -1246,6 +1275,83 @@
     try{ document.addEventListener('visibilitychange', function(){ if(!document.hidden) beat(); }); }catch(e){}
   })();
 
+  /* ============================================================
+   *  ㊻ この端末の置き場（localStorage）のお掃除
+   *
+   *  iPhone / Safari は「この端末に残しておける量」に上限があります
+   *  （おおむね 5MB）。しかも irelife.github.io の中にある
+   *  PIVOT2・PIVOT3・入居チェックは、その置き場を一緒に使います。
+   *  いっぱいになると保存のときに「Quota exceeded.（量が上限を超えました）」
+   *  と出て、保存できません。
+   *  ここでは、何がどれだけ使っているかを見られるようにし、
+   *  いっぱいのときは、消しても困らない控えを片付けます。
+   * ============================================================ */
+  function lsList(){
+    var out = [], i, k, v, tot = 0;
+    try{
+      for(i = 0; i < localStorage.length; i++){
+        k = localStorage.key(i);
+        v = localStorage.getItem(k);
+        if(v === null) v = '';
+        out.push({ key:k, chars:(k.length + v.length) });
+        tot += (k.length + v.length);
+      }
+    }catch(e){}
+    out.sort(function(a, b){ return b.chars - a.chars; });
+    return { list:out, total:tot };
+  }
+  function kb(chars){ return (chars * 2 / 1024).toFixed(0) + 'KB'; }
+
+  /* 消しても困らないもの（また作り直されるもの）を片付けます。
+     物件・区画・契約・オーナーには、いっさい手を触れません。 */
+  var TIDY_SUFFIX = [
+    'emergency_backup',                 /* 起動のたびに作り直される控え */
+    'rent_owner_send_detail_v1',        /* 家賃明細の仕分け（PDFを入れ直せば作り直せます） */
+    'rent_owner_send_history_v1'        /* 送信履歴（送ったメールそのものは消えません） */
+  ];
+  function tidy(){
+    var freed = 0, hit = [], r = lsList(), i, j, k;
+    for(i = 0; i < r.list.length; i++){
+      k = r.list[i].key;
+      for(j = 0; j < TIDY_SUFFIX.length; j++){
+        if(k.length >= TIDY_SUFFIX[j].length &&
+           k.slice(-TIDY_SUFFIX[j].length) === TIDY_SUFFIX[j]){
+          try{ localStorage.removeItem(k); freed += r.list[i].chars; hit.push(k); }catch(e){}
+          break;
+        }
+      }
+    }
+    try{ if(hit.length) console.log('[F] 置き場のお掃除：' + hit.length + ' 件 / ' + kb(freed) + ' 分あけました', hit); }catch(e){}
+    return { freed:freed, keys:hit };
+  }
+
+  /* 上限にぶつかったときの言い方 */
+  function isQuota(e){
+    var m = String((e && (e.message || e.name)) || e || '');
+    return /quota|exceeded|QUOTA_EXCEEDED|NS_ERROR_DOM_QUOTA/i.test(m);
+  }
+  function quotaMsg(){
+    var r = lsList(), top = [], i;
+    for(i = 0; i < r.list.length && i < 5; i++) top.push('  ・' + r.list[i].key + '  ' + kb(r.list[i].chars));
+    return 'この端末に残しておける量（おおむね5MB）がいっぱいです。\n' +
+           'いまの使用量は およそ ' + kb(r.total) + ' です。\n\n' +
+           '多いものから5つ：\n' + top.join('\n') + '\n\n' +
+           '入力した内容は消えていません。\n' +
+           '「閉じる」を押したあと、もう一度 保存を押してください（自動で場所をあけました）。';
+  }
+
+  try{
+    window.__pvStorage = function(){
+      var r = lsList(), i;
+      try{ console.log('置き場ぜんぶで およそ ' + kb(r.total)); }catch(e){}
+      for(i = 0; i < r.list.length; i++){
+        try{ console.log('  ' + kb(r.list[i].chars) + '  ' + r.list[i].key); }catch(e){}
+      }
+      return r;
+    };
+    window.__pvTidy = function(){ var t = tidy(); try{ window.alert('およそ ' + kb(t.freed) + ' 分あけました。'); }catch(e){} return t; };
+  }catch(e){}
+
   /* ---------- 確認用 ---------- */
   try{
     window.__d1Info = function(){
@@ -1255,5 +1361,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v12 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v13 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
