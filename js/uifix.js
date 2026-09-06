@@ -1699,16 +1699,17 @@
     if(!user) return;
     _tried = true;
 
-    user.getIdToken().then(function(tok){
-      var api = 'https://firestore.googleapis.com/v1/projects/' + pid +
-                '/databases/(default)/documents/config/' + encodeURIComponent(insName());
-      return fetch(api, { headers: { Authorization: 'Bearer ' + tok } });
-    }).then(function(res){
-      if(!res || !res.ok) throw new Error('not ok');
-      return res.json();
-    }).then(function(j){
+    /* ★ v26：REST（fetch で直接呼ぶやり方）をやめました。
+       API キーを付けずに呼ぶと回数制限にかかりやすく、
+       2026/09/06 に「429 Too Many Requests」が出つづけました。
+       store.js は同じ config/インスタンス名 を、読み込み済みの部品ごしに
+       問題なく読めています。こちらに揃えます。 */
+    Promise.resolve().then(function(){
+      if(!(window.firebase && firebase.firestore)) throw new Error('no sdk');
+      return firebase.firestore().collection('config').doc(insName()).get();
+    }).then(function(d){
       var v = '';
-      try{ v = (j.fields && j.fields.gasUrl && j.fields.gasUrl.stringValue) || ''; }catch(e){}
+      try{ v = (d && d.exists && d.data() && d.data().gasUrl) || ''; }catch(e){}
       v = String(v).trim();
       /* GAS 以外のあて先は受け付けません */
       if(!/^https:\/\/script\.google\.com\/macros\/s\/[^\/]+\/exec/.test(v)) return;
