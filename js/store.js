@@ -131,7 +131,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 15;
+  var STORE_VER = 16;
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -1147,7 +1147,15 @@
       }).catch(function(){});
     }
 
-    try{ setInterval(quietSync, 60000); }catch(e){}
+    /* ★ v16：60秒ごと → 5分ごとにしました。
+       これまでは1分ごとに全物件（67件）を読み直していました。
+       1台で8時間使うと約32,000回。3台なら1日10万回近くになり、
+       Firestore の無料枠（1日5万回）を大きく超えます。
+       実際 2026/09/06 に「429 Too Many Requests」が出はじめました。
+       5分ごとなら1台あたり1日6,400回程度で収まります。
+       ほかの端末の直しに気づくのが最大5分遅れますが、
+       保存のときの衝突検知は別のしくみなので、安全性は変わりません。 */
+    try{ setInterval(quietSync, 300000); }catch(e){}
     try{ document.addEventListener('visibilitychange', function(){ if(!document.hidden) setTimeout(quietSync, 1500); }); }catch(e){}
     try{ window.__pvSyncNow = quietSync; }catch(e){}
   })();
@@ -1449,5 +1457,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v15 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v16 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
