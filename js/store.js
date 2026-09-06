@@ -131,7 +131,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 17;
+  var STORE_VER = 18;
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -517,7 +517,10 @@
       }
       status('error', '⚠️ 保存できませんでした');
       try{
-        if(isQuota(e)){
+        if(isCloudQuota(e)){
+          status('error', '⚠️ クラウドの1日の回数を使い切りました');
+          window.alert('保存できませんでした。\n\n' + cloudMsg());
+        }else if(isLocalQuota(e)){
           var m = quotaMsg();
           tidy();                                   /* 消しても困らない控えを片付けます */
           window.alert('保存できませんでした。\n\n' + m);
@@ -1427,9 +1430,49 @@
   }
 
   /* 上限にぶつかったときの言い方 */
-  function isQuota(e){
-    var m = String((e && (e.message || e.name)) || e || '');
-    return /quota|exceeded|QUOTA_EXCEEDED|NS_ERROR_DOM_QUOTA/i.test(m);
+  /* ★ v18：ここを取り違えていました。
+     Firestore が1日の無料枠を使い切ったときも「Quota exceeded」と言ってきます。
+     それを「端末の置き場がいっぱい」と読み違え、
+     端末を掃除しても直らない、という遠回りをしていました（2026/09/06）。
+     いまは、どちらなのかをはっきり見分けます。 */
+
+  /* Firestore 側の使いすぎ（1日の無料枠切れ・混みすぎ） */
+  function isCloudQuota(e){
+    var code = '';
+    var name = '';
+    var msg  = '';
+    try{ code = String((e && e.code) || ''); }catch(x){}
+    try{ name = String((e && e.name) || ''); }catch(x){}
+    try{ msg  = String((e && e.message) || ''); }catch(x){}
+    if(code === 'resource-exhausted') return true;
+    if(/FirebaseError/i.test(name) && /quota|exhaust|429|too many/i.test(msg + code)) return true;
+    return /resource-exhausted|too many requests|\b429\b/i.test(msg);
+  }
+
+  /* この端末の置き場がいっぱい（localStorage） */
+  function isLocalQuota(e){
+    var name = '', msg = '', code = '';
+    try{ name = String((e && e.name) || ''); }catch(x){}
+    try{ msg  = String((e && e.message) || ''); }catch(x){}
+    try{ code = String((e && e.code) || ''); }catch(x){}
+    if(isCloudQuota(e)) return false;                       /* クラウド側なら、ここでは無い */
+    if(/QuotaExceededError|NS_ERROR_DOM_QUOTA/i.test(name)) return true;
+    if(code === '22' || code === '1014') return true;
+    /* 名前が取れないときは、実際に書けるか試して決めます */
+    if(/quota|exceeded/i.test(msg)) return !canWrite();
+    return false;
+  }
+
+  function cloudMsg(){
+    return 'クラウド（Firestore）の、1日に読み書きできる回数を使い切りました。\n\n' +
+           '端末やデータの故障ではありません。入力した内容も消えていません。\n\n' +
+           '【どうなるか】\n' +
+           '　・回数は毎日 夕方4時ごろ（日本時間）に元に戻ります\n' +
+           '　・それまでは、この画面の保存はクラウドまで届きません\n\n' +
+           '【どうすれば】\n' +
+           '　・急ぎでなければ、夕方4時すぎにもう一度 保存してください\n' +
+           '　・毎日この時間に出るようなら、無料枠が足りていません。\n' +
+           '　　Firebase の料金プランを見直す必要があります（担当者へご連絡ください）';
   }
   /* いま何KBまでなら書けるかを、実際に試して測ります。
      上限が何MBかはブラウザによって違うので、推測ではなく実測します。 */
@@ -1469,5 +1512,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v17 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v18 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
