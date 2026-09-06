@@ -3659,21 +3659,15 @@ function saveBld(){
     _modalDirty = false;  // 保存できたので未保存状態を解除
     showToast(wasNew ? '✅ 新規登録しました' : '✅ 編集を保存しました');
     showSaveToast(wasNew ? '✅ 新規登録しました' : '✅ 保存しました');
+    // 保存したら、新規でも編集でも閉じて物件一覧に戻る
+    closeModal();
     if(wasNew){
-      // 新規登録時のみ閉じて一覧に戻る
-      closeModal();
       // 検索ボックスもクリア(二重入力防止用に入っていた値を消す)
+      // ※編集のときは、絞り込んだ一覧にそのまま戻れるようクリアしない
       const searchEl = document.getElementById('search');
       if(searchEl) searchEl.value = '';
-      renderAll();
-    } else {
-      // 編集時はモーダルを開いたまま、currentEditIdを保持して再ロード
-      // 物件名のタイトルだけ更新(他のフォーム値はそのまま)
-      const titleEl = document.getElementById('modal-title');
-      if(titleEl) titleEl.textContent = '物件編集: ' + (name || '');
-      // 一覧画面の方も裏で更新しておく(モーダル閉じた時に最新が見える)
-      renderAll();
     }
+    renderAll();
   }
 }
 
