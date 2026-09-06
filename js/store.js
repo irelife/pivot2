@@ -131,7 +131,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 16;
+  var STORE_VER = 17;
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -1321,7 +1321,7 @@
   ];
   /* 名前が日付で変わるもの。日ごとの控え（1件686KB）と、戻す前の控え。
      どちらも Firestore・ドライブ・スプレッドシートに同じものがあります。 */
-  var TIDY_RE = /(_snap_\d{8}|_prerestore_backup)$/;
+  var TIDY_RE = /(_snap_\d{8}|_prerestore_backup|_fs_mirror)$/;
   function tidy(){
     var freed = 0, hit = [], r = lsList(), i, j, k;
     for(i = 0; i < r.list.length; i++){
@@ -1352,14 +1352,19 @@
   var TIDY_MARK = 1200000;                    /* 文字数。iPhone では およそ2.4MB にあたります */
   var SOFT_KEYS = ['emergency_backup'];       /* 消しても、次に開いたときに作り直されるもの */
   /* 先回りのお掃除では、日ごとの控えも対象にします（1件686KBあるため） */
-  var SOFT_RE   = /(_snap_\d{8}|_prerestore_backup)$/;
+  /* _fs_mirror は、いちばん最初の store.js が使っていた控えです。
+     いまの版はまったく使いません（432KB＋303KB のまま残っていました）。 */
+  var SOFT_RE   = /(_snap_\d{8}|_prerestore_backup|_fs_mirror)$/;
 
   /* いま、これだけの大きさを書き込めるか、実際に試してみます。
      上限が何MBかはブラウザによって違い、数え方（文字か、バイトか）も違います。
      数字で見積もるより、試して確かめるほうが確実です。
      書けたらすぐ消すので、置き場は増えません。 */
+  /* 実際に書きこむものは、物件で 337KB、契約で 273KB あります。
+     60KB で試しても「書ける」と出てしまい、本番でぶつかっていました。
+     余裕をみて 500KB で試します。 */
   function canWrite(chars){
-    var k = '__pv_probe', n = chars || 60000, ok2 = false;
+    var k = '__pv_probe', n = chars || 250000, ok2 = false;
     try{
       localStorage.setItem(k, new Array(n + 1).join('x'));
       ok2 = true;
@@ -1393,7 +1398,7 @@
       /* 「大きくなってきた」か「もう書けない」かのどちらかで動きます。
          後者があるので、上限が何MBの端末でも取りこぼしません。 */
       var big  = (r.total >= TIDY_MARK);
-      var full = !canWrite(60000);
+      var full = !canWrite();
       if(!big && !full){
         try{ console.log('[F] 置き場 ' + kb(r.total) + '（' + where + '）'); }catch(e){}
         return false;
@@ -1405,7 +1410,7 @@
                      kb(freed) + ' 分を先に片付けました（いま ' + kb(after.total) + '）／' + where);
       }catch(e){}
       /* 片付けても、まだ書けないときは、保存が止まる前に知らせます */
-      if(!canWrite(60000)){
+      if(!canWrite()){
         status('error', '⚠️ この端末の置き場がいっぱいです');
         try{ console.warn('[F] 片付けても足りません（' + kb(after.total) + '）。__pvStorage() で内訳を見てください'); }catch(e){}
         try{
@@ -1426,11 +1431,18 @@
     var m = String((e && (e.message || e.name)) || e || '');
     return /quota|exceeded|QUOTA_EXCEEDED|NS_ERROR_DOM_QUOTA/i.test(m);
   }
+  /* いま何KBまでなら書けるかを、実際に試して測ります。
+     上限が何MBかはブラウザによって違うので、推測ではなく実測します。 */
+  function roomLeft(){
+    var sizes = [1000000, 500000, 250000, 100000, 50000, 20000, 5000], i;
+    for(i = 0; i < sizes.length; i++){ if(canWrite(sizes[i])) return kb(sizes[i]) + ' 以上'; }
+    return '5KB 未満';
+  }
   function quotaMsg(){
     var r = lsList(), top = [], i;
     for(i = 0; i < r.list.length && i < 5; i++) top.push('  ・' + r.list[i].key + '  ' + kb(r.list[i].chars));
-    return 'この端末に残しておける量（おおむね5MB）がいっぱいです。\n' +
-           'いまの使用量は およそ ' + kb(r.total) + ' です。\n\n' +
+    return 'この端末に残しておける量がいっぱいです。\n' +
+           'いまの使用量は およそ ' + kb(r.total) + ' ／ あと書けるのは ' + roomLeft() + ' です。\n\n' +
            '多いものから5つ：\n' + top.join('\n') + '\n\n' +
            '入力した内容は消えていません。\n' +
            '「閉じる」を押したあと、もう一度 保存を押してください（自動で場所をあけました）。';
@@ -1457,5 +1469,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v16 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v17 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
