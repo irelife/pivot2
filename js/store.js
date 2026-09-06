@@ -131,7 +131,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 14;
+  var STORE_VER = 15;
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -1311,10 +1311,17 @@
     'rent_owner_send_detail_v1',        /* 家賃明細の仕分け（PDFを入れ直せば作り直せます） */
     'rent_owner_send_history_v1'        /* 送信履歴（送ったメールそのものは消えません） */
   ];
+  /* 名前が日付で変わるもの。日ごとの控え（1件686KB）と、戻す前の控え。
+     どちらも Firestore・ドライブ・スプレッドシートに同じものがあります。 */
+  var TIDY_RE = /(_snap_\d{8}|_prerestore_backup)$/;
   function tidy(){
     var freed = 0, hit = [], r = lsList(), i, j, k;
     for(i = 0; i < r.list.length; i++){
       k = r.list[i].key;
+      if(TIDY_RE.test(k)){
+        try{ localStorage.removeItem(k); freed += r.list[i].chars; hit.push(k); }catch(e){}
+        continue;
+      }
       for(j = 0; j < TIDY_SUFFIX.length; j++){
         if(k.length >= TIDY_SUFFIX[j].length &&
            k.slice(-TIDY_SUFFIX[j].length) === TIDY_SUFFIX[j]){
@@ -1336,6 +1343,8 @@
      物件・区画・契約・オーナー、送信履歴、明細の仕分けには手を触れません。 */
   var TIDY_MARK = 1200000;                    /* 文字数。iPhone では およそ2.4MB にあたります */
   var SOFT_KEYS = ['emergency_backup'];       /* 消しても、次に開いたときに作り直されるもの */
+  /* 先回りのお掃除では、日ごとの控えも対象にします（1件686KBあるため） */
+  var SOFT_RE   = /(_snap_\d{8}|_prerestore_backup)$/;
 
   /* いま、これだけの大きさを書き込めるか、実際に試してみます。
      上限が何MBかはブラウザによって違い、数え方（文字か、バイトか）も違います。
@@ -1355,6 +1364,10 @@
     var r = lsList(), freed = 0, i, j, k;
     for(i = 0; i < r.list.length; i++){
       k = r.list[i].key;
+      if(SOFT_RE.test(k)){
+        try{ localStorage.removeItem(k); freed += r.list[i].chars; }catch(e){}
+        continue;
+      }
       for(j = 0; j < SOFT_KEYS.length; j++){
         if(k.length >= SOFT_KEYS[j].length && k.slice(-SOFT_KEYS[j].length) === SOFT_KEYS[j]){
           try{ localStorage.removeItem(k); freed += r.list[i].chars; }catch(e){}
@@ -1436,5 +1449,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v14 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v15 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
