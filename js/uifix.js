@@ -1403,7 +1403,33 @@
     else menu.appendChild(btn);
   }
 
-  function boot(){ keepToday(); addPickButton(); }
+  /* ★ v25：この「日ごとの控え」は、もう作りません。
+     1日分で 686KB あり、5日分ためると 3.4MB。
+     iPhone / Safari が 1つのサイトに使える量（およそ5MB）を、
+     これだけで食いつぶし、保存そのものができなくなっていました。
+     （2026/09/06 に実機で 6531KB まで膨れ、保存が止まりました）
+
+     同じ役割のものが、もっと安全な場所に3つあります。
+       ・Firestore の「変更履歴」と「ごみ箱」（30日）
+       ・Google ドライブの日次バックアップ（30日）
+       ・スプレッドシートのバックアップシート（20枚）
+     端末の中に4つ目を置く必要はありません。
+
+     すでに溜まっているものは、ここで片付けます。 */
+  function purgeSnaps(){
+    var kill = [], i, k;
+    try{
+      for(i = 0; i < localStorage.length; i++){
+        k = localStorage.key(i);
+        if(!k) continue;
+        if(/_snap_\d{8}$/.test(k) || /_prerestore_backup$/.test(k)) kill.push(k);
+      }
+      for(i = 0; i < kill.length; i++){ try{ localStorage.removeItem(kill[i]); }catch(e){} }
+      if(kill.length){ try{ console.warn('[uifix] 端末の中の古い控えを ' + kill.length + ' 件片付けました', kill); }catch(e){} }
+    }catch(e){}
+  }
+
+  function boot(){ purgeSnaps(); }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();
