@@ -28,6 +28,54 @@ IREライフ株式会社でございます。
 IREライフ株式会社
 infoirelife@gmail.com
 ─────────────────`;
+/* ============================================================
+ *  敬称（御中／様）の自動判定
+ *
+ *  「株式会社」などの目印があれば 会社 とみなして「御中」、
+ *  無ければ 個人 とみなして「様」にします。
+ *  すでに「〇〇株式会社 田中 一郎 様」のように担当者名が入っている宛名は、
+ *  こちらで勝手に書き換えません。
+ * ============================================================ */
+const KEISHO_CORP = /(株式会社|有限会社|合同会社|合資会社|合名会社|一般社団法人|一般財団法人|公益社団法人|公益財団法人|社会医療法人|医療法人|社会福祉法人|学校法人|宗教法人|特定非営利活動法人|NPO法人|ＮＰＯ法人|独立行政法人|\(株\)|（株）|\(有\)|（有）|\(同\)|（同）|㈱|㈲|協同組合|事業協同組合|信用金庫|信用組合|農業協同組合|銀行|Ｃｏ\.|Co\.|Ltd|Inc|LLC|LLP|Corp|K\.K\.)/i;
+
+window.pvIsCorp = function(name){
+  const s = String(name || "").normalize("NFKC").replace(/[\s\u3000]/g, "");
+  return KEISHO_CORP.test(s);
+};
+window.pvKeisho = function(name){ return window.pvIsCorp(name) ? "御中" : "様"; };
+
+/* 宛名が空なら作り、「名前＋御中」だけの個人あて宛名なら「名前＋様」に直します。 */
+window.pvFixAtena = function(name, atena){
+  const n = String(name  == null ? "" : name ).trim();
+  const a = String(atena == null ? "" : atena).trim();
+  if(!n) return a;
+  if(!a) return n + " " + window.pvKeisho(n);
+  if(window.pvIsCorp(n)) return a;                                  /* 会社は触りません */
+  const bare = a.replace(/[\s\u3000]*(御中|様)[\s\u3000]*$/, "").trim();
+  if(bare !== n) return a;                                          /* 担当者名などが入っている → 触りません */
+  return n + " 様";
+};
+
+/* 収支報告書（PDF）から読み取った宛名。
+   個人あてなのに「御中」になっていたら「様」に直します。
+   「〇〇株式会社 御中 田中 一郎 様」のように担当者名が入っているものは、そのままにします。 */
+window.pvFixAtenaText = function(a){
+  const t = String(a == null ? "" : a).trim();
+  if(!t) return t;
+  if(!/御中[\s\u3000]*$/.test(t)) return t;                    /* 「御中」で終わっていない → 触りません */
+  const bare = t.replace(/[\s\u3000]*御中[\s\u3000]*$/, "").trim();
+  if(!bare || /(御中|様)/.test(bare)) return t;                 /* 担当者名つき → 触りません */
+  if(window.pvIsCorp(bare)) return t;                          /* 会社 → 御中のまま */
+  return bare + " 様";
+};
+
+/* 一覧をまとめて直します（読み込んだ直後に1回通します） */
+function fixKeishoAll(list){
+  if(!Array.isArray(list)) return list;
+  list.forEach(o => { if(o && typeof o === "object") o.atena = window.pvFixAtena(o.name, o.atena); });
+  return list;
+}
+
 let owners = loadOwners();
 let tmpl = loadTmpl();
 let detail = [];      // オーナー別にまとめた明細(取込結果)
@@ -37,8 +85,8 @@ let yearMap = {};        // オーナー名(norm) -> { pages:[ページ番号配
 let sentSet = new Set();   // 送信済みオーナーのindex(帯を青く表示)
  
 function loadOwners(){
-  try{ const s=JSON.parse(localStorage.getItem(LS_OWNERS)); if(Array.isArray(s)&&s.length) return s; }catch(e){}
-  return JSON.parse(JSON.stringify(OWNER_SEED));
+  try{ const s=JSON.parse(localStorage.getItem(LS_OWNERS)); if(Array.isArray(s)&&s.length) return fixKeishoAll(s); }catch(e){}
+  return fixKeishoAll(JSON.parse(JSON.stringify(OWNER_SEED)));
 }
 function saveOwners(){ localStorage.setItem(LS_OWNERS, JSON.stringify(owners)); if(typeof scheduleAutoPush==='function'){ try{ scheduleAutoPush(); }catch(e){} } try{ if(typeof window.pushFeatureToCloud==='function'){ window.pushFeatureToCloud('owners'); } }catch(e){} }
 /* クラウドから取得した owners をローカルへ反映し、画面を更新する */
@@ -46,13 +94,14 @@ window.applyCloudOwners = function(cloudOwners){
   if(!Array.isArray(cloudOwners)) return;        // キー無し → 触らない(既存を守る)
   if(cloudOwners.length === 0) return;            // 空配列 → 触らない(誤消し防止)
   try{
+    fixKeishoAll(cloudOwners);
     localStorage.setItem(LS_OWNERS, JSON.stringify(cloudOwners));
     owners = cloudOwners;
     if(typeof renderOwners === 'function') renderOwners();
   }catch(e){}
 };
 function resetOwners(){ if(!confirm("オーナー一覧を初期データに戻します。手入力の変更は失われます。よろしいですか?"))return;
-  owners=JSON.parse(JSON.stringify(OWNER_SEED)); saveOwners(); renderOwners(); toast("初期データに戻しました"); }
+  owners=fixKeishoAll(JSON.parse(JSON.stringify(OWNER_SEED))); saveOwners(); renderOwners(); toast("初期データに戻しました"); }
 function loadTmpl(){
   try{
     const s=JSON.parse(localStorage.getItem(LS_TMPL));
@@ -382,7 +431,7 @@ function openOwnerSheet(i){
           '<input value="' + esc(o.name) + '" oninput="RENT.editOwner(' + i + ',\'name\',this.value)" placeholder="株式会社〇〇"></label>' +
 
         '<label class="ow-f"><span class="ow-lb">宛名<i class="ow-req">必須</i></span>' +
-          '<input value="' + esc(o.atena) + '" oninput="RENT.editOwner(' + i + ',\'atena\',this.value)" placeholder="株式会社〇〇 御中"></label>' +
+          '<input value="' + esc(o.atena) + '" oninput="RENT.editOwner(' + i + ',\'atena\',this.value)" placeholder="株式会社〇〇 御中／山田 太郎 様"></label>' +
 
         '<label class="ow-f"><span class="ow-lb">メールアドレス<i class="ow-req">必須</i></span>' +
           '<input value="' + esc(o.email) + '" oninput="RENT.editOwner(' + i + ',\'email\',this.value)" placeholder="owner@example.com"' +
@@ -694,7 +743,7 @@ function buildDetail(pages){
       if(!o && _bc.c3[pnm3(gp)]===1) o = byProp3[pnm3(gp)] || null;
     }
     const key=o?o.name:("（未登録）"+g.atena);
-    if(!map.has(key)) map.set(key,{owner:o?o.name:g.atena, atena:(o&&o.atena)?o.atena:g.atena, email:o?o.email:"", props:[]});
+    if(!map.has(key)) map.set(key,{owner:o?o.name:g.atena, atena:(o&&o.atena)?o.atena:window.pvFixAtenaText(g.atena), email:o?o.email:"", props:[]});
     map.get(key).props.push(g);
     if(!o) unmatched.push(g.atena);
   }
@@ -732,7 +781,7 @@ function mergeYearIntoDetail(){
     const o=owners.find(ow=>norm(ow.name)===key || norm(ow.atena)===key);
     detail.push({
       owner: o?o.name:yo.owner,
-      atena: (o&&o.atena)?o.atena:(yo.owner+" 御中"),
+      atena: (o&&o.atena)?o.atena:(yo.owner+" "+window.pvKeisho(yo.owner)),
       email: o?o.email:"",
       props: [],          // 月額明細なし
       yearOnly: true       // 年間のみのカード(月額PDFなし)
@@ -852,6 +901,8 @@ function restoreDetailState(){
   try{
     const s=JSON.parse(localStorage.getItem(LS_DETAIL)||"null");
     if(s && Array.isArray(s.detail) && s.detail.length){
+      /* 前に保存した宛名にも、敬称の直しを通します */
+      s.detail.forEach(d=>{ if(d) d.atena = window.pvFixAtenaText(d.atena); });
       detail=s.detail;
       sentSet=new Set(s.sent||[]);
       return true;
