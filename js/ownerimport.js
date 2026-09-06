@@ -615,7 +615,10 @@ function oiApply(plan, mode, pick, bldOn, area, withUnknown, dels){
     const b = x.base || {};
     owners.push({
       name: x.name, properties: x.props.slice(), property: x.props.join("、"),
-      atena: x.name + " 御中", email: x.email || "",
+      atena: (typeof window.pvFixAtena === "function")
+               ? window.pvFixAtena(x.name, "")
+               : (x.name + " 御中"),
+      email: x.email || "",
       zip: b.zip || "", addr: b.addr || "", tel: b.tel || "", fax: b.fax || "",
       kana: b.kana || "", kbn: b.kbn || "", memo: b.memo || "",
       sendWay: b.sendWay || "", taxKbn: b.taxKbn || "", invoiceNo: b.invoiceNo || "",
