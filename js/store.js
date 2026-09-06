@@ -131,7 +131,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 19;
+  var STORE_VER = 20;
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -1105,6 +1105,13 @@
 
     function quietSync(){
       if(!_loaded || _tooOld || busy()) return;
+      /* ★ v20：画面を見ていないときは読みません。
+         PIVOT を開いたまま帰ると、夜中もずっと読み続けてしまい、
+         3台で1日 64,548回（無料枠は50,000回）を超えていました。
+         裏に回っているあいだ止めれば、開けっぱなしでも
+         ふつうに8時間使ったのと同じ回数で収まります。
+         画面に戻ったときに読み直す仕組みは、下にすでに入っています。 */
+      try{ if(document.hidden) return; }catch(e){}
       try{ if(!firebase.auth().currentUser) return; }catch(e){ return; }
 
       readAll().then(function(fs){
@@ -1517,5 +1524,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v19 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v20 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
