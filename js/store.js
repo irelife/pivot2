@@ -131,7 +131,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 13;
+  var STORE_VER = 14;
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -411,6 +411,7 @@
   }
 
   function onSave(P, url, body, t){
+    tidyAhead('保存の前');                    /* ★ ぶつかる前に片付けます */
     var bl = body && body.payload && body.payload.buildings;
     if(!bl || typeof bl !== 'object') return P(url, body, t);   /* 形が違えば従来どおり */
 
@@ -1188,6 +1189,7 @@
     }catch(e){}
   }
   try{ firebase.auth().onAuthStateChanged(function(u){ if(u) setTimeout(checkVer, 1200); }); }catch(e){}
+  try{ setTimeout(function(){ tidyAhead('起動のとき'); }, 4000); }catch(e){}
   try{ setTimeout(checkVer, 3000); }catch(e){}
   try{ setInterval(checkVer, 10 * 60 * 1000); }catch(e){}
   try{ window.__pvCheckVer = checkVer; }catch(e){}
@@ -1325,6 +1327,79 @@
     return { freed:freed, keys:hit };
   }
 
+  /* ★ 先回りのお掃除
+     満杯になってから「保存できませんでした」と出すのでは遅すぎます。
+     仕事の途中で止まるのがいちばん困るからです。
+     そこで、危なくなってきたら、ぶつかる前に自分で片付けます。
+
+     ここで捨てるのは「起動のたびに作り直される控え」だけです。
+     物件・区画・契約・オーナー、送信履歴、明細の仕分けには手を触れません。 */
+  var TIDY_MARK = 1200000;                    /* 文字数。iPhone では およそ2.4MB にあたります */
+  var SOFT_KEYS = ['emergency_backup'];       /* 消しても、次に開いたときに作り直されるもの */
+
+  /* いま、これだけの大きさを書き込めるか、実際に試してみます。
+     上限が何MBかはブラウザによって違い、数え方（文字か、バイトか）も違います。
+     数字で見積もるより、試して確かめるほうが確実です。
+     書けたらすぐ消すので、置き場は増えません。 */
+  function canWrite(chars){
+    var k = '__pv_probe', n = chars || 60000, ok2 = false;
+    try{
+      localStorage.setItem(k, new Array(n + 1).join('x'));
+      ok2 = true;
+    }catch(e){ ok2 = false; }
+    try{ localStorage.removeItem(k); }catch(e){}
+    return ok2;
+  }
+
+  function tidySoft(){
+    var r = lsList(), freed = 0, i, j, k;
+    for(i = 0; i < r.list.length; i++){
+      k = r.list[i].key;
+      for(j = 0; j < SOFT_KEYS.length; j++){
+        if(k.length >= SOFT_KEYS[j].length && k.slice(-SOFT_KEYS[j].length) === SOFT_KEYS[j]){
+          try{ localStorage.removeItem(k); freed += r.list[i].chars; }catch(e){}
+          break;
+        }
+      }
+    }
+    return freed;
+  }
+
+  /* 危なければ片付けます。戻り値は「片付けたかどうか」。 */
+  function tidyAhead(where){
+    try{
+      var r = lsList();
+      /* 「大きくなってきた」か「もう書けない」かのどちらかで動きます。
+         後者があるので、上限が何MBの端末でも取りこぼしません。 */
+      var big  = (r.total >= TIDY_MARK);
+      var full = !canWrite(60000);
+      if(!big && !full){
+        try{ console.log('[F] 置き場 ' + kb(r.total) + '（' + where + '）'); }catch(e){}
+        return false;
+      }
+      var freed = tidySoft();
+      var after = lsList();
+      try{
+        console.warn('[F] 置き場 ' + kb(r.total) + '（' + (full ? 'もう書けない状態' : '大きくなってきた') + '）。' +
+                     kb(freed) + ' 分を先に片付けました（いま ' + kb(after.total) + '）／' + where);
+      }catch(e){}
+      /* 片付けても、まだ書けないときは、保存が止まる前に知らせます */
+      if(!canWrite(60000)){
+        status('error', '⚠️ この端末の置き場がいっぱいです');
+        try{ console.warn('[F] 片付けても足りません（' + kb(after.total) + '）。__pvStorage() で内訳を見てください'); }catch(e){}
+        try{
+          window.alert('この端末に残しておける量が、いっぱいになりました。\n\n' +
+                       '入力した内容は消えていませんが、このままでは保存でつまずきます。\n\n' +
+                       '同じ irelife.github.io の中の別のアプリ（入居チェックなど）が\n' +
+                       '場所を使っていることがあります。\n' +
+                       'Safari の 設定 → 履歴とWebサイトデータを消去 で空けられます。\n' +
+                       '（PIVOT のデータはクラウドにあるので、消えません）');
+        }catch(e){}
+      }
+      return true;
+    }catch(e){ return false; }
+  }
+
   /* 上限にぶつかったときの言い方 */
   function isQuota(e){
     var m = String((e && (e.message || e.name)) || e || '');
@@ -1361,5 +1436,5 @@
     window.__d1Reload = function(){ try{ location.reload(); }catch(e){} };
   }catch(e){}
 
-  try{ console.log('[D] store.js v13 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
+  try{ console.log('[D] store.js v14 起動：Firestore が正 ／ 端末 ' + (me() || '(名前なし)')); }catch(e){}
 })();
