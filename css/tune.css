@@ -3838,3 +3838,18 @@ tr.sub-row td{font-size:13px;}
     margin-left:0; text-align:left;
   }
 }
+
+
+/* ★ オーナー情報の「保存する」ボタン（白黒だけ） --------------------
+   ふだんは打つたびにこの端末へ残り、手が止まって1.5秒でクラウドへ送ります。
+   押して確かめたい、という場面のためのボタンです。 */
+.ow-save{margin-top:18px;}
+.ow-save-b{
+  width:100%;padding:13px 16px;border:0;border-radius:12px;cursor:pointer;
+  background:#1d1d1f;color:#fff;font-size:15px;font-weight:700;letter-spacing:.02em;
+  transition:opacity .15s,transform .12s;
+}
+.ow-save-b:hover{opacity:.86;}
+.ow-save-b:active{transform:scale(.99);}
+.ow-save-b:disabled{opacity:.5;cursor:default;transform:none;}
+.ow-save-n{margin:8px 2px 0;font-size:12px;line-height:1.7;color:#86868b;}
