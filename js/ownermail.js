@@ -113,18 +113,19 @@ function pushOwnersNow(){
      ふだんは入力が止まって1.5秒で自動的に送りますが、
      押して確かめたい、という場面のためのボタンです。 */
 function saveOwnersNow(btn){
-  try{ localStorage.setItem(LS_OWNERS, JSON.stringify(owners)); }catch(e){}
-  var back = function(msg){
-    if(btn){ btn.disabled = false; btn.textContent = '保存する'; }
-    toast(msg);
-  };
-  if(btn){ btn.disabled = true; btn.textContent = '保存しています…'; }
-  var p = pushOwnersNow();
-  if(p && typeof p.then === 'function'){
-    p.then(function(){ back('保存しました'); }, function(){ back('保存しました（クラウドへは、あとでもう一度送ります）'); });
-  }else{
-    setTimeout(function(){ back('保存しました'); }, 500);
+  /* 何も入れずに押したときは、作らずに閉じます */
+  if(_justAdded && owners.indexOf(_justAdded) >= 0 && _isBlankOwner(_justAdded)){
+    closeOwnerSheet();                       /* この中で捨てます */
+    toast('入力がなかったので、作成しませんでした');
+    return;
   }
+  try{ localStorage.setItem(LS_OWNERS, JSON.stringify(owners)); }catch(e){}
+  /* ★ クラウドへ送るのは裏で続けます。待たせません。
+       この端末にはもう残っているので、待つ意味がないためです。
+       送った結果は、画面いちばん上の同期の表示に出ます。 */
+  pushOwnersNow();
+  closeOwnerSheet();                         /* そのまま一覧へ戻ります */
+  toast('保存しました');
 }
 function saveOwners(){
   localStorage.setItem(LS_OWNERS, JSON.stringify(owners));
@@ -488,7 +489,10 @@ function renderOwners(){
 function openOwnerSheet(i){
   const o = owners[i];
   if(!o) return;
-  closeOwnerSheet();
+  /* 開いているものがあれば、外すだけにします。
+     closeOwnerSheet を呼ぶと、いま足したばかりの空の1件を捨ててしまうためです。 */
+  const _old = document.getElementById("ow-sheet");
+  if(_old) _old.remove();
   const tou = _touCount(o);
   const rank = _ownerRank(tou);
   const props = _ownerProps(o);
@@ -523,7 +527,7 @@ function openOwnerSheet(i){
         '<label class="ow-f"><span class="ow-lb">宛名<i class="ow-req">必須</i></span>' +
           '<input value="' + esc(o.atena) + '" oninput="RENT.editOwner(' + i + ',\'atena\',this.value)" placeholder="株式会社〇〇 御中／山田 太郎 様"></label>' +
 
-        '<label class="ow-f"><span class="ow-lb">メールアドレス<i class="ow-req">必須</i></span>' +
+        '<label class="ow-f"><span class="ow-lb">メールアドレス</span>' +
           '<input value="' + esc(o.email) + '" oninput="RENT.editOwner(' + i + ',\'email\',this.value)" placeholder="owner@example.com"' +
           (String(o.email||'').trim() ? '' : ' class="ow-warn"') + '></label>' +
 
@@ -573,10 +577,33 @@ function openOwnerSheet(i){
   document.body.appendChild(sh);
   document.body.style.overflow = "hidden";
 }
+/* ★「手入力で追加」したあと、何も入れずに閉じたときは、作らずに捨てます。
+     空の「名称なし」が一覧に残らないようにするためです。
+     捨てるのは、いま足したばかりの1件だけです。前からあるオーナーには触れません。 */
+function _isBlankOwner(o){
+  if(!o) return false;
+  var k = ['name','atena','email','property','zip','addr','tel','fax',
+           'memo','invoiceNo','taxKbn','kana','kbn','sendWay'];
+  for(var i = 0; i < k.length; i++){ if(String(o[k[i]] || '').trim()) return false; }
+  if(Array.isArray(o.properties) && o.properties.length) return false;
+  if(o.exclude) return false;
+  return true;
+}
+function dropBlankJustAdded(){
+  if(!_justAdded) return false;
+  var i = owners.indexOf(_justAdded);
+  if(i < 0){ _justAdded = null; return false; }
+  if(!_isBlankOwner(owners[i])) return false;      /* 何か入っていれば、そのまま残します */
+  owners.splice(i, 1);
+  _justAdded = null;
+  saveOwners();
+  return true;
+}
 function closeOwnerSheet(){
   const m = document.getElementById("ow-sheet");
   if(m) m.remove();
   document.body.style.overflow = "";
+  dropBlankJustAdded();
   renderOwners();
 }
 
