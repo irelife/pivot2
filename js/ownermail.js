@@ -95,8 +95,36 @@ function loadOwners(){
 let _owPushTimer = null;
 function pushOwnersNow(){
   if(_owPushTimer){ clearTimeout(_owPushTimer); _owPushTimer = null; }
+  var p = null;
+  /* ★ まずクラウド（Firestore）へ、オーナーだけを単独で送ります。
+       これまでは物件の保存に相乗りしていたため、物件側が止まると
+       オーナーも保存されず、次の読み込みで消えていました。 */
+  try{ if(typeof window.pvSaveOwnersToCloud === 'function') p = window.pvSaveOwnersToCloud(owners); }catch(e){}
   if(typeof scheduleAutoPush === 'function'){ try{ scheduleAutoPush(); }catch(e){} }
-  try{ if(typeof window.pushFeatureToCloud === 'function'){ window.pushFeatureToCloud('owners'); } }catch(e){}
+  try{
+    if(typeof window.pushFeatureToCloud === 'function'){
+      var q = window.pushFeatureToCloud('owners');   /* 控えのスプレッドシートへ */
+      if(!p) p = q;
+    }
+  }catch(e){}
+  return p;
+}
+/* ★「保存する」を押したとき。待たずに、その場でクラウドへ送ります。
+     ふだんは入力が止まって1.5秒で自動的に送りますが、
+     押して確かめたい、という場面のためのボタンです。 */
+function saveOwnersNow(btn){
+  try{ localStorage.setItem(LS_OWNERS, JSON.stringify(owners)); }catch(e){}
+  var back = function(msg){
+    if(btn){ btn.disabled = false; btn.textContent = '保存する'; }
+    toast(msg);
+  };
+  if(btn){ btn.disabled = true; btn.textContent = '保存しています…'; }
+  var p = pushOwnersNow();
+  if(p && typeof p.then === 'function'){
+    p.then(function(){ back('保存しました'); }, function(){ back('保存しました（クラウドへは、あとでもう一度送ります）'); });
+  }else{
+    setTimeout(function(){ back('保存しました'); }, 500);
+  }
 }
 function saveOwners(){
   localStorage.setItem(LS_OWNERS, JSON.stringify(owners));
@@ -116,9 +144,47 @@ window.applyCloudOwners = function(cloudOwners){
   if(cloudOwners.length === 0) return;            // 空配列 → 触らない(誤消し防止)
   try{
     fixKeishoAll(cloudOwners);
-    localStorage.setItem(LS_OWNERS, JSON.stringify(cloudOwners));
-    owners = cloudOwners;
+
+    /* ★ この端末で「手入力で追加」したばかりのオーナーを守ります。
+         クラウドがまだ受け取っていないうちに読み直すと、
+         そのまま上書きされて消えていました（9/10 に実際に起きたのはこれ）。
+       ・守るのは、手で足したもの（_addedAt が入っているもの）だけです
+       ・クラウドに同じものが入っていれば、もう守りません
+       ・14日たったものも守りません（消したものが復活しないように） */
+    var mine = [];
+    try{ mine = JSON.parse(localStorage.getItem(LS_OWNERS) || '[]'); }catch(e){ mine = []; }
+    var have = {};
+    for(var c = 0; c < cloudOwners.length; c++){
+      var co = cloudOwners[c] || {};
+      var cn = String(co.name || '').trim();
+      if(cn) have['n:' + cn] = 1;
+      if(co._addedAt) have['a:' + co._addedAt] = 1;
+    }
+    /* クラウドが受け取ったものは、もう守りません。
+       目印を外しておかないと、あとで消したときに復活してしまいます。 */
+    for(var d = 0; d < cloudOwners.length; d++){
+      if(cloudOwners[d] && cloudOwners[d]._addedAt) delete cloudOwners[d]._addedAt;
+    }
+    var keep = [];
+    for(var m = 0; m < mine.length; m++){
+      var lo = mine[m] || {};
+      if(!lo._addedAt) continue;                                   /* 手で足したものだけ */
+      if(Date.now() - Number(lo._addedAt) > 14 * 86400000) continue;
+      if(have['a:' + lo._addedAt]) continue;                        /* クラウドにもう入っています */
+      var ln = String(lo.name || '').trim();
+      if(ln && have['n:' + ln]) continue;                           /* 同じ名前がもう入っています */
+      keep.push(lo);
+    }
+
+    var merged = keep.concat(cloudOwners);
+    localStorage.setItem(LS_OWNERS, JSON.stringify(merged));
+    owners = merged;
     if(typeof renderOwners === 'function') renderOwners();
+    /* 守ったものは、クラウドへ送り直します（次からは守らなくて済むように） */
+    if(keep.length){
+      try{ console.warn('[E] クラウドに無かった手入力のオーナー ' + keep.length + ' 件を残し、送り直します'); }catch(e){}
+      if(typeof pushOwnersNow === 'function') pushOwnersNow();
+    }
   }catch(e){}
 };
 function resetOwners(){ if(!confirm("オーナー一覧を初期データに戻します。手入力の変更は失われます。よろしいですか?"))return;
@@ -237,7 +303,10 @@ function addrHay(d){
  
 /* ===== オーナー一覧表 ===== */
 let _ownerQ = "";
-function filterOwners(v){ _ownerQ = String(v||"").trim(); renderOwners(); }
+/* いま足したばかりの1件。名前がまだ空で探し言葉に当たらなくても、画面に出します。
+   探し言葉を変えたときに、この目印は外します。 */
+let _justAdded = null;
+function filterOwners(v){ _ownerQ = String(v||"").trim(); _justAdded = null; renderOwners(); }
 function _ownerHit(o){
   if(!_ownerQ) return true;
   const q = _ownerQ.normalize("NFKC").toLowerCase();
@@ -377,7 +446,7 @@ function renderOwners(){
     host.id = "ownerCards";
     t.parentNode.insertBefore(host, t);
   }
-  const hits = owners.map((o,i)=>({o,i})).filter(x=>_ownerHit(x.o));
+  const hits = owners.map((o,i)=>({o,i})).filter(x=>(x.o === _justAdded) || _ownerHit(x.o));
   const cnt = document.getElementById("ownerCount");
   if(cnt) cnt.textContent = _ownerQ ? (hits.length + " / " + owners.length + " 件") : (owners.length + " 件");
 
@@ -494,6 +563,10 @@ function openOwnerSheet(i){
           ' onclick="RENT.editOwner(' + i + ',\'exclude\',this.checked)">' +
           '<span>このオーナーを一斉送信の対象から外す</span></label></div>' +
 
+        '<div class="ow-save"><button type="button" class="ow-save-b" ' +
+          'onclick="RENT.saveOwnersNow(this)">保存する</button>' +
+          '<p class="ow-save-n">入力は打つたびに残ります。すぐクラウドへ送りたいときに押してください。</p></div>' +
+
         '<div class="ow-del"><button type="button" onclick="RENT.delOwner(' + i + ');RENT.closeOwnerSheet()">このオーナーを削除する</button></div>' +
       '</div>' +
     '</div></div>';
@@ -512,20 +585,19 @@ function flashSaved(){ const el=document.getElementById("ownerSaveStat"); if(!el
 function editOwner(i,f,v){ owners[i][f]=v; saveOwners(); flashSaved(); if(f==="exclude"){ renderOwners(); renderPreview(); return; } if(detail && detail.length){ const o=owners[i]; detail.forEach(d=>{ if(d.owner===o.name && f==="email") d.email=v; }); if(f==="email") renderPreview(); } }
 function editProps(i,v){ const arr=v.split("\n").map(s=>s.trim()).filter(Boolean); owners[i].properties=arr; owners[i].property=arr.join("、"); saveOwners(); flashSaved(); }
 function addOwnerRow(){
-  owners.unshift({name:"",properties:[],property:"",atena:"",email:""});
+  owners.unshift({name:"",properties:[],property:"",atena:"",email:"",_addedAt:Date.now()});
   /* ★ 探しているときでも、足せるようにします。
      新しい行は名前が空なので、探している言葉には当たりません。
-     そのまま描き直すと画面に出てこないので、探すのをやめてから出します。
+     探した状態はそのままにして、足した1件だけを、いちばん上に出します。
      そのうえで、すぐ名前を入れられるように、その1件を開きます。 */
-  if(_ownerQ){
-    _ownerQ = "";
-    try{ const q = document.getElementById("ownerSearch"); if(q) q.value = ""; }catch(e){}
-  }
+  _justAdded = owners[0];
   saveOwners(); renderOwners(); flashSaved();
   try{ openOwnerSheet(0); }catch(e){}
   toast("新規オーナーを追加しました（自動保存）");
 }
-function delOwner(i){ if(!confirm("この行を削除しますか?"))return; const removed=owners[i]&&owners[i].name; owners.splice(i,1); saveOwners(); renderOwners();
+function delOwner(i){ if(!confirm("この行を削除しますか?"))return; const removed=owners[i]&&owners[i].name;
+  if(owners[i] === _justAdded) _justAdded = null;
+  owners.splice(i,1); saveOwners(); renderOwners();
   // 送信一覧(取込結果)からも同名オーナーのカードを外す
   if(removed && detail && detail.length){
     const before=detail.length;
@@ -1776,5 +1848,5 @@ try{ window.RENT_CORE = {
   get owners(){ return owners; },
   save: saveOwners, render: renderOwners, flash: flashSaved, toast: toast
 }; }catch(e){}
-window.RENT = { activate, filterOwners, openOwnerSheet, closeOwnerSheet, unexcludeOwner, setEmail, showView, addOwnerRow, resetOwners, resetTmpl, expandAll, renderPreview, saveTmpl, editOwner, editProps, delOwner, togglePv, copyBody, previewOwnerPdf, downloadOwnerPdf, sendViaGmail, renderOwners, createDraftsForChecked, sendMailsForChecked, updateCheckCount, toggleCheckAll, sendOne, draftOne, unsendOne, removeFromList, renderHistory, clearHistory, checkBounces, accumulateOwnerMonth, accumulateOwnerYear, mergeYearForOwner, deleteExAccum, deleteExYear, saveSophiaGasUrl, viewExAccum };
+window.RENT = { activate, filterOwners, openOwnerSheet, closeOwnerSheet, unexcludeOwner, setEmail, showView, addOwnerRow, resetOwners, resetTmpl, expandAll, renderPreview, saveTmpl, editOwner, editProps, delOwner, togglePv, copyBody, previewOwnerPdf, downloadOwnerPdf, sendViaGmail, renderOwners, createDraftsForChecked, sendMailsForChecked, updateCheckCount, toggleCheckAll, sendOne, draftOne, unsendOne, removeFromList, renderHistory, clearHistory, checkBounces, accumulateOwnerMonth, accumulateOwnerYear, mergeYearForOwner, deleteExAccum, deleteExYear, saveSophiaGasUrl, viewExAccum, saveOwnersNow };
 })();
