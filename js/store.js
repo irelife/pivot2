@@ -805,6 +805,59 @@
     }).then(function(){ return jobs; });
   }
 
+  /* ★ オーナー一覧だけを、その場でクラウドへ保存します。
+       これまでオーナーは「物件の保存」に相乗りしていました。
+       物件側が止まると（読み込み前・契約が減る・通信の失敗など）、
+       オーナーも保存されず、次の読み込みで消えていました。
+       ここは物件と切り離して、単独で通します。 */
+  function mergeOws(cloud, mine){
+    var out = Array.isArray(cloud) ? cloud.slice() : [];
+    var have = {}, i, o, n;
+    for(i = 0; i < out.length; i++){
+      o = out[i] || {};
+      n = String(o.name || '').trim();
+      if(n) have['n:' + n] = 1;
+      if(o._addedAt) have['a:' + o._addedAt] = 1;
+    }
+    for(i = 0; i < (mine || []).length; i++){
+      o = mine[i] || {};
+      if(!o._addedAt) continue;                       /* 手で足したものだけ足します */
+      if(have['a:' + o._addedAt]) continue;
+      n = String(o.name || '').trim();
+      if(n && have['n:' + n]) continue;
+      out.unshift(o);
+    }
+    return out;
+  }
+  function saveOwsAlone(list){
+    try{ if(!(window.firebase && firebase.firestore)) return Promise.resolve(null); }catch(e){ return Promise.resolve(null); }
+    if(!Array.isArray(list) || !list.length) return Promise.resolve(null);
+    var base = readMap(owRevK());
+    var cur  = sig(list);
+    if(base.sig === cur) return Promise.resolve(null);        /* 変わっていません */
+    var sent = list;
+    return db().runTransaction(function(tx){
+      return tx.get(owRef()).then(function(sn){
+        var now = sn.exists ? (sn.data() || {}) : null;
+        var rv  = now ? (now.rev || 0) : 0;
+        /* ほかの端末が先に保存していたら、消さないように、足りないものだけ足します */
+        if(base.rev !== undefined && rv !== (base.rev || 0)){
+          sent = mergeOws((now && Array.isArray(now.list)) ? now.list : [], list);
+          try{ console.warn('[E] オーナー：ほかの端末が先に保存していたので、足りないぶんだけ足しました'); }catch(e){}
+        }
+        tx.set(owRef(), { list:sent, rev:rv + 1, updatedAt2:new Date().toISOString(),
+                          updatedBy2:(me() || '(名前なし)') });
+        return rv + 1;
+      });
+    }).then(function(rv){
+      writeMap(owRevK(), { rev:rv, sig:sig(sent) });
+      try{ console.log('[E] オーナー ' + sent.length + ' 件を保存しました（単独）'); }catch(e){}
+      try{ if(sent !== list && typeof window.applyCloudOwners === 'function') window.applyCloudOwners(sent); }catch(e){}
+      return rv;
+    });
+  }
+  try{ window.pvSaveOwnersToCloud = saveOwsAlone; }catch(e){}
+
   /* ============================================================
    *  ㊷ 変更履歴 と ごみ箱（30日）
    *
