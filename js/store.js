@@ -464,6 +464,7 @@
   }
 
   function saveNow(P, url, body, t, bl){
+    var _fsDone = false;   /* クラウド（Firestore）への保存が済んだか */
     var pl;
     try{ pl = plan(bl); }catch(e){ return P(url, body, t); }
 
@@ -505,6 +506,7 @@
         writeMap(revKey(), fs.revs);
         writeMap(sigKey(), fs.sigs);
       }
+      _fsDone = true;      /* ここまで来ていれば、クラウド（Firestore）には入っています */
       return P(url, body, t);
     }).catch(function(e){
       if(e && e.__cancel){
@@ -514,6 +516,14 @@
       if(e && e.__conflict){
         tellConflict(e.__conflict);
         return { ok:false, error:'conflict', message:'他の人が先に保存しました' };
+      }
+      /* Firestore には入っている場合。
+         「保存できませんでした」と出すと、入っているのに入っていないと思わせます。
+         控えのスプレッドシートだけが遅れている、と正しく伝えます。 */
+      if(_fsDone){
+        status('error', '⚠️ 控えの表だけ、あとまわしになりました');
+        try{ console.warn('[D] クラウドには保存済み。控えの表への送信だけ失敗しました', e); }catch(x){}
+        return { ok:true, warn:'sheet', message:'クラウドには保存しました（控えの表はあとで揃います）' };
       }
       status('error', '⚠️ 保存できませんでした');
       try{
