@@ -511,7 +511,20 @@ let _saveTimer=null;
 function flashSaved(){ const el=document.getElementById("ownerSaveStat"); if(!el)return; el.textContent="✅ 自動保存しました"; el.style.opacity="1"; clearTimeout(_saveTimer); _saveTimer=setTimeout(()=>{el.style.opacity="0";},1500); }
 function editOwner(i,f,v){ owners[i][f]=v; saveOwners(); flashSaved(); if(f==="exclude"){ renderOwners(); renderPreview(); return; } if(detail && detail.length){ const o=owners[i]; detail.forEach(d=>{ if(d.owner===o.name && f==="email") d.email=v; }); if(f==="email") renderPreview(); } }
 function editProps(i,v){ const arr=v.split("\n").map(s=>s.trim()).filter(Boolean); owners[i].properties=arr; owners[i].property=arr.join("、"); saveOwners(); flashSaved(); }
-function addOwnerRow(){ owners.unshift({name:"",properties:[],property:"",atena:"",email:""}); saveOwners(); renderOwners(); flashSaved(); toast("新規オーナーを追加しました（自動保存）"); }
+function addOwnerRow(){
+  owners.unshift({name:"",properties:[],property:"",atena:"",email:""});
+  /* ★ 探しているときでも、足せるようにします。
+     新しい行は名前が空なので、探している言葉には当たりません。
+     そのまま描き直すと画面に出てこないので、探すのをやめてから出します。
+     そのうえで、すぐ名前を入れられるように、その1件を開きます。 */
+  if(_ownerQ){
+    _ownerQ = "";
+    try{ const q = document.getElementById("ownerSearch"); if(q) q.value = ""; }catch(e){}
+  }
+  saveOwners(); renderOwners(); flashSaved();
+  try{ openOwnerSheet(0); }catch(e){}
+  toast("新規オーナーを追加しました（自動保存）");
+}
 function delOwner(i){ if(!confirm("この行を削除しますか?"))return; const removed=owners[i]&&owners[i].name; owners.splice(i,1); saveOwners(); renderOwners();
   // 送信一覧(取込結果)からも同名オーナーのカードを外す
   if(removed && detail && detail.length){
