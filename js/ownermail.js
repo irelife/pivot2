@@ -88,7 +88,28 @@ function loadOwners(){
   try{ const s=JSON.parse(localStorage.getItem(LS_OWNERS)); if(Array.isArray(s)&&s.length) return fixKeishoAll(s); }catch(e){}
   return fixKeishoAll(JSON.parse(JSON.stringify(OWNER_SEED)));
 }
-function saveOwners(){ localStorage.setItem(LS_OWNERS, JSON.stringify(owners)); if(typeof scheduleAutoPush==='function'){ try{ scheduleAutoPush(); }catch(e){} } try{ if(typeof window.pushFeatureToCloud==='function'){ window.pushFeatureToCloud('owners'); } }catch(e){} }
+/* ★ この端末には、すぐに残します。
+     クラウドへ送るのは「入力が止まってから」にします。
+     1文字打つたびに送ると、オーナー全件を何十回も送ることになり、
+     Google 側で弾かれて「保存できませんでした」が出ていました。 */
+let _owPushTimer = null;
+function pushOwnersNow(){
+  if(_owPushTimer){ clearTimeout(_owPushTimer); _owPushTimer = null; }
+  if(typeof scheduleAutoPush === 'function'){ try{ scheduleAutoPush(); }catch(e){} }
+  try{ if(typeof window.pushFeatureToCloud === 'function'){ window.pushFeatureToCloud('owners'); } }catch(e){}
+}
+function saveOwners(){
+  localStorage.setItem(LS_OWNERS, JSON.stringify(owners));
+  if(_owPushTimer) clearTimeout(_owPushTimer);
+  _owPushTimer = setTimeout(function(){ _owPushTimer = null; pushOwnersNow(); }, 1500);
+}
+/* 画面を閉じる・別のタブへ移るときは、待たずに送ります */
+try{
+  window.addEventListener('pagehide', function(){ if(_owPushTimer) pushOwnersNow(); });
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'hidden' && _owPushTimer) pushOwnersNow();
+  });
+}catch(e){}
 /* クラウドから取得した owners をローカルへ反映し、画面を更新する */
 window.applyCloudOwners = function(cloudOwners){
   if(!Array.isArray(cloudOwners)) return;        // キー無し → 触らない(既存を守る)
