@@ -254,9 +254,18 @@
    *  何も直されていなければ、読むのは1回で済みます。70回が1回です。
    *
    *  ただし「ほかの端末で消された物件」は、この読み方では分かりません。
-   *  そのため、1時間に1回だけ、これまでどおり全部を読みます。
+   *  そこで、消したときに小さな目印を書いておき、
+   *  その目印だけを見にいきます（読むのは1回）。変わっていたら全部を読みます。
+   *  念のため、1時間に1回も全部を読みます。
    * ============================================================ */
   function lastSeenKey(){ return pfx() + 'fs_seen'; }
+  function delKey(){ return pfx() + 'fs_del'; }
+  /* ★ v21）物件が「消された」ことを知らせる、小さな目印。
+     直された物件は updatedAt で分かりますが、消された物件は分かりません。
+     そこで、消したときにここへ日時を書いておきます。
+     様子見のときにこの1件だけを見て、変わっていたら全部を読み直します。
+     読むのが1回増えるだけで、消したことが15分以内に伝わります。 */
+  function metaRef(){ return db().collection(INS).doc('data').collection('misc').doc('meta'); }
   function readSince(since){
     if(!since) return readAll('様子見');
     return col().where('updatedAt', '>', since).get().then(function(qs){
@@ -460,6 +469,15 @@
           var e = new Error('conflict'); e.__conflict = bad; throw e;
         }
         use('read', jobs.length, '保存のときの確かめ');
+        var delN = 0;
+        for(j = 0; j < jobs.length; j++){ if(jobs[j].kind === 'del') delN++; }
+        if(delN){
+          /* ★ v21）消したことを、ほかの端末へ知らせます。
+             消された物件は「直された物件だけを読む」やり方では見つからないためです。 */
+          tx.set(metaRef(), { delAt:new Date().toISOString(), delBy:(me() || '(名前なし)') },
+                 { merge:true });
+          use('write', 1, '消したことの目印');
+        }
         for(j = 0; j < jobs.length; j++){
           if(jobs[j].kind === 'del'){ tx.delete(jobs[j].ref); continue; }
           d = jobs[j].doc;
@@ -1296,14 +1314,19 @@
       try{ if(!firebase.auth().currentUser) return; }catch(e){ return; }
       _lastSync = now;
 
-      /* 消された物件に気づくため、1時間に1回だけ全部を読みます。
-         ふだんは「直されたものだけ」を読みます。 */
+      /* ふだんは「直されたものだけ」を読みます。
+         消された物件だけは、それでは見つからないので、
+         ・小さな目印が変わっていたら（誰かが消した）すぐ全部を読みます
+         ・念のため、1時間に1回も全部を読みます */
       var full = (now - _lastFull) > FULL_EVERY;
       var seen = '';
       try{ seen = String(localStorage.getItem(lastSeenKey()) || ''); }catch(e){ seen = ''; }
       if(!seen) full = true;
 
-      (full ? readAll('様子見（1時間に1回の全部読み）') : readSince(seen)).then(function(fs){
+      (full ? Promise.resolve(true) : delChanged()).then(function(needFull){
+        if(needFull) full = true;
+        return (full ? readAll('様子見（全部読み）') : readSince(seen));
+      }).then(function(fs){
         if(!fs) return;
         if(fs.partial !== true && count(fs.buildings) === 0) return;
         if(busy()) return;                       /* 読んでいる間に触りはじめたら、やめます */
@@ -1361,6 +1384,27 @@
         try{ console.log('[S] 他の端末の変更を取り込みました（' + changed + ' 件）'); }catch(e){}
         toast(changed);
       }).catch(function(){});
+    }
+
+    /* 「誰かが物件を消した」の目印だけを見ます。読むのは1回です。
+       変わっていたら true（＝このあと全部を読みます）。 */
+    function delChanged(){
+      return metaRef().get().then(function(d){
+        use('read', 1, '消したことの目印を見る');
+        var at = '';
+        try{ at = String((d.exists && (d.data() || {}).delAt) || ''); }catch(e){ at = ''; }
+        var had = '';
+        try{ had = String(localStorage.getItem(delKey()) || ''); }catch(e){ had = ''; }
+        /* まだ誰も消していないときは「-」を控えます。
+           そうしておかないと「一度も見ていない」と「見たが空だった」を
+           見分けられず、はじめの1回の削除を取りこぼします。 */
+        var cur = at || '-';
+        if(cur === had) return false;
+        try{ localStorage.setItem(delKey(), cur); }catch(e){}
+        if(!had) return false;        /* はじめの1回は、ものさしを合わせるだけ */
+        try{ console.log('[S] ほかの端末で物件が消されました。全部を読み直します'); }catch(e){}
+        return true;
+      }).catch(function(){ return false; });
     }
 
     /* ★ v19：さらに 5分ごと → 15分ごとにしました。
