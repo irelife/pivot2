@@ -50,6 +50,59 @@
     try{ var o = JSON.parse(localStorage.getItem(k) || '{}'); return (o && typeof o === 'object') ? o : {}; }
     catch(e){ return {}; }
   }
+  function mergeMap(k, add){
+    var m = readMap(k), f;
+    for(f in (add || {})){ if(Object.prototype.hasOwnProperty.call(add, f)) m[f] = add[f]; }
+    writeMap(k, m);
+    return m;
+  }
+
+  /* ============================================================
+   *  ★ v21）クラウドを何回読み書きしたかを、この端末で数えます
+   *
+   *  「1日に読み書きできる回数を使い切りました」と出たときに、
+   *  どこで使っているのかを、あてずっぽうでなく見られるようにするためです。
+   *  数えるだけです。クラウドへは送りません。
+   *  コンソールで  pvUsage()  と打つと出ます。
+   * ============================================================ */
+  var USEK = function(){ return pfx() + 'fs_use'; };
+  function useDay(){
+    /* 無料枠は、日本時間の夕方4時ごろに戻ります（アメリカの午前0時）。
+       同じ区切りで数えないと、数と実感が合いません。 */
+    var d = new Date(Date.now() - 16 * 3600000);
+    var p = function(n){ return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate());
+  }
+  function use(kind, n, why){
+    try{
+      n = Number(n) || 0;
+      if(n <= 0) return;
+      var u = readMap(USEK());
+      if(u.day !== useDay()) u = { day:useDay(), read:0, write:0, why:{} };
+      u[kind] = Number(u[kind] || 0) + n;
+      if(!u.why) u.why = {};
+      u.why[why] = Number(u.why[why] || 0) + n;
+      writeMap(USEK(), u);
+    }catch(e){}
+  }
+  try{
+    window.pvUsage = function(){
+      var u = readMap(USEK());
+      if(u.day !== useDay()) u = { day:useDay(), read:0, write:0, why:{} };
+      var t = ['── この端末が、きょうクラウドを使った回数 ──',
+               '　日付（夕方4時区切り）： ' + u.day,
+               '　読んだ回数： ' + (u.read || 0) + '　（1日の枠は 50,000）',
+               '　書いた回数： ' + (u.write || 0) + '　（1日の枠は 20,000）',
+               '　どこで：'];
+      var w = u.why || {}, k, arr = [];
+      for(k in w){ if(Object.prototype.hasOwnProperty.call(w, k)) arr.push([k, w[k]]); }
+      arr.sort(function(a, b){ return b[1] - a[1]; });
+      for(var i = 0; i < arr.length; i++) t.push('　　' + arr[i][0] + '： ' + arr[i][1]);
+      t.push('※ ほかの端末のぶんは入っていません。');
+      try{ console.log(t.join('\n')); }catch(e){}
+      return u;
+    };
+  }catch(e){}
   function writeMap(k, o){ try{ localStorage.setItem(k, JSON.stringify(o || {})); }catch(e){} }
   /* 中身の指紋。
      項目の並び順が違うだけで「変わった」と判定しないよう、
@@ -131,7 +184,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 20;
+  var STORE_VER = 21;
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -160,7 +213,7 @@
   }
 
   /* ---------- Firestore から全物件を読む ---------- */
-  function readAll(){
+  function readAll(why){
     return col().get().then(function(qs){
       var b = {}, revs = {}, sigs = {};
       qs.forEach(function(doc){
@@ -169,10 +222,58 @@
         revs[id] = d.rev || 0;
         sigs[id] = sig(toDoc(id, b[id]));
       });
-      return { buildings:b, revs:revs, sigs:sigs };
+      use('read', Math.max(qs.size || 0, 1), '物件をぜんぶ読む（' + (why || 'そのほか') + '）');
+      return { buildings:b, revs:revs, sigs:sigs, partial:false, at:newest_(b, qs) };
     }).catch(function(e){
       try{ console.warn('[D] Firestore を読めませんでした', e); }catch(x){}
       return null;
+    });
+  }
+
+  /* いちばん新しい updatedAt を控えます（次に「そこから先」を読むため） */
+  function newest_(b, qs){
+    var t = '';
+    try{
+      qs.forEach(function(doc){
+        var v = String((doc.data() || {}).updatedAt || '');
+        if(v > t) t = v;
+      });
+    }catch(e){}
+    return t;
+  }
+
+  /* ============================================================
+   *  ★ v21）「直されたものだけ」を読みます
+   *
+   *  これまでは、様子を見にいくたびに物件を全部（およそ70件）
+   *  読み直していました。ほかのタブから戻るたびにも読んでいたので、
+   *  何も直していない日でも、1日の枠（50,000回）を使い切っていました。
+   *
+   *  物件を保存すると updatedAt（保存した日時）が入ります。
+   *  そこで「前に見たときより新しいものだけ」を読みます。
+   *  何も直されていなければ、読むのは1回で済みます。70回が1回です。
+   *
+   *  ただし「ほかの端末で消された物件」は、この読み方では分かりません。
+   *  そのため、1時間に1回だけ、これまでどおり全部を読みます。
+   * ============================================================ */
+  function lastSeenKey(){ return pfx() + 'fs_seen'; }
+  function readSince(since){
+    if(!since) return readAll('様子見');
+    return col().where('updatedAt', '>', since).get().then(function(qs){
+      var b = {}, revs = {}, sigs = {};
+      qs.forEach(function(doc){
+        var d = doc.data() || {}, id = doc.id;
+        b[id]    = fromDoc(d);
+        revs[id] = d.rev || 0;
+        sigs[id] = sig(toDoc(id, b[id]));
+      });
+      /* 1件も無くても、1回ぶんは数えられます（Firestore の決まりです） */
+      use('read', Math.max(qs.size || 0, 1), '直された物件だけ読む');
+      var t = newest_(b, qs);
+      return { buildings:b, revs:revs, sigs:sigs, partial:true, at:(t || since) };
+    }).catch(function(e){
+      try{ console.warn('[D] 差分を読めませんでした。全部を読み直します', e); }catch(x){}
+      return readAll('様子見');
     });
   }
   function count(o){ var n = 0, k; for(k in (o||{})) if(Object.prototype.hasOwnProperty.call(o,k)) n++; return n; }
@@ -183,7 +284,7 @@
    * ============================================================ */
   function onLoad(P, url, body, t){
     var gas = Promise.resolve(P(url, body, t)).catch(function(e){ return { ok:false, message:String(e && e.message || e) }; });
-    return Promise.all([gas, readAll(), readCts(), readOws()]).then(function(a){
+    return Promise.all([gas, readAll('画面を開いたとき'), readCts(), readOws()]).then(function(a){
       var r = a[0], fs = a[1], cts = a[2], ows = a[3];
       if(!fs) return r;                                   /* Firestore が読めない → 従来どおり */
       var n = count(fs.buildings);
@@ -324,7 +425,7 @@
      そうならないよう、先に Firestore を読んで土台を作ります。 */
   function ensureBase(){
     if(count(readMap(revKey())) > 0) return Promise.resolve(true);
-    return readAll().then(function(fs){
+    return readAll('版番号の土台づくり').then(function(fs){
       if(!fs) return false;
       writeMap(revKey(), fs.revs);
       writeMap(sigKey(), fs.sigs);
@@ -358,6 +459,7 @@
         if(bad.length){
           var e = new Error('conflict'); e.__conflict = bad; throw e;
         }
+        use('read', jobs.length, '保存のときの確かめ');
         for(j = 0; j < jobs.length; j++){
           if(jobs[j].kind === 'del'){ tx.delete(jobs[j].ref); continue; }
           d = jobs[j].doc;
@@ -366,6 +468,7 @@
           d.updatedBy = me() || '(名前なし)';
           tx.set(jobs[j].ref, d);
         }
+        use('write', jobs.length, '物件の保存');
         return jobs;
       });
     });
@@ -439,7 +542,7 @@
        　・他の人の修正が消える
        のどちらも起こります。増える向きも減る向きも、どちらも危険です。
        そこで「読み込む前に、中身が変わる保存」は一切通しません。 */
-    return readAll().then(function(fs){
+    return readAll('保存の前の確かめ').then(function(fs){
       if(!fs || count(fs.buildings) === 0) return P(url, body, t);   /* 移行前・通信不可 → 従来どおり */
       writeMap(revKey(), fs.revs);
       writeMap(sigKey(), fs.sigs);
@@ -494,10 +597,10 @@
         console.log('[D] 保存：更新 ' + pl.changed.length + ' 件 / 削除 ' + pl.removed.length + ' 件');
       }catch(e){}
       try{ writeLog(jobs); }catch(e){}
-      return saveCtOw(body).then(function(){ return readAll(); }, function(e){
+      return saveCtOw(body).then(function(){ return readAll('保存のあとの読み直し'); }, function(e){
         if(e && (e.__conflict || e.__cancel)) throw e;
         try{ console.warn('[E] 契約・オーナーの保存でつまずきました', e); }catch(x){}
-        return readAll();
+        return readAll('保存のあとの読み直し');
       });
     }).then(function(fs){
       /* スプレッドシートへは Firestore の内容を送ります（両者が必ず一致します） */
@@ -595,6 +698,7 @@
         revs[id] = d.rev || 0;
         sigs[id] = sig(ctDoc(id, m[id]));
       });
+      use('read', Math.max(qs.size || 0, 1), '契約をぜんぶ読む');
       return { map:m, revs:revs, sigs:sigs };
     }).catch(function(){ return null; });
     }catch(e){ return Promise.resolve(null); }
@@ -602,6 +706,7 @@
   function readOws(){
     try{
     return owRef().get().then(function(d){
+      use('read', 1, 'オーナーを読む');
       if(!d.exists) return { list:null, rev:0 };
       var v = d.data() || {};
       return { list:(Array.isArray(v.list) ? v.list : null), rev:(v.rev || 0) };
@@ -845,8 +950,10 @@
           sent = mergeOws((now && Array.isArray(now.list)) ? now.list : [], list);
           try{ console.warn('[E] オーナー：ほかの端末が先に保存していたので、足りないぶんだけ足しました'); }catch(e){}
         }
+        use('read', 1, 'オーナー保存のときの確かめ');
         tx.set(owRef(), { list:sent, rev:rv + 1, updatedAt2:new Date().toISOString(),
                           updatedBy2:(me() || '(名前なし)') });
+        use('write', 1, 'オーナーの保存');
         return rv + 1;
       });
     }).then(function(rv){
@@ -1166,8 +1273,19 @@
       }catch(e){}
     }
 
-    function quietSync(){
+    /* いつ「全部読み」をしたか。1時間に1回だけにします */
+    var _lastFull = 0;
+    var _lastSync = 0;
+    var FULL_EVERY = 3600000;      /* 1時間 */
+    var MIN_GAP    = 60000;        /* 続けて読まない間隔（1分） */
+
+    function quietSync(force){
       if(!_loaded || _tooOld || busy()) return;
+      /* ★ v21）短いあいだに何度も読まないようにします。
+         これまでは、ほかのタブから戻るたびに全部を読み直していました。
+         1日に150回タブを行き来すると、それだけで1万回を超えます。 */
+      var now = Date.now();
+      if(!force && (now - _lastSync) < MIN_GAP) return;
       /* ★ v20：画面を見ていないときは読みません。
          PIVOT を開いたまま帰ると、夜中もずっと読み続けてしまい、
          3台で1日 64,548回（無料枠は50,000回）を超えていました。
@@ -1176,10 +1294,22 @@
          画面に戻ったときに読み直す仕組みは、下にすでに入っています。 */
       try{ if(document.hidden) return; }catch(e){}
       try{ if(!firebase.auth().currentUser) return; }catch(e){ return; }
+      _lastSync = now;
 
-      readAll().then(function(fs){
-        if(!fs || count(fs.buildings) === 0) return;
+      /* 消された物件に気づくため、1時間に1回だけ全部を読みます。
+         ふだんは「直されたものだけ」を読みます。 */
+      var full = (now - _lastFull) > FULL_EVERY;
+      var seen = '';
+      try{ seen = String(localStorage.getItem(lastSeenKey()) || ''); }catch(e){ seen = ''; }
+      if(!seen) full = true;
+
+      (full ? readAll('様子見（1時間に1回の全部読み）') : readSince(seen)).then(function(fs){
+        if(!fs) return;
+        if(fs.partial !== true && count(fs.buildings) === 0) return;
         if(busy()) return;                       /* 読んでいる間に触りはじめたら、やめます */
+        if(fs.partial !== true) _lastFull = Date.now();
+        try{ if(fs.at) localStorage.setItem(lastSeenKey(), fs.at); }catch(e){}
+        if(fs.partial === true && count(fs.buildings) === 0) return;   /* 何も直されていません */
 
         var mine = {};
         try{ mine = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : {}; }catch(e){ return; }
@@ -1198,22 +1328,35 @@
           out[id] = fs.buildings[id];
           changed++;
         }
-        for(id in mine){
-          if(!Object.prototype.hasOwnProperty.call(mine, id)) continue;
-          if(Object.prototype.hasOwnProperty.call(fs.buildings, id)) continue;
-          if(base[id] === undefined) continue;               /* 元から知らない物件 → 触りません */
-          try{ mySig = sig(toDoc(id, mine[id])); }catch(e){ continue; }
-          if(mySig !== base[id]) continue;                   /* 手元で直しかけ → 触りません */
-          delete out[id];                                    /* 他の端末で消された */
-          changed++;
+        /* ★ v21）「ほかの端末で消された」の見分けは、
+           全部を読んだときだけです。直されたぶんだけを読んだときにこれをすると、
+           直されていない物件を「消された」と取りちがえて、全部消してしまいます。 */
+        if(fs.partial !== true){
+          for(id in mine){
+            if(!Object.prototype.hasOwnProperty.call(mine, id)) continue;
+            if(Object.prototype.hasOwnProperty.call(fs.buildings, id)) continue;
+            if(base[id] === undefined) continue;               /* 元から知らない物件 → 触りません */
+            try{ mySig = sig(toDoc(id, mine[id])); }catch(e){ continue; }
+            if(mySig !== base[id]) continue;                   /* 手元で直しかけ → 触りません */
+            delete out[id];                                    /* 他の端末で消された */
+            changed++;
+          }
         }
 
         if(!changed) return;
         if(busy()) return;
 
         try{ if(typeof pbSaveRaw === 'function') pbSaveRaw(out); }catch(e){ return; }
-        writeMap(revKey(), fs.revs);
-        writeMap(sigKey(), fs.sigs);
+        if(fs.partial === true){
+          /* 直されたぶんだけを読んだときは、控えも「足すだけ」にします。
+             丸ごと置き換えると、読まなかった物件の控えが消えて、
+             次の保存が全部「衝突」になってしまいます。 */
+          mergeMap(revKey(), fs.revs);
+          mergeMap(sigKey(), fs.sigs);
+        }else{
+          writeMap(revKey(), fs.revs);
+          writeMap(sigKey(), fs.sigs);
+        }
         try{ if(typeof requestRender === 'function') requestRender('buildings'); }catch(e){}
         try{ console.log('[S] 他の端末の変更を取り込みました（' + changed + ' 件）'); }catch(e){}
         toast(changed);
@@ -1233,9 +1376,13 @@
        5分ごとなら1台あたり1日6,400回程度で収まります。
        ほかの端末の直しに気づくのが最大5分遅れますが、
        保存のときの衝突検知は別のしくみなので、安全性は変わりません。 */
-    try{ setInterval(quietSync, 900000); }catch(e){}
-    try{ document.addEventListener('visibilitychange', function(){ if(!document.hidden) setTimeout(quietSync, 1500); }); }catch(e){}
-    try{ window.__pvSyncNow = quietSync; }catch(e){}
+    try{ setInterval(function(){ quietSync(true); }, 900000); }catch(e){}
+    /* ★ v21）ほかのタブから戻ったときは、1分に1回までにします。
+       これまでは戻るたびに全部を読み直していました。 */
+    try{ document.addEventListener('visibilitychange', function(){
+      if(!document.hidden) setTimeout(function(){ quietSync(false); }, 1500);
+    }); }catch(e){}
+    try{ window.__pvSyncNow = function(){ quietSync(true); }; }catch(e){}
   })();
 
   /* ---------- 古い画面かどうかを確かめます ---------- */
@@ -1262,6 +1409,7 @@
     try{
       if(!firebase.auth().currentUser) return;
       db().collection('config').doc(INS).get().then(function(d){
+        use('read', 1, '画面の版の見張り');
         var need = 0;
         try{ need = Number((d.exists && d.data() && d.data().minStore) || 0) || 0; }catch(e){ need = 0; }
         var old = (need > 0 && STORE_VER < need);
@@ -1277,7 +1425,10 @@
   try{ firebase.auth().onAuthStateChanged(function(u){ if(u) setTimeout(checkVer, 1200); }); }catch(e){}
   try{ setTimeout(function(){ tidyAhead('起動のとき'); }, 4000); }catch(e){}
   try{ setTimeout(checkVer, 3000); }catch(e){}
-  try{ setInterval(checkVer, 10 * 60 * 1000); }catch(e){}
+  /* ★ v21）10分ごと → 30分ごとにしました。
+     この見張りは「古い画面で保存させない」ためのもので、
+     こまめに見る必要はありません。 */
+  try{ setInterval(checkVer, 30 * 60 * 1000); }catch(e){}
   try{ window.__pvCheckVer = checkVer; }catch(e){}
 
   /* ---------- 出入口を包みます ---------- */
@@ -1315,11 +1466,24 @@
 
     function pcol(){ return db().collection(INS).doc('presence').collection('devices'); }
 
+    /* ★ v21）1分ごと → 3分ごとにしました。
+       この合図は、書くたびに、開いているすべての端末へ届きます。
+       3台で使うと 1回の書き込みが3回の読み込みになるので、
+       1分ごとだと1日あたり数千回ぶんを、ここだけで使っていました。 */
     function beat(){
       try{
         if(!firebase.auth().currentUser) return;
         if(document.hidden) return;
         pcol().doc(myId).set({ name:(me() || '(名前なし)'), at:Date.now() }).catch(function(){});
+        use('write', 1, 'だれが編集中かの合図');
+      }catch(e){}
+    }
+    /* 画面を閉じるときは、自分の合図を片づけます。
+       片づけないと古い端末の分がたまり続け、開くたびに全部を読むことになります。 */
+    function bye(){
+      try{
+        if(!firebase.auth().currentUser) return;
+        pcol().doc(myId).delete().catch(function(){});
       }catch(e){}
     }
 
@@ -1351,16 +1515,26 @@
           qs.forEach(function(d){
             if(d.id === myId) return;
             var v = d.data() || {};
-            if(now - (v.at || 0) < 120000) list.push(v.name || '(名前なし)');
+            if(now - (v.at || 0) < 420000) list.push(v.name || '(名前なし)');
           });
+          use('read', Math.max(qs.size || 0, 1), 'だれが編集中かを見る');
           show(list);
         }, function(){});
       }catch(e){}
     }
 
     try{ firebase.auth().onAuthStateChanged(function(u){ if(u){ beat(); setTimeout(watch, 600); } }); }catch(e){}
-    try{ setInterval(beat, 60000); }catch(e){}
-    try{ document.addEventListener('visibilitychange', function(){ if(!document.hidden) beat(); }); }catch(e){}
+    try{ setInterval(beat, 180000); }catch(e){}
+    /* 戻ってくるたびに合図を書くと、そのぶん全端末が読み直します。
+       前の合図から3分たっているときだけにします。 */
+    var _lastBeat = 0;
+    try{ document.addEventListener('visibilitychange', function(){
+      if(document.hidden){ return; }
+      var n = Date.now();
+      if(n - _lastBeat < 180000) return;
+      _lastBeat = n; beat();
+    }); }catch(e){}
+    try{ window.addEventListener('pagehide', bye); }catch(e){}
   })();
 
   /* ============================================================
