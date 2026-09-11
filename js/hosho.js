@@ -72,7 +72,68 @@
     var n = Math.floor((e.getTime() - s.getTime()) / 86400000);
     return n > 0 ? n : 0;
   }
-  function amount(r){ return Math.floor(num(r && r.rent) * RATE); }
+  /* ★ 保証のもとになるもの。賃料と、駐車場2台分です。
+       共益費は対象外です（保証の計算には入れません）。 */
+  var ITEMS = [ { k:'rent', nm:'賃料' }, { k:'p1', nm:'駐車場①' }, { k:'p2', nm:'駐車場②' } ];
+  function base(r){
+    var t = 0;
+    ITEMS.forEach(function(it){ t += num(r && r[it.k]); });
+    return t;
+  }
+  /* ひと月まるまるのぶん。項目ごとに30％にして、足します */
+  function monthYen(r){
+    var t = 0;
+    ITEMS.forEach(function(it){ t += Math.floor(num(r && r[it.k]) * RATE); });
+    return t;
+  }
+  /* 欠けている月のぶん。項目ごとに日割りしてから30％にして、足します */
+  function partYen(r, days, dim){
+    var t = 0;
+    ITEMS.forEach(function(it){ t += Math.floor(num(r && r[it.k]) * RATE * days / dim); });
+    return t;
+  }
+  /* その月の、項目ごとの内わけ */
+  function partsOf(r, days, dim){
+    return ITEMS.map(function(it){
+      var v = num(r && r[it.k]);
+      return { nm:it.nm, rent:v, yen:Math.floor(v * RATE * days / dim) };
+    }).filter(function(x){ return x.rent > 0; });
+  }
+  function amount(r){ return monthYen(r); }
+
+  /* その月の末日 */
+  function mEnd(d){ return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
+  /* 日数（両はしを入れて数えます） */
+  function span(a, b){ return Math.round((b.getTime() - a.getTime()) / 86400000) + 1; }
+
+  /* ★ 保証した期間を、月ごとに分けます。
+       ・まるまる1か月ある月　… 満額
+       ・欠けている月　　　　… 日割り（その月の実日数でわります）
+       保証は 91日目から、契約日の前日までです。 */
+  function split(r, sign){
+    var st = startDay(r);
+    var sg = day(sign == null ? (r && r.sign) : sign);
+    if(!st || !sg) return null;
+    var to = plus(sg, -1);                       /* 契約日の前日まで */
+    if(to.getTime() < st.getTime()) return { list:[], total:0, days:0, from:null, to:null };
+    var m = amount(r), out = [], total = 0, days = 0;
+    var cur = new Date(st.getFullYear(), st.getMonth(), 1);
+    while(cur.getTime() <= to.getTime()){
+      var e  = mEnd(cur);
+      var a  = (cur.getTime() > st.getTime()) ? cur : st;
+      var b2 = (e.getTime() < to.getTime()) ? e : to;
+      var n   = span(a, b2);
+      var dim = e.getDate();
+      var full = (n === dim);
+      out.push({ y:cur.getFullYear(), mo:cur.getMonth() + 1, from:a, to:b2,
+                 days:n, dim:dim, full:full,
+                 yen:(full ? m : partYen(r, n, dim)) });
+      total += out[out.length - 1].yen;
+      days  += n;
+      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+    }
+    return { list:out, total:total, days:days, from:st, to:to };
+  }
   function startDay(r){ var s = day(r && r.out); return s ? plus(s, DAYS) : null; }
   /* いま保証中か（解約日あり・契約日なし・91日目以降） */
   function live(r, at){
@@ -111,13 +172,14 @@
   + '.hs-lead{font-size:11.5px;line-height:1.75;color:#666;margin:6px 0 12px;}'
   + '.hs-wrap{max-height:430px;overflow:auto;}'
   + '.hs-hd,.hs-row{display:grid;gap:8px;align-items:center;'
-  +   'grid-template-columns:96px 132px 116px 116px 1fr 132px 74px 30px;}'
+  +   'grid-template-columns:82px 118px 86px 82px 82px 100px minmax(96px,1fr) 152px 62px 24px;}'
   + '.hs-hd{font-size:11px;font-weight:700;color:#888;padding:0 2px 6px;position:sticky;top:0;background:#fff;z-index:1;}'
   + '.hs-row{padding:5px 2px;border-top:1px solid #f0f0f2;}'
   + '.hs-row.on{background:#fff5f4;}'
   /* 左は「いまの様子」、右は「決まったときに入れるところ」。
      あいだに細い線を引いて、役目のちがいを見せます */
-  + '.hs-c-sign{border-left:1px solid #ececee;padding-left:14px;}'
+  + '.hs-hd > div,.hs-row > div{min-width:0;}'
+  + '.hs-c-sign{border-left:1px solid #ececee;padding-left:12px;}'
   + '.hs-hd .hs-c-sign{border-left:1px solid #ececee;}'
   + '.hs-row input{width:100%;border:1px solid #d5d5d8;border-radius:7px;padding:7px 8px;font-size:12.5px;}'
   + '.hs-row input:focus{outline:none;border-color:#000;}'
@@ -127,6 +189,11 @@
   + '.hs-day b{font-size:14px;}'
   + '.hs-day.on{color:#c7362a;}'
   + '.hs-day .hs-sub{display:block;font-size:10.5px;font-weight:500;color:#999;}'
+  /* 契約日の下に出す、日割りの合計 */
+  + '.hs-wari{font-size:10.5px;line-height:1.55;color:#666;margin-top:4px;padding:0 1px;overflow-wrap:anywhere;}'
+  + '.hs-wari .hs-wsub{display:block;color:#999;}'
+  + '.hs-wari b{font-size:12px;font-weight:800;color:#111;}'
+  + '.hs-wari.no{color:#999;}'
   + '.hs-day.on .hs-sub{color:#c7362a;opacity:.8;}'
   + '.hs-x{border:0;background:transparent;color:#c7362a;font-size:15px;cursor:pointer;padding:4px;}'
   + '.hs-fin{border:1px solid #000;background:#fff;color:#000;font-size:11.5px;font-weight:700;'
@@ -157,7 +224,7 @@
   + '@media (max-width:900px){'
   +   '.hs-hd{display:none;}'
   +   '.hs-row{grid-template-columns:1fr 1fr;padding:12px 2px;}'
-  +   '.hs-row .hs-c-amt,.hs-row .hs-c-day{grid-column:1 / -1;}'
+  +   '.hs-row .hs-c-amt,.hs-row .hs-c-day,.hs-row .hs-c-sign{grid-column:1 / -1;}'
   +   '.hs-c-sign{border-left:0;padding-left:0;}'
   +   '.hs-hrow{grid-template-columns:1fr;}'
   +   '.hs-hrow .hs-hy{text-align:left;}'
@@ -188,12 +255,14 @@
         '</div>' +
       '</div>' +
       '<div class="hs-lead">' +
-        '空室が <b>' + DAYS + '日目</b>に入ると、募集賃料の <b>30％</b> を保証します。' +
+        '空室が <b>' + DAYS + '日目</b>に入ると、<b>賃料と駐車場2台分の合計</b>の <b>30％</b> を保証します。' +
         '解約日を入れると、空室の日数を毎日かぞえます。<br>' +
-        '契約が決まったら契約日を入れて「完了」を押してください。数えるのを止めて、履歴に残します。' +
+        '契約が決まった日を入れると、<b>月ごとの日割り</b>を出します。' +
+        '欠けている月は、その月の実日数でわります。「完了」を押すと、履歴に残します。' +
       '</div>' +
       '<div class="hs-wrap"><div class="hs-hd">' +
-        '<div>部屋番号</div><div>解約日</div><div>募集賃料</div><div>保証賃料（30％）</div>' +
+        '<div>部屋番号</div><div>解約日</div><div>賃料</div><div>駐車場①</div><div>駐車場②</div>' +
+        '<div>保証賃料（30％）</div>' +
         '<div>空室の日数</div><div class="hs-c-sign">契約が決まった日</div><div></div><div></div>' +
       '</div><div id="hs-rows"></div></div>' +
       '<div id="hs-warn"></div>';
@@ -205,6 +274,25 @@
     el('hs-rows').addEventListener('change', onInput);
     el('hs-rows').addEventListener('click', onClick);
     return true;
+  }
+
+  /* 金額をいれる欄。空のままでも動きます（駐車場なしのとき） */
+  function numCell(r, k, ph){
+    var v = r[k];
+    return '<div><input type="number" class="hs-f" data-k="' + k + '" value="' +
+           ((v === '' || v == null) ? '' : num(v)) +
+           '" min="0" step="1000" placeholder="' + ph + '"></div>';
+  }
+
+  /* 契約日の下に出す、日割りの合計。契約日が空なら、何も出しません */
+  function wariHtml(r){
+    if(!String(r.sign || '').trim() || !day(r.out)) return '';
+    var w = split(r);
+    if(!w) return '';
+    if(!w.list.length) return '<span class="no">' + DAYS + '日目より前に決まったため、保証はありません</span>';
+    var md = function(d){ return (d.getMonth() + 1) + '/' + d.getDate(); };
+    return '日割り合計 <b>¥' + yen(w.total) + '</b>' +
+           '<span class="hs-wsub">' + md(w.from) + '〜' + md(w.to) + '・' + w.days + '日</span>';
   }
 
   function rowHtml(r, i){
@@ -221,12 +309,15 @@
     return '<div class="hs-row' + (on ? ' on' : '') + '" data-i="' + i + '">' +
       '<div><input type="text" class="hs-f" data-k="room" value="' + esc(r.room || '') + '" placeholder="101"></div>' +
       '<div><input type="date" class="hs-f" data-k="out" value="' + esc(r.out || '') + '"></div>' +
-      '<div><input type="number" class="hs-f" data-k="rent" value="' + (r.rent === '' || r.rent == null ? '' : num(r.rent)) + '" min="0" step="1000" placeholder="65000"></div>' +
-      '<div class="hs-c-amt"><div class="hs-amt">' + (num(r.rent) ? ('¥' + yen(amount(r))) : '—') + '</div></div>' +
+      numCell(r, 'rent', '65000') +
+      numCell(r, 'p1', '5000') +
+      numCell(r, 'p2', '5000') +
+      '<div class="hs-c-amt"><div class="hs-amt">' + (base(r) ? ('¥' + yen(amount(r))) : '—') + '</div></div>' +
       '<div class="hs-c-day"><div class="hs-day' + (on ? ' on' : '') + '">' +
         (day(r.out) ? ('<b>' + n + '</b> 日目') : '—') +
         '<span class="hs-sub">' + esc(sub) + '</span></div></div>' +
-      '<div class="hs-c-sign"><input type="date" class="hs-f" data-k="sign" value="' + esc(r.sign || '') + '"></div>' +
+      '<div class="hs-c-sign"><input type="date" class="hs-f" data-k="sign" value="' + esc(r.sign || '') + '">' +
+        '<div class="hs-wari">' + wariHtml(r) + '</div></div>' +
       '<div><button type="button" class="hs-fin' + (fin ? ' go' : '') + '" data-a="fin"' +
         (fin ? '' : ' disabled title="契約日を入れると押せます"') + '>完了</button></div>' +
       '<div><button type="button" class="hs-x" data-a="del" title="この行を消す">✕</button></div>' +
@@ -262,7 +353,10 @@
       row.classList.toggle('on', on);
 
       var amt = row.querySelector('.hs-amt');
-      if(amt) amt.textContent = num(r.rent) ? ('¥' + yen(amount(r))) : '—';
+      if(amt) amt.textContent = base(r) ? ('¥' + yen(amount(r))) : '—';
+
+      var wa = row.querySelector('.hs-wari');
+      if(wa) wa.innerHTML = wariHtml(r);
 
       var dy = row.querySelector('.hs-day');
       if(dy){
@@ -311,7 +405,7 @@
 
   function add(){
     if(_rows.length >= MAX){ toast('部屋は ' + MAX + ' 件までです'); return; }
-    _rows.push({ room:'', out:'', rent:'', sign:'' });
+    _rows.push({ room:'', out:'', rent:'', p1:'', p2:'', sign:'' });
     dirty();
     render();
     var last = el('hs-rows').querySelector('.hs-row:last-child input');
@@ -326,7 +420,8 @@
     var i = Number(row.getAttribute('data-i'));
     if(!_rows[i]) return;
     var k = f.getAttribute('data-k');
-    _rows[i][k] = (k === 'rent') ? (f.value === '' ? '' : num(f.value)) : String(f.value || '');
+    _rows[i][k] = /^(rent|p1|p2)$/.test(k) ? (f.value === '' ? '' : num(f.value))
+                                             : String(f.value || '');
     dirty();
     /* 打っている最中に作り直すと、カーソルが飛びます。
        日付と金額だけ、その場で計算し直します。 */
@@ -364,17 +459,39 @@
     if(sg.getTime() < ot.getTime()){ toast('契約日が、解約日より前になっています'); return; }
 
     var st = startDay(r);
-    var paid = (sg.getTime() > st.getTime());          /* 保証が発生したか */
+    var w  = split(r, r.sign) || { list:[], total:0, days:0 };
+    var paid = w.list.length > 0;                       /* 保証が発生したか */
     var to   = plus(sg, -1);                            /* 保証は契約日の前日まで */
-    var mons = paid ? Math.max(Math.round((to.getTime() - st.getTime()) / 86400000) + 1, 0) : 0;
+
+    /* 月ごとの内わけ。欠けている月は日割りです */
+    var lines = w.list.map(function(x){
+      var t = '　　' + x.y + '年' + x.mo + '月分　¥' + yen(x.yen) +
+              (x.full ? '（満額）'
+                      : ('（日割り ' + x.days + '日 / ' + x.dim + '日　' +
+                         jp(x.from) + '〜' + jp(x.to) + '）'));
+      /* 日割りの月だけ、項目ごとの内わけも出します */
+      if(!x.full){
+        var ps = partsOf(r, x.days, x.dim);
+        if(ps.length > 1){
+          t += '\n　　　' + ps.map(function(q){ return q.nm + ' ¥' + yen(q.yen); }).join('　／　');
+        }
+      }
+      return t;
+    }).join('\n');
 
     var msg = '部屋 ' + (r.room || '(部屋番号なし)') + ' の保証を完了にします。\n\n'
             + '　解約日　： ' + jpy(ot) + '\n'
             + '　契約日　： ' + jpy(sg) + '\n'
             + '　空室日数： ' + nth(r, sg) + ' 日\n\n'
             + (paid
-                ? ('　保証した期間： ' + jpy(st) + ' 〜 ' + jpy(to) + '（' + mons + ' 日）\n'
-                 + '　保証賃料　　： 月 ¥' + yen(amount(r)) + '\n\n')
+                ? ('　賃料　　： ¥' + yen(num(r.rent)) + '　→ 30％ ¥' + yen(Math.floor(num(r.rent) * RATE)) + '\n'
+                 + '　駐車場①： ¥' + yen(num(r.p1)) + '　→ 30％ ¥' + yen(Math.floor(num(r.p1) * RATE)) + '\n'
+                 + '　駐車場②： ¥' + yen(num(r.p2)) + '　→ 30％ ¥' + yen(Math.floor(num(r.p2) * RATE)) + '\n'
+                 + '　月額　　： ¥' + yen(amount(r)) + '　（共益費は対象外です）\n\n'
+                 + '　保証した期間： ' + jpy(st) + ' 〜 ' + jpy(to) + '（' + w.days + ' 日）\n\n'
+                 + lines + '\n'
+                 + '　　─────────────\n'
+                 + '　　合計　¥' + yen(w.total) + '\n\n')
                 : ('　' + DAYS + '日目より前に決まったため、保証は発生していません。\n\n'))
             + '履歴に残して、この行を消します。よろしいですか？';
     if(!confirm(msg)) return;
@@ -384,17 +501,33 @@
       out   : ymd(ot),
       sign  : ymd(sg),
       rent  : num(r.rent),
+      p1    : num(r.p1),
+      p2    : num(r.p2),
       amount: paid ? amount(r) : 0,
+      total : paid ? w.total : 0,
+      months: paid ? w.list.map(function(x){
+                return { y:x.y, mo:x.mo, days:x.days, dim:x.dim, full:x.full, yen:x.yen };
+              }) : [],
       from  : paid ? ymd(st) : '',
       to    : paid ? ymd(to) : '',
       days  : nth(r, sg),
-      paid  : paid ? mons : 0,
+      paid  : paid ? w.days : 0,
       at    : ymd(today0()),
       by    : who()
     });
     _rows.splice(i, 1);
     dirty(); render();
     toast('履歴に残しました');
+  }
+
+  /* 履歴に出す、月ごとの内わけ */
+  function monHtml(h){
+    var a = Array.isArray(h && h.months) ? h.months : [];
+    if(!a.length) return '';
+    return '<br>' + a.map(function(x){
+      return esc(x.y + '年' + x.mo + '月　¥' + yen(x.yen) +
+                 (x.full ? '（満額）' : ('（日割り ' + x.days + '/' + x.dim + '日）')));
+    }).join('　／　');
   }
 
   /* ---------- 履歴 ---------- */
@@ -418,10 +551,14 @@
             '<div class="hs-hd2">' +
               '解約 ' + esc(jpy(h.out)) + '　→　契約 ' + esc(jpy(h.sign)) +
               '（空室 ' + h.days + ' 日）<br>' + esc(per) +
+              monHtml(h) +
               (h.by ? ('<br>完了：' + esc(h.at) + '　' + esc(h.by)) : ('<br>完了：' + esc(h.at))) +
             '</div>' +
-            '<div class="hs-hy">' + (h.amount ? ('月 ¥' + yen(h.amount)) : '—') +
-              '<small>' + (h.rent ? ('募集 ¥' + yen(h.rent)) : '') + '</small></div>' +
+            '<div class="hs-hy">' + (h.total ? ('¥' + yen(h.total)) : (h.amount ? ('月 ¥' + yen(h.amount)) : '—')) +
+              '<small>' + (h.amount ? ('月 ¥' + yen(h.amount)) : '') +
+              (h.rent ? ('　賃料 ¥' + yen(h.rent) +
+                         ((num(h.p1) || num(h.p2)) ? ('＋駐 ¥' + yen(num(h.p1) + num(h.p2))) : '')) : '') +
+              '</small></div>' +
           '</div>';
         }).join('')
       : '<div class="hs-none">まだ履歴はありません。契約日を入れて「完了」を押すと、ここに残ります。</div>';
@@ -459,8 +596,9 @@
 
   function load(b){
     _rows = rowsOf(b).map(function(r){
+      var n0 = function(v){ return (v === '' || v == null) ? '' : num(v); };
       return { room:String(r.room||''), out:String(r.out||''),
-               rent:(r.rent === '' || r.rent == null) ? '' : num(r.rent),
+               rent:n0(r.rent), p1:n0(r.p1), p2:n0(r.p2),
                sign:String(r.sign||'') };
     }).slice(0, MAX);
     _log = logOf(b).map(function(h){ return Object.assign({}, h); });
@@ -468,10 +606,11 @@
   }
   function collect(){
     return _rows.filter(function(r){
-      return String(r.room||'').trim() || String(r.out||'').trim() || num(r.rent);
+      return String(r.room||'').trim() || String(r.out||'').trim() || base(r);
     }).map(function(r){
       return { room:String(r.room||'').trim(), out:String(r.out||''),
-               rent:num(r.rent), sign:String(r.sign||'') };
+               rent:num(r.rent), p1:num(r.p1), p2:num(r.p2),
+               sign:String(r.sign||'') };
     });
   }
 
@@ -546,47 +685,116 @@
   setTimeout(hook, 0);
   setTimeout(hook, 800);
 
-  /* 開いたときに、もうすぐ91日目の部屋があればお知らせします。
-     （LINE への通知は、別に用意します。これはこの画面だけのものです） */
-  function due(){
+  /* ================================================================
+     ★ 毎月のお知らせ
+
+     ・91日目を迎えた月の「次の月の1日」から、お知らせを出します
+     ・契約が決まるまで、毎月1日に出し続けます
+     ・その月に一度だけ出します（同じ月に何度も出しません）
+
+     1日に誰も PIVOT を開かなかったときは、その月にはじめて開いた人に
+     出ます。お知らせを取りこぼさないためです。
+
+     （LINE への通知は、別に用意します。これはこの画面だけのものです）
+     ================================================================ */
+
+  /* その月の1日 */
+  function mon1(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+  /* お知らせを始める月。91日目を迎えた月の、次の月の1日です */
+  function firstMonth(r){
+    var s = startDay(r);
+    return s ? new Date(s.getFullYear(), s.getMonth() + 1, 1) : null;
+  }
+  /* 月の差（何か月目か）。始める月を1か月目とかぞえます */
+  function monthNo(from, now){
+    return (now.getFullYear() - from.getFullYear()) * 12 +
+           (now.getMonth() - from.getMonth()) + 1;
+  }
+  function monKey(d){
+    var m = d.getMonth() + 1;
+    return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m;
+  }
+
+  /* その月に、お知らせで出すぶん。
+     ・はじめての月は、91日目からその月末までの日割りも、いっしょに出します
+       （91日目が月のとちゅうだと、その月は欠けているためです）
+     ・そのあとは、その月の満額だけです */
+  function bill(r, thisM){
+    var st = startDay(r);
+    var out = [];
+    var f = firstMonth(r);
+    if(st && f && thisM.getTime() === f.getTime()){
+      var e   = mEnd(st);
+      var n   = span(st, e);
+      var dim = e.getDate();
+      out.push({ y:st.getFullYear(), mo:st.getMonth() + 1, days:n, dim:dim,
+                 full:(n === dim), yen:(n === dim ? monthYen(r) : partYen(r, n, dim)) });
+    }
+    var em = mEnd(thisM);
+    out.push({ y:thisM.getFullYear(), mo:thisM.getMonth() + 1,
+               days:em.getDate(), dim:em.getDate(), full:true, yen:monthYen(r) });
+    return out;
+  }
+
+  /* いま、お知らせに出す部屋。
+     ・保証中（解約日あり・契約日なし・91日目以降）
+     ・91日目を迎えた月の、次の月の1日を迎えている */
+  function due(at){
+    var now = at || today0();
+    var thisM = mon1(now);
     var out = [], all = {};
     try{ all = (typeof loadAll === 'function' ? loadAll() : {}) || {}; }catch(e){ return out; }
     Object.keys(all).forEach(function(k){
       var b = all[k];
       rowsOf(b).forEach(function(r){
-        if(!day(r.out) || String(r.sign || '').trim()) return;
-        var n = nth(r);
-        var d = DAYS - n;
-        if(d === PRE || d === 0 || (d < 0 && n === DAYS)){
-          out.push({ bld:(b.name || ''), room:(r.room || ''), nth:n, left:d,
-                     amount:amount(r), from:ymd(startDay(r)) });
-        }
+        if(!live(r, now)) return;
+        var f = firstMonth(r);
+        if(!f || thisM.getTime() < f.getTime()) return;
+        var bl = bill(r, thisM);
+        var tt = 0;
+        bl.forEach(function(x){ tt += x.yen; });
+        out.push({ bld:(b.name || ''), room:(r.room || ''), nth:nth(r, now),
+                   amount:amount(r), from:ymd(startDay(r)),
+                   month:monthNo(f, thisM), lines:bl, total:tt });
       });
     });
     return out;
   }
   window.pvHoshoDue = due;
 
-  function tellOnce(){
-    var list = due();
+  function tellMonth(){
+    var now  = today0();
+    var list = due(now);
     if(!list.length) return;
-    var key = 'hs_told_' + ymd(today0());
+    var key = 'hs_told_' + monKey(now);
     try{ if(localStorage.getItem(key)) return; localStorage.setItem(key, '1'); }catch(e){}
+    var sum = 0;
     var t = list.map(function(x){
-      return '・' + x.bld + '　' + (x.room || '(部屋番号なし)') +
-             (x.left > 0 ? ('　あと ' + x.left + ' 日で保証が始まります')
-                         : ('　きょうから保証です（月 ¥' + yen(x.amount) + '）'));
+      sum += x.total;
+      var head = '・' + x.bld + '　' + (x.room || '(部屋番号なし)') +
+                 '（' + jp(x.from) + ' から保証中／' + x.month + 'か月目）';
+      var sub = x.lines.map(function(l){
+        return '　　' + l.mo + '月分　¥' + yen(l.yen) +
+               (l.full ? '（満額）' : ('（日割り ' + l.days + '日 / ' + l.dim + '日）'));
+      }).join('\n');
+      return head + '\n' + sub;
     });
     try{
-      window.alert('【30％保証のお知らせ】\n\n' + t.join('\n') +
-                   '\n\n※ このお知らせは、きょうは一度だけ出します。');
+      window.alert('【30％保証賃料　' + (now.getMonth() + 1) + '月分のお知らせ】\n\n' +
+                   t.join('\n\n') +
+                   '\n\n合計　¥' + yen(sum) +
+                   '\n\n契約が決まるまで、毎月1日にお知らせします。' +
+                   '\n契約が決まったら、その行に契約日を入れて「完了」を押してください。' +
+                   '\n\n※ このお知らせは、今月は一度だけ出します。');
     }catch(e){}
   }
-  setTimeout(function(){ try{ tellOnce(); }catch(e){} }, 4000);
+  window.pvHoshoTell = tellMonth;
+  setTimeout(function(){ try{ tellMonth(); }catch(e){} }, 4000);
 
   /* 確かめ用 */
   try{
     window.pvHosho = { rows:function(){ return _rows; }, log:function(){ return _log; },
-                       nth:nth, live:live, amount:amount, DAYS:DAYS, RATE:RATE, MAX:MAX };
+                       nth:nth, live:live, base:base, amount:amount, split:split,
+                       DAYS:DAYS, RATE:RATE, MAX:MAX };
   }catch(e){}
 })();
