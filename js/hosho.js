@@ -179,6 +179,9 @@
   /* 契約日の下に出す、日割りの合計 */
   + '.hs-wari{font-size:10.5px;line-height:1.55;color:#666;margin-top:4px;padding:0 1px;overflow-wrap:anywhere;}'
   + '.hs-wari .hs-wsub{display:block;color:#999;}'
+  /* 保証賃料の下に出す「今月は日割り」 */
+  + '.hs-now{font-size:10.5px;line-height:1.5;color:#c7362a;padding:0 8px;}'
+  + '.hs-now b{font-size:12px;font-weight:800;}'
   + '.hs-wari b{font-size:12px;font-weight:800;color:#111;}'
   + '.hs-wari.no{color:#999;}'
   + '.hs-day.on .hs-sub{color:#c7362a;opacity:.8;}'
@@ -244,8 +247,9 @@
       '<div class="hs-lead">' +
         '空室が <b>' + DAYS + '日目</b>に入ると、<b>募集賃料</b>の <b>30％</b> を保証します。' +
         '募集賃料は満室想定の月額賃料で、<b>共益費・駐車場使用料は含みません</b>。<br>' +
-        '契約が決まった日を入れると、<b>月ごとの日割り</b>を出します。' +
-        '欠けている月は、その月の実日数でわります。「完了」を押すと、履歴に残します。' +
+        'オーナー様へは<b>毎月15日に当月ぶん</b>を送金します。' +
+        '保証がその月のとちゅうで始まる／終わるときは、<b>その月の実日数で日割り</b>します。<br>' +
+        '契約が決まった日を入れると、月ごとの内わけが出ます。「完了」を押すと、履歴に残します。' +
       '</div>' +
       '<div class="hs-wrap"><div class="hs-hd">' +
         '<div>部屋番号</div><div>解約日</div><div>募集賃料</div><div>保証賃料（30％）</div>' +
@@ -268,6 +272,16 @@
     return '<div><input type="number" class="hs-f" data-k="' + k + '" value="' +
            ((v === '' || v == null) ? '' : num(v)) +
            '" min="0" step="1000" placeholder="' + ph + '"></div>';
+  }
+
+  /* ★ 今月、送る金額。満額なら何も出しません（上の保証賃料と同じなので）。
+       日割りになる月だけ、その金額と日数を出します。 */
+  function nowHtml(r){
+    if(!day(r.out) || !base(r)) return '';
+    var m = monthPay(r, mon1(today0()));
+    if(!m) return '';
+    if(m.full) return '';
+    return '今月は日割り<br>' + m.days + '/' + m.dim + '日　<b>¥' + yen(m.yen) + '</b>';
   }
 
   /* 契約日の下に出す、日割りの合計。契約日が空なら、何も出しません */
@@ -296,7 +310,8 @@
       '<div><input type="text" class="hs-f" data-k="room" value="' + esc(r.room || '') + '" placeholder="101"></div>' +
       '<div><input type="date" class="hs-f" data-k="out" value="' + esc(r.out || '') + '"></div>' +
       numCell(r, 'rent', '65000') +
-      '<div class="hs-c-amt"><div class="hs-amt">' + (base(r) ? ('¥' + yen(amount(r))) : '—') + '</div></div>' +
+      '<div class="hs-c-amt"><div class="hs-amt">' + (base(r) ? ('¥' + yen(amount(r))) : '—') + '</div>' +
+        '<div class="hs-now">' + nowHtml(r) + '</div></div>' +
       '<div class="hs-c-day"><div class="hs-day' + (on ? ' on' : '') + '">' +
         (day(r.out) ? ('<b>' + n + '</b> 日目') : '—') +
         '<span class="hs-sub">' + esc(sub) + '</span></div></div>' +
@@ -338,6 +353,9 @@
 
       var amt = row.querySelector('.hs-amt');
       if(amt) amt.textContent = base(r) ? ('¥' + yen(amount(r))) : '—';
+
+      var nw = row.querySelector('.hs-now');
+      if(nw) nw.innerHTML = nowHtml(r);
 
       var wa = row.querySelector('.hs-wari');
       if(wa) wa.innerHTML = wariHtml(r);
@@ -655,26 +673,35 @@
   setTimeout(hook, 800);
 
   /* ================================================================
-     ★ 毎月のお知らせ
+     ★ 毎月の送金のお知らせ
 
-     ・91日目を迎えた月の「次の月の1日」から、お知らせを出します
-     ・契約が決まるまで、毎月1日に出し続けます
-     ・その月に一度だけ出します（同じ月に何度も出しません）
+     オーナー様へは、毎月15日に「その月ぶん」を送金します。
+     ですので、15日になったら、その月に送る金額をお知らせします。
 
-     1日に誰も PIVOT を開かなかったときは、その月にはじめて開いた人に
-     出ます。お知らせを取りこぼさないためです。
+     ・その月まるまる保証しているときは、満額（募集賃料の30％）
+     ・その月のとちゅうで保証が始まるとき（91日目がその月）は、日割り
+     ・その月のとちゅうで保証が終わるとき（契約が決まった日がその月）も、日割り
+
+     例）10月20日に契約が決まった部屋
+         10月は 10/1〜10/19 の19日ぶん。募集賃料の日割りの30％です。
+
+     ・その月に一度だけ出します
+     ・15日に誰も PIVOT を開かなかったときは、そのあと はじめて開いた人に
+       出ます。お知らせを取りこぼさないためです。
 
      （LINE への通知は、別に用意します。これはこの画面だけのものです）
      ================================================================ */
 
+  var PAY_DAY = 15;   /* 毎月、この日に送金します */
+
   /* その月の1日 */
   function mon1(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
-  /* お知らせを始める月。91日目を迎えた月の、次の月の1日です */
+  /* その部屋の、はじめて保証がかかる月（91日目のある月） */
   function firstMonth(r){
     var s = startDay(r);
-    return s ? new Date(s.getFullYear(), s.getMonth() + 1, 1) : null;
+    return s ? new Date(s.getFullYear(), s.getMonth(), 1) : null;
   }
-  /* 月の差（何か月目か）。始める月を1か月目とかぞえます */
+  /* 月の差（何か月目か）。はじめの月を1か月目とかぞえます */
   function monthNo(from, now){
     return (now.getFullYear() - from.getFullYear()) * 12 +
            (now.getMonth() - from.getMonth()) + 1;
@@ -684,30 +711,26 @@
     return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m;
   }
 
-  /* その月に、お知らせで出すぶん。
-     ・はじめての月は、91日目からその月末までの日割りも、いっしょに出します
-       （91日目が月のとちゅうだと、その月は欠けているためです）
-     ・そのあとは、その月の満額だけです */
-  function bill(r, thisM){
+  /* ★ その月に送る金額。
+       保証がその月にかかっている日数を数えて、
+       まるまるなら満額、欠けていれば日割りにします。
+       その月に保証がかかっていなければ null を返します。 */
+  function monthPay(r, m1){
     var st = startDay(r);
-    var out = [];
-    var f = firstMonth(r);
-    if(st && f && thisM.getTime() === f.getTime()){
-      var e   = mEnd(st);
-      var n   = span(st, e);
-      var dim = e.getDate();
-      out.push({ y:st.getFullYear(), mo:st.getMonth() + 1, days:n, dim:dim,
-                 full:(n === dim), yen:(n === dim ? monthYen(r) : partYen(r, n, dim)) });
-    }
-    var em = mEnd(thisM);
-    out.push({ y:thisM.getFullYear(), mo:thisM.getMonth() + 1,
-               days:em.getDate(), dim:em.getDate(), full:true, yen:monthYen(r) });
-    return out;
+    if(!st) return null;
+    var e  = mEnd(m1);
+    var sg = day(r && r.sign);
+    var to = sg ? plus(sg, -1) : e;            /* 契約が決まっていれば、その前日まで */
+    var a  = (st.getTime() > m1.getTime()) ? st : m1;
+    var b  = (to.getTime() < e.getTime()) ? to : e;
+    if(b.getTime() < a.getTime()) return null; /* この月は、保証がありません */
+    var n = span(a, b), dim = e.getDate();
+    return { y:m1.getFullYear(), mo:m1.getMonth() + 1, from:a, to:b,
+             days:n, dim:dim, full:(n === dim),
+             yen:(n === dim ? monthYen(r) : partYen(r, n, dim)) };
   }
 
-  /* いま、お知らせに出す部屋。
-     ・保証中（解約日あり・契約日なし・91日目以降）
-     ・91日目を迎えた月の、次の月の1日を迎えている */
+  /* いま、お知らせに出す部屋。その月に保証がかかっているものだけです */
   function due(at){
     var now = at || today0();
     var thisM = mon1(now);
@@ -716,44 +739,46 @@
     Object.keys(all).forEach(function(k){
       var b = all[k];
       rowsOf(b).forEach(function(r){
-        if(!live(r, now)) return;
+        if(!day(r.out)) return;
+        var m = monthPay(r, thisM);
+        if(!m) return;
         var f = firstMonth(r);
-        if(!f || thisM.getTime() < f.getTime()) return;
-        var bl = bill(r, thisM);
-        var tt = 0;
-        bl.forEach(function(x){ tt += x.yen; });
         out.push({ bld:(b.name || ''), room:(r.room || ''), nth:nth(r, now),
                    amount:amount(r), from:ymd(startDay(r)),
-                   month:monthNo(f, thisM), lines:bl, total:tt });
+                   month:(f ? monthNo(f, thisM) : 1),
+                   days:m.days, dim:m.dim, full:m.full, pay:m.yen,
+                   lines:[m], total:m.yen });
       });
     });
     return out;
   }
   window.pvHoshoDue = due;
 
-  function tellMonth(){
-    var now  = today0();
+  /* at を渡すと、その日で組み立てます（確かめ用） */
+  function tellMonth(at){
+    var now  = at || today0();
+    if(now.getDate() < PAY_DAY) return;     /* 15日になってから出します */
     var list = due(now);
     if(!list.length) return;
     var key = 'hs_told_' + monKey(now);
     try{ if(localStorage.getItem(key)) return; localStorage.setItem(key, '1'); }catch(e){}
     var sum = 0;
     var t = list.map(function(x){
-      sum += x.total;
-      var head = '・' + x.bld + '　' + (x.room || '(部屋番号なし)') +
-                 '（' + jp(x.from) + ' から保証中／' + x.month + 'か月目）';
-      var sub = x.lines.map(function(l){
-        return '　　' + l.mo + '月分　¥' + yen(l.yen) +
-               (l.full ? '（満額）' : ('（日割り ' + l.days + '日 / ' + l.dim + '日）'));
-      }).join('\n');
-      return head + '\n' + sub;
+      sum += x.pay;
+      return '・' + x.bld + '　' + (x.room || '(部屋番号なし)') +
+             '　¥' + yen(x.pay) +
+             (x.full ? '（満額）'
+                     : ('（日割り ' + x.days + '日 / ' + x.dim + '日　' +
+                        (x.mo || (now.getMonth() + 1)) + '/' + x.lines[0].from.getDate() + '〜' +
+                        (now.getMonth() + 1) + '/' + x.lines[0].to.getDate() + '）'));
     });
     try{
-      window.alert('【30％保証賃料　' + (now.getMonth() + 1) + '月分のお知らせ】\n\n' +
-                   t.join('\n\n') +
+      window.alert('【30％保証賃料　' + (now.getMonth() + 1) + '月分の送金のお知らせ】\n\n' +
+                   '毎月15日に、その月ぶんを送金します。\n\n' +
+                   t.join('\n') +
                    '\n\n合計　¥' + yen(sum) +
-                   '\n\n契約が決まるまで、毎月1日にお知らせします。' +
-                   '\n契約が決まったら、その行に契約日を入れて「完了」を押してください。' +
+                   '\n\n契約が決まったら、その行に「契約が決まった日」を入れてください。' +
+                   '\nその月は日割りになります。' +
                    '\n\n※ このお知らせは、今月は一度だけ出します。');
     }catch(e){}
   }
@@ -764,6 +789,6 @@
   try{
     window.pvHosho = { rows:function(){ return _rows; }, log:function(){ return _log; },
                        nth:nth, live:live, base:base, amount:amount, split:split,
-                       DAYS:DAYS, RATE:RATE, MAX:MAX };
+                       monthPay:monthPay, DAYS:DAYS, RATE:RATE, MAX:MAX, PAY_DAY:PAY_DAY };
   }catch(e){}
 })();
