@@ -72,33 +72,20 @@
     var n = Math.floor((e.getTime() - s.getTime()) / 86400000);
     return n > 0 ? n : 0;
   }
-  /* ★ 保証のもとになるもの。賃料と、駐車場2台分です。
-       共益費は対象外です（保証の計算には入れません）。 */
-  var ITEMS = [ { k:'rent', nm:'賃料' }, { k:'p1', nm:'駐車場①' }, { k:'p2', nm:'駐車場②' } ];
-  function base(r){
-    var t = 0;
-    ITEMS.forEach(function(it){ t += num(r && r[it.k]); });
-    return t;
-  }
-  /* ひと月まるまるのぶん。項目ごとに30％にして、足します */
-  function monthYen(r){
-    var t = 0;
-    ITEMS.forEach(function(it){ t += Math.floor(num(r && r[it.k]) * RATE); });
-    return t;
-  }
-  /* 欠けている月のぶん。項目ごとに日割りしてから30％にして、足します */
-  function partYen(r, days, dim){
-    var t = 0;
-    ITEMS.forEach(function(it){ t += Math.floor(num(r && r[it.k]) * RATE * days / dim); });
-    return t;
-  }
-  /* その月の、項目ごとの内わけ */
-  function partsOf(r, days, dim){
-    return ITEMS.map(function(it){
-      var v = num(r && r[it.k]);
-      return { nm:it.nm, rent:v, yen:Math.floor(v * RATE * days / dim) };
-    }).filter(function(x){ return x.rent > 0; });
-  }
+  /* ★ 保証のもとになるのは「募集賃料」だけです。
+       管理委託契約の第2項で、こう決めています。
+
+         「募集賃料」とは、甲乙が合意した満室想定の月額賃料をいい、
+         共益費、駐車場使用料その他の付随費用はこれに含まない。
+
+       ですので、共益費も駐車場使用料も、計算には入れません。
+       （賃料5万円・共益費3,000円・駐車場5,000円なら、
+         もとになるのは5万円だけ。保証額は月15,000円です） */
+  function base(r){ return num(r && r.rent); }
+  /* ひと月まるまるのぶん */
+  function monthYen(r){ return Math.floor(base(r) * RATE); }
+  /* 欠けている月のぶん。日割りしてから30％にします */
+  function partYen(r, days, dim){ return Math.floor(base(r) * RATE * days / dim); }
   function amount(r){ return monthYen(r); }
 
   /* その月の末日 */
@@ -172,7 +159,7 @@
   + '.hs-lead{font-size:11.5px;line-height:1.75;color:#666;margin:6px 0 12px;}'
   + '.hs-wrap{max-height:430px;overflow:auto;}'
   + '.hs-hd,.hs-row{display:grid;gap:8px;align-items:center;'
-  +   'grid-template-columns:82px 118px 86px 82px 82px 100px minmax(96px,1fr) 152px 62px 24px;}'
+  +   'grid-template-columns:92px 126px 112px 112px minmax(96px,1fr) 152px 66px 26px;}'
   + '.hs-hd{font-size:11px;font-weight:700;color:#888;padding:0 2px 6px;position:sticky;top:0;background:#fff;z-index:1;}'
   + '.hs-row{padding:5px 2px;border-top:1px solid #f0f0f2;}'
   + '.hs-row.on{background:#fff5f4;}'
@@ -255,14 +242,13 @@
         '</div>' +
       '</div>' +
       '<div class="hs-lead">' +
-        '空室が <b>' + DAYS + '日目</b>に入ると、<b>賃料と駐車場2台分の合計</b>の <b>30％</b> を保証します。' +
-        '解約日を入れると、空室の日数を毎日かぞえます。<br>' +
+        '空室が <b>' + DAYS + '日目</b>に入ると、<b>募集賃料</b>の <b>30％</b> を保証します。' +
+        '募集賃料は満室想定の月額賃料で、<b>共益費・駐車場使用料は含みません</b>。<br>' +
         '契約が決まった日を入れると、<b>月ごとの日割り</b>を出します。' +
         '欠けている月は、その月の実日数でわります。「完了」を押すと、履歴に残します。' +
       '</div>' +
       '<div class="hs-wrap"><div class="hs-hd">' +
-        '<div>部屋番号</div><div>解約日</div><div>賃料</div><div>駐車場①</div><div>駐車場②</div>' +
-        '<div>保証賃料（30％）</div>' +
+        '<div>部屋番号</div><div>解約日</div><div>募集賃料</div><div>保証賃料（30％）</div>' +
         '<div>空室の日数</div><div class="hs-c-sign">契約が決まった日</div><div></div><div></div>' +
       '</div><div id="hs-rows"></div></div>' +
       '<div id="hs-warn"></div>';
@@ -276,7 +262,7 @@
     return true;
   }
 
-  /* 金額をいれる欄。空のままでも動きます（駐車場なしのとき） */
+  /* 金額をいれる欄 */
   function numCell(r, k, ph){
     var v = r[k];
     return '<div><input type="number" class="hs-f" data-k="' + k + '" value="' +
@@ -310,8 +296,6 @@
       '<div><input type="text" class="hs-f" data-k="room" value="' + esc(r.room || '') + '" placeholder="101"></div>' +
       '<div><input type="date" class="hs-f" data-k="out" value="' + esc(r.out || '') + '"></div>' +
       numCell(r, 'rent', '65000') +
-      numCell(r, 'p1', '5000') +
-      numCell(r, 'p2', '5000') +
       '<div class="hs-c-amt"><div class="hs-amt">' + (base(r) ? ('¥' + yen(amount(r))) : '—') + '</div></div>' +
       '<div class="hs-c-day"><div class="hs-day' + (on ? ' on' : '') + '">' +
         (day(r.out) ? ('<b>' + n + '</b> 日目') : '—') +
@@ -405,7 +389,7 @@
 
   function add(){
     if(_rows.length >= MAX){ toast('部屋は ' + MAX + ' 件までです'); return; }
-    _rows.push({ room:'', out:'', rent:'', p1:'', p2:'', sign:'' });
+    _rows.push({ room:'', out:'', rent:'', sign:'' });
     dirty();
     render();
     var last = el('hs-rows').querySelector('.hs-row:last-child input');
@@ -420,8 +404,7 @@
     var i = Number(row.getAttribute('data-i'));
     if(!_rows[i]) return;
     var k = f.getAttribute('data-k');
-    _rows[i][k] = /^(rent|p1|p2)$/.test(k) ? (f.value === '' ? '' : num(f.value))
-                                             : String(f.value || '');
+    _rows[i][k] = (k === 'rent') ? (f.value === '' ? '' : num(f.value)) : String(f.value || '');
     dirty();
     /* 打っている最中に作り直すと、カーソルが飛びます。
        日付と金額だけ、その場で計算し直します。 */
@@ -469,13 +452,6 @@
               (x.full ? '（満額）'
                       : ('（日割り ' + x.days + '日 / ' + x.dim + '日　' +
                          jp(x.from) + '〜' + jp(x.to) + '）'));
-      /* 日割りの月だけ、項目ごとの内わけも出します */
-      if(!x.full){
-        var ps = partsOf(r, x.days, x.dim);
-        if(ps.length > 1){
-          t += '\n　　　' + ps.map(function(q){ return q.nm + ' ¥' + yen(q.yen); }).join('　／　');
-        }
-      }
       return t;
     }).join('\n');
 
@@ -484,10 +460,8 @@
             + '　契約日　： ' + jpy(sg) + '\n'
             + '　空室日数： ' + nth(r, sg) + ' 日\n\n'
             + (paid
-                ? ('　賃料　　： ¥' + yen(num(r.rent)) + '　→ 30％ ¥' + yen(Math.floor(num(r.rent) * RATE)) + '\n'
-                 + '　駐車場①： ¥' + yen(num(r.p1)) + '　→ 30％ ¥' + yen(Math.floor(num(r.p1) * RATE)) + '\n'
-                 + '　駐車場②： ¥' + yen(num(r.p2)) + '　→ 30％ ¥' + yen(Math.floor(num(r.p2) * RATE)) + '\n'
-                 + '　月額　　： ¥' + yen(amount(r)) + '　（共益費は対象外です）\n\n'
+                ? ('　募集賃料： ¥' + yen(base(r)) + '　→　30％＝ 月 ¥' + yen(amount(r)) + '\n'
+                 + '　　（共益費・駐車場使用料は、保証の対象外です）\n\n'
                  + '　保証した期間： ' + jpy(st) + ' 〜 ' + jpy(to) + '（' + w.days + ' 日）\n\n'
                  + lines + '\n'
                  + '　　─────────────\n'
@@ -501,8 +475,6 @@
       out   : ymd(ot),
       sign  : ymd(sg),
       rent  : num(r.rent),
-      p1    : num(r.p1),
-      p2    : num(r.p2),
       amount: paid ? amount(r) : 0,
       total : paid ? w.total : 0,
       months: paid ? w.list.map(function(x){
@@ -556,8 +528,7 @@
             '</div>' +
             '<div class="hs-hy">' + (h.total ? ('¥' + yen(h.total)) : (h.amount ? ('月 ¥' + yen(h.amount)) : '—')) +
               '<small>' + (h.amount ? ('月 ¥' + yen(h.amount)) : '') +
-              (h.rent ? ('　賃料 ¥' + yen(h.rent) +
-                         ((num(h.p1) || num(h.p2)) ? ('＋駐 ¥' + yen(num(h.p1) + num(h.p2))) : '')) : '') +
+              (h.rent ? ('　募集 ¥' + yen(h.rent)) : '') +
               '</small></div>' +
           '</div>';
         }).join('')
@@ -596,9 +567,8 @@
 
   function load(b){
     _rows = rowsOf(b).map(function(r){
-      var n0 = function(v){ return (v === '' || v == null) ? '' : num(v); };
       return { room:String(r.room||''), out:String(r.out||''),
-               rent:n0(r.rent), p1:n0(r.p1), p2:n0(r.p2),
+               rent:(r.rent === '' || r.rent == null) ? '' : num(r.rent),
                sign:String(r.sign||'') };
     }).slice(0, MAX);
     _log = logOf(b).map(function(h){ return Object.assign({}, h); });
@@ -609,8 +579,7 @@
       return String(r.room||'').trim() || String(r.out||'').trim() || base(r);
     }).map(function(r){
       return { room:String(r.room||'').trim(), out:String(r.out||''),
-               rent:num(r.rent), p1:num(r.p1), p2:num(r.p2),
-               sign:String(r.sign||'') };
+               rent:num(r.rent), sign:String(r.sign||'') };
     });
   }
 
