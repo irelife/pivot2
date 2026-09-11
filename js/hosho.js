@@ -17,13 +17,15 @@
 (function(){
   'use strict';
 
-  var DAYS = 91;      /* 何日目から保証が始まるか */
+  var FREE_DAYS = 90;   /* 解約日から起算して、何日目まで免責か */
+  var YEARS     = 2;    /* 管理開始日から何年で、保証の契約が終わるか */
   var RATE = 0.30;    /* 募集賃料に掛ける割合 */
   var MAX  = 10;      /* 何部屋まで足せるか */
   var PRE  = 3;       /* 何日前にお知らせするか */
 
   var _rows = [];     /* いま編集している物件の、保証の行 */
   var _log  = [];     /* いま編集している物件の、履歴 */
+  var _from = '';     /* いま編集している物件の、管理開始日 */
 
   /* ---------- 小道具 ---------- */
   function esc(v){
@@ -48,6 +50,11 @@
     if(!d) return '';
     var p = function(n){ return (n < 10 ? '0' : '') + n; };
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+  /* 9/30 のような、みじかい日づけ */
+  function md(v){
+    var d = (v instanceof Date) ? v : day(v);
+    return d ? ((d.getMonth() + 1) + '/' + d.getDate()) : '';
   }
   function jp(v){
     var d = (v instanceof Date) ? v : day(v);
@@ -87,46 +94,94 @@
   /* 欠けている月のぶん。日割りしてから30％にします */
   function partYen(r, days, dim){ return Math.floor(base(r) * RATE * days / dim); }
   function amount(r){ return monthYen(r); }
+  /* 保証が始まるまで、あと何日か。もう始まっていれば 0 です */
+  function left(r, at){
+    var st = startDay(r);
+    if(!st) return null;
+    var e = at || today0();
+    var n = Math.round((st.getTime() - e.getTime()) / 86400000);
+    return n > 0 ? n : 0;
+  }
 
   /* その月の末日 */
   function mEnd(d){ return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
   /* 日数（両はしを入れて数えます） */
   function span(a, b){ return Math.round((b.getTime() - a.getTime()) / 86400000) + 1; }
 
-  /* ★ 保証した期間を、月ごとに分けます。
+  /* ★ ある期間を、月ごとに分けます。
        ・まるまる1か月ある月　… 満額
-       ・欠けている月　　　　… 日割り（その月の実日数でわります）
-       保証は 91日目から、契約日の前日までです。 */
-  function split(r, sign){
+       ・欠けている月　　　　… 日割り（その月の実日数でわります） */
+  function splitRange(r, a, b){
+    var out = [], cur = mon1(a);
+    while(cur.getTime() <= b.getTime()){
+      var e  = mEnd(cur);
+      var x  = (cur.getTime() > a.getTime()) ? cur : a;
+      var y  = (e.getTime() < b.getTime()) ? e : b;
+      var n  = span(x, y), dim = e.getDate(), full = (n === dim);
+      out.push({ y:cur.getFullYear(), mo:cur.getMonth() + 1, from:x, to:y,
+                 days:n, dim:dim, full:full,
+                 yen:(full ? monthYen(r) : partYen(r, n, dim)) });
+      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+    }
+    return out;
+  }
+  function sumOf(list){ var t = 0; list.forEach(function(x){ t += x.yen; }); return t; }
+
+  /* ★ 保証のぜんぶ。91日目から、契約日の前日までです */
+  function split(r, sign, term){
     var st = startDay(r);
     var sg = day(sign == null ? (r && r.sign) : sign);
     if(!st || !sg) return null;
     var to = plus(sg, -1);                       /* 契約日の前日まで */
-    if(to.getTime() < st.getTime()) return { list:[], total:0, days:0, from:null, to:null };
-    var m = amount(r), out = [], total = 0, days = 0;
-    var cur = new Date(st.getFullYear(), st.getMonth(), 1);
-    while(cur.getTime() <= to.getTime()){
-      var e  = mEnd(cur);
-      var a  = (cur.getTime() > st.getTime()) ? cur : st;
-      var b2 = (e.getTime() < to.getTime()) ? e : to;
-      var n   = span(a, b2);
-      var dim = e.getDate();
-      var full = (n === dim);
-      out.push({ y:cur.getFullYear(), mo:cur.getMonth() + 1, from:a, to:b2,
-                 days:n, dim:dim, full:full,
-                 yen:(full ? m : partYen(r, n, dim)) });
-      total += out[out.length - 1].yen;
-      days  += n;
-      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+    /* 保証契約の満了をすぎたぶんは、入れません */
+    var t = (term === undefined) ? termEnd() : term;
+    var cut = false;
+    if(t && t.getTime() < to.getTime()){ to = t; cut = true; }
+    if(to.getTime() < st.getTime()){
+      return { list:[], total:0, days:0, from:null, to:null, cut:cut, term:t };
     }
-    return { list:out, total:total, days:days, from:st, to:to };
+    var list = splitRange(r, st, to);
+    return { list:list, total:sumOf(list), days:span(st, to), from:st, to:to, cut:cut, term:t };
   }
-  function startDay(r){ var s = day(r && r.out); return s ? plus(s, DAYS) : null; }
+  /* ★ 月を足します。応当日がない月は、その月の末日にします
+       （例：11月30日の3か月後は 2月28日。2月30日は無いためです） */
+  function plusM(d, n){
+    var y = d.getFullYear(), m = d.getMonth() + n, dd = d.getDate();
+    var last = new Date(y, m + 1, 0).getDate();
+    return new Date(y, m, Math.min(dd, last));
+  }
+  /* ★ 保証が始まる日。
+       解約日から起算して90日目までが免責。91日目から保証です。
+       例）7月1日に解約 → 9月29日が90日目 → 9月30日から保証 */
+  function startDay(r){ var s = day(r && r.out); return s ? plus(s, FREE_DAYS + 1) : null; }
+  /* ★ 保証契約の満了の日。管理開始日から2年で終わります（2年後の前日）。
+       管理開始日が空なら null（満了なし）です。 */
+  function termOf(from){
+    var d = day(from);
+    return d ? plus(plusM(d, YEARS * 12), -1) : null;
+  }
+
+  /* ★ 保証が終わる日。次の2つのうち、早いほうです。
+       ・契約が決まった日の前日
+       ・保証契約の満了の日（管理開始日から2年）
+       どちらも無ければ null（まだ終わりません）。 */
+  function endDay(r, term){
+    var g = day(r && r.sign);
+    var a = g ? plus(g, -1) : null;
+    var t = (term === undefined) ? termEnd() : term;
+    if(!a) return t || null;
+    if(t && t.getTime() < a.getTime()) return t;
+    return a;
+  }
   /* いま保証中か（解約日あり・契約日なし・91日目以降） */
-  function live(r, at){
+  function live(r, at, term){
     if(!r || !day(r.out)) return false;
     if(String(r.sign || '').trim()) return false;
-    return nth(r, at) >= DAYS;
+    var st = startDay(r);
+    var e  = at || today0();
+    if(!st || e.getTime() < st.getTime()) return false;
+    var en = endDay(r, term);
+    return !en || e.getTime() <= en.getTime();
   }
   function rowsOf(b){
     var a = (b && b.guarantees);
@@ -138,8 +193,8 @@
   }
   /* その物件に、いま保証中の部屋がいくつあるか */
   function liveCount(b){
-    var n = 0;
-    rowsOf(b).forEach(function(r){ if(live(r)) n++; });
+    var n = 0, t = termOf(b && b.guaranteeFrom);
+    rowsOf(b).forEach(function(r){ if(live(r, null, t)) n++; });
     return n;
   }
   window.pvHoshoLive = liveCount;
@@ -156,7 +211,17 @@
   +   'padding:6px 12px;border-radius:8px;cursor:pointer;}'
   + '.hs-btn.ghost{background:#fff;color:#000;}'
   + '.hs-btn[disabled]{opacity:.35;cursor:default;}'
-  + '.hs-lead{font-size:11.5px;line-height:1.75;color:#666;margin:6px 0 12px;}'
+  + '.hs-lead{font-size:11.5px;line-height:1.75;color:#666;margin:6px 0 10px;}'
+  /* 管理開始日と、2年のカウントダウン */
+  + '.hs-term{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;'
+  +   'padding:9px 12px;border-radius:9px;background:#f6f6f8;}'
+  + '.hs-term label{font-size:11.5px;font-weight:700;color:#555;}'
+  + '.hs-term input{border:1px solid #d5d5d8;border-radius:7px;padding:6px 8px;font-size:12.5px;background:#fff;}'
+  + '.hs-cd{font-size:12px;color:#555;line-height:1.5;}'
+  + '.hs-cd b{font-size:13.5px;font-weight:800;color:#111;}'
+  + '.hs-cd span{margin-left:8px;font-size:11px;color:#999;}'
+  + '.hs-cd.near b{color:#c7362a;}'
+  + '.hs-cd.over b{color:#c7362a;}'
   + '.hs-wrap{max-height:430px;overflow:auto;}'
   + '.hs-hd,.hs-row{display:grid;gap:8px;align-items:center;'
   +   'grid-template-columns:92px 126px 112px 112px minmax(96px,1fr) 152px 66px 26px;}'
@@ -193,6 +258,7 @@
   + '.hs-none{font-size:12px;color:#999;padding:14px 2px;}'
   + '.hs-warn{margin-top:10px;padding:10px 12px;border-radius:9px;background:#fff4e2;'
   +   'color:#7a4e0c;font-size:12px;line-height:1.7;font-weight:600;}'
+  + '.hs-warn.cut{background:#fcf0ee;color:#8e2a20;}'
   /* 履歴の窓 */
   + '#hs-hist{position:fixed;inset:0;z-index:100050;display:none;align-items:center;justify-content:center;'
   +   'padding:24px;background:rgba(0,0,0,.42);}'
@@ -244,8 +310,16 @@
           '<button type="button" class="hs-btn ghost" id="hs-hist-b">履歴</button>' +
         '</div>' +
       '</div>' +
+      /* ★ この物件の管理開始日。ここから2年で、30％保証の契約は終わります */
+      '<div class="hs-term">' +
+        '<label for="hs-from">管理開始日</label>' +
+        '<input type="date" id="hs-from">' +
+        '<div class="hs-cd" id="hs-cd"></div>' +
+      '</div>' +
       '<div class="hs-lead">' +
-        '空室が <b>' + DAYS + '日目</b>に入ると、<b>募集賃料</b>の <b>30％</b> を保証します。' +
+        '解約日から起算して <b>' + FREE_DAYS + '日目</b>までが免責。<b>' + (FREE_DAYS + 1) + '日目</b>から、' +
+        '<b>募集賃料</b>の <b>30％</b> を保証します。' +
+        '（7月1日に解約なら、9月29日までが免責、9月30日から保証です）<br>' +
         '募集賃料は満室想定の月額賃料で、<b>共益費・駐車場使用料は含みません</b>。<br>' +
         'オーナー様へは<b>毎月15日に当月ぶん</b>を送金します。' +
         '保証がその月のとちゅうで始まる／終わるときは、<b>その月の実日数で日割り</b>します。<br>' +
@@ -258,6 +332,8 @@
       '<div id="hs-warn"></div>';
     anchor.parentNode.insertBefore(d, anchor.nextSibling);
 
+    el('hs-from').addEventListener('input', onFrom);
+    el('hs-from').addEventListener('change', onFrom);
     el('hs-add').addEventListener('click', add);
     el('hs-hist-b').addEventListener('click', openHist);
     el('hs-rows').addEventListener('input', onInput);
@@ -274,25 +350,68 @@
            '" min="0" step="1000" placeholder="' + ph + '"></div>';
   }
 
-  /* ★ 今月、送る金額。満額なら何も出しません（上の保証賃料と同じなので）。
-       日割りになる月だけ、その金額と日数を出します。 */
+  /* ★ 今月（15日）に送る金額。満額なら出しません（上の保証賃料と同じなので）。
+       日割りや、前の月の端数が入る月だけ、その金額と期間を出します。 */
   function nowHtml(r){
     if(!day(r.out) || !base(r)) return '';
     var m = monthPay(r, mon1(today0()));
-    if(!m) return '';
-    if(m.full) return '';
-    return '今月は日割り<br>' + m.days + '/' + m.dim + '日　<b>¥' + yen(m.yen) + '</b>';
+    if(!m || m.full) return '';
+    return '今月の送金<br>' + md(m.from) + '〜' + md(m.to) + '　<b>¥' + yen(m.yen) + '</b>';
   }
 
-  /* 契約日の下に出す、日割りの合計。契約日が空なら、何も出しません */
+  /* 契約日の下に出す「これから送る残り」。契約日が空なら、何も出しません。
+     いまの月ぶんは15日に送るので、残りは次の月からです。 */
   function wariHtml(r){
     if(!String(r.sign || '').trim() || !day(r.out)) return '';
     var w = split(r);
     if(!w) return '';
-    if(!w.list.length) return '<span class="no">' + DAYS + '日目より前に決まったため、保証はありません</span>';
-    var md = function(d){ return (d.getMonth() + 1) + '/' + d.getDate(); };
-    return '日割り合計 <b>¥' + yen(w.total) + '</b>' +
-           '<span class="hs-wsub">' + md(w.from) + '〜' + md(w.to) + '・' + w.days + '日</span>';
+    if(!w.list.length) return '<span class="no">保証が始まる前に決まったため、保証はありません</span>';
+    var rs = rest(r);
+    if(!rs || !rs.list.length){
+      return '残りの送金はありません<span class="hs-wsub">保証ぜんぶで ¥' + yen(w.total) + '</span>';
+    }
+    return 'これから送る残り <b>¥' + yen(rs.total) + '</b>' +
+           '<span class="hs-wsub">' + md(rs.from) + '〜' + md(rs.to) + '・' + rs.days + '日</span>';
+  }
+
+  /* ★ 管理開始日から2年。あとどれだけ残っているかを出します */
+  function onFrom(){
+    _from = String(el('hs-from').value || '');
+    dirty();
+    paintTerm();
+  }
+  function termEnd(){ return termOf(_from); }
+  /* あと何年何か月何日か */
+  function countdown(to, at){
+    var a = at || today0();
+    if(to.getTime() < a.getTime()) return null;
+    var y = 0, m = 0;
+    while(plusM(a, (y + 1) * 12).getTime() <= to.getTime()) y++;
+    var p = plusM(a, y * 12);
+    while(plusM(p, m + 1).getTime() <= to.getTime()) m++;
+    p = plusM(p, m);
+    var d = Math.round((to.getTime() - p.getTime()) / 86400000);
+    return { y:y, m:m, d:d };
+  }
+  function paintTerm(){
+    var box = el('hs-cd');
+    if(!box) return;
+    var e = termEnd();
+    if(!e){ box.className = 'hs-cd'; box.innerHTML = '管理開始日を入れると、保証契約の残りが出ます'; return; }
+    var c = countdown(e);
+    if(!c){
+      box.className = 'hs-cd over';
+      box.innerHTML = '<b>' + YEARS + '年の保証契約は、' + jpy(e) + ' で終わっています</b>';
+      return;
+    }
+    var t = [];
+    if(c.y) t.push(c.y + '年');
+    if(c.m) t.push(c.m + 'か月');
+    t.push(c.d + '日');
+    var near = (c.y === 0 && c.m < 3);
+    box.className = 'hs-cd' + (near ? ' near' : '');
+    box.innerHTML = '保証契約の満了まで <b>あと ' + t.join(' ') + '</b>' +
+                    '<span>' + jpy(e) + ' まで（' + YEARS + '年）</span>';
   }
 
   function rowHtml(r, i){
@@ -304,7 +423,7 @@
     if(!day(r.out))      sub = '解約日を入れてください';
     else if(fin)         sub = '契約が決まりました';
     else if(on)          sub = jp(st) + ' から保証中';
-    else                 sub = 'あと ' + Math.max(DAYS - n, 0) + ' 日（' + jp(st) + ' から）';
+    else                 sub = 'あと ' + left(r) + ' 日（' + jp(st) + ' から）';
 
     return '<div class="hs-row' + (on ? ' on' : '') + '" data-i="' + i + '">' +
       '<div><input type="text" class="hs-f" data-k="room" value="' + esc(r.room || '') + '" placeholder="101"></div>' +
@@ -366,7 +485,7 @@
         if(!day(r.out))      sub = '解約日を入れてください';
         else if(fin)         sub = '契約が決まりました';
         else if(on)          sub = jp(st) + ' から保証中';
-        else                 sub = 'あと ' + Math.max(DAYS - n, 0) + ' 日（' + jp(st) + ' から）';
+        else                 sub = 'あと ' + left(r) + ' 日（' + jp(st) + ' から）';
         dy.classList.toggle('on', on);
         dy.innerHTML = (day(r.out) ? ('<b>' + n + '</b> 日目') : '—') +
                        '<span class="hs-sub">' + esc(sub) + '</span>';
@@ -389,19 +508,36 @@
     }
     var a = el('hs-add');
     if(a) a.disabled = (_rows.length >= MAX);
+    paintTerm();
 
     /* もうすぐ保証が始まる部屋を、ここでもお知らせします */
     var soon = [];
     _rows.forEach(function(r){
       if(!day(r.out) || String(r.sign || '').trim()) return;
-      var d = DAYS - nth(r);
-      if(d >= 0 && d <= PRE) soon.push((r.room || '(部屋番号なし)') + '：あと ' + d + ' 日');
+      if(live(r)) return;                 /* もう始まっている部屋は、お知らせしません */
+      var d = left(r);
+      if(d !== null && d > 0 && d <= PRE) soon.push((r.room || '(部屋番号なし)') + '：あと ' + d + ' 日');
     });
+    /* 満了で打ち切っている部屋があれば、それも知らせます */
+    var t = termEnd();
+    var cut = [];
+    if(t){
+      _rows.forEach(function(r){
+        if(!day(r.out)) return;
+        var sg = day(r.sign);
+        var to = sg ? plus(sg, -1) : null;
+        var st = startDay(r);
+        if(!st || st.getTime() > t.getTime()) return;       /* 満了より後に始まる */
+        if(!to || to.getTime() > t.getTime()) cut.push(r.room || '(部屋番号なし)');
+      });
+    }
     var w = el('hs-warn');
     if(w){
-      w.innerHTML = soon.length
-        ? '<div class="hs-warn">まもなく保証が始まります　' + esc(soon.join('　／　')) + '</div>'
-        : '';
+      var h = '';
+      if(soon.length) h += '<div class="hs-warn">まもなく保証が始まります　' + esc(soon.join('　／　')) + '</div>';
+      if(cut.length)  h += '<div class="hs-warn cut">保証契約の満了は <b>' + esc(jpy(t)) + '</b> です。' +
+                           'それより後のぶんは、金額に入れていません　' + esc(cut.join('　／　')) + '</div>';
+      w.innerHTML = h;
     }
   }
 
@@ -480,11 +616,13 @@
             + (paid
                 ? ('　募集賃料： ¥' + yen(base(r)) + '　→　30％＝ 月 ¥' + yen(amount(r)) + '\n'
                  + '　　（共益費・駐車場使用料は、保証の対象外です）\n\n'
-                 + '　保証した期間： ' + jpy(st) + ' 〜 ' + jpy(to) + '（' + w.days + ' 日）\n\n'
+                 + '　保証した期間： ' + jpy(st) + ' 〜 ' + jpy(w.to) + '（' + w.days + ' 日）\n'
+                 + (w.cut ? ('　　※ 保証契約の満了（' + jpy(w.term) + '）で打ち切っています\n') : '')
+                 + '\n'
                  + lines + '\n'
                  + '　　─────────────\n'
                  + '　　合計　¥' + yen(w.total) + '\n\n')
-                : ('　' + DAYS + '日目より前に決まったため、保証は発生していません。\n\n'))
+                : ('　保証が始まる前に決まったため、保証は発生していません。\n\n'))
             + '履歴に残して、この行を消します。よろしいですか？';
     if(!confirm(msg)) return;
 
@@ -535,7 +673,7 @@
       ? _log.map(function(h){
           var per = h.from
             ? (jpy(h.from) + ' 〜 ' + jpy(h.to) + '（' + h.paid + ' 日）')
-            : (DAYS + '日目より前に決まったため、保証はありません');
+            : ('保証が始まる前に決まったため、保証はありません');
           return '<div class="hs-hrow">' +
             '<b>' + esc(h.room || '(部屋番号なし)') + '</b>' +
             '<div class="hs-hd2">' +
@@ -584,6 +722,8 @@
   }
 
   function load(b){
+    _from = String((b && b.guaranteeFrom) || '');
+    try{ if(el('hs-from')) el('hs-from').value = _from; }catch(e){}
     _rows = rowsOf(b).map(function(r){
       return { room:String(r.room||''), out:String(r.out||''),
                rent:(r.rent === '' || r.rent == null) ? '' : num(r.rent),
@@ -641,8 +781,9 @@
             for(k in data){ if(Object.prototype.hasOwnProperty.call(data, k) && !had[k]){ id = k; break; } }
           }
           if(id && data[id]){
-            data[id].guarantees   = collect();
-            data[id].guaranteeLog = _log.slice(0, 200);
+            data[id].guarantees     = collect();
+            data[id].guaranteeLog   = _log.slice(0, 200);
+            data[id].guaranteeFrom  = _from;
           }
         }
       }catch(e){ try{ console.warn('[保証] 保存に足せませんでした', e); }catch(x){} }
@@ -696,11 +837,6 @@
 
   /* その月の1日 */
   function mon1(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
-  /* その部屋の、はじめて保証がかかる月（91日目のある月） */
-  function firstMonth(r){
-    var s = startDay(r);
-    return s ? new Date(s.getFullYear(), s.getMonth(), 1) : null;
-  }
   /* 月の差（何か月目か）。はじめの月を1か月目とかぞえます */
   function monthNo(from, now){
     return (now.getFullYear() - from.getFullYear()) * 12 +
@@ -711,23 +847,49 @@
     return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m;
   }
 
-  /* ★ その月に送る金額。
-       保証がその月にかかっている日数を数えて、
-       まるまるなら満額、欠けていれば日割りにします。
-       その月に保証がかかっていなければ null を返します。 */
-  function monthPay(r, m1){
+  /* ★ はじめて請求する月の1日。
+       保証が月のとちゅうで始まったときは、その端数だけを別に送らず、
+       次の月ぶんに足して、いっしょに送ります。
+       例）9月30日から保証 → 10月15日に「9/30〜10/31」をまとめて送る */
+  function firstBill(r){
     var st = startDay(r);
     if(!st) return null;
-    var e  = mEnd(m1);
-    var sg = day(r && r.sign);
-    var to = sg ? plus(sg, -1) : e;            /* 契約が決まっていれば、その前日まで */
-    var a  = (st.getTime() > m1.getTime()) ? st : m1;
-    var b  = (to.getTime() < e.getTime()) ? to : e;
-    if(b.getTime() < a.getTime()) return null; /* この月は、保証がありません */
-    var n = span(a, b), dim = e.getDate();
+    return (st.getDate() === 1) ? mon1(st) : mon1(plusM(st, 1));
+  }
+
+  /* ★ その月（15日）に送る金額。
+       ・はじめての月は、前の月の端数もいっしょに入ります
+       ・契約が決まっていれば、その前日までです
+       その月に送るものがなければ null を返します。 */
+  function monthPay(r, m1, term){
+    var st = startDay(r);
+    var fb = firstBill(r);
+    if(!st || !fb || m1.getTime() < fb.getTime()) return null;
+    var e   = mEnd(m1);
+    var en  = endDay(r, term);
+    var a   = (m1.getTime() === fb.getTime()) ? st : m1;
+    var b   = (en && en.getTime() < e.getTime()) ? en : e;
+    if(b.getTime() < a.getTime()) return null;   /* この月は、送るものがありません */
+    var parts = splitRange(r, a, b);
     return { y:m1.getFullYear(), mo:m1.getMonth() + 1, from:a, to:b,
-             days:n, dim:dim, full:(n === dim),
-             yen:(n === dim ? monthYen(r) : partYen(r, n, dim)) };
+             days:span(a, b), dim:e.getDate(), parts:parts, yen:sumOf(parts),
+             full:(parts.length === 1 && parts[0].full) };
+  }
+
+  /* ★ これから送る残り。
+       いまの月ぶんは15日に送るので、残りは「次の月の1日」から
+       「契約日の前日」までです。契約が決まっていなければ null。
+       例）いま10月20日・契約開始12月23日 → 11/1〜12/22 をまとめて */
+  function rest(r, at, term){
+    var en = endDay(r, term);
+    if(!en) return null;
+    var now = at || today0();
+    var st  = startDay(r);
+    var a   = mon1(plusM(now, 1));
+    if(st && a.getTime() < st.getTime()) a = st;
+    if(en.getTime() < a.getTime()) return { list:[], total:0, days:0, from:null, to:null };
+    var list = splitRange(r, a, en);
+    return { list:list, total:sumOf(list), days:span(a, en), from:a, to:en };
   }
 
   /* いま、お知らせに出す部屋。その月に保証がかかっているものだけです */
@@ -738,15 +900,17 @@
     try{ all = (typeof loadAll === 'function' ? loadAll() : {}) || {}; }catch(e){ return out; }
     Object.keys(all).forEach(function(k){
       var b = all[k];
+      var term = termOf(b && b.guaranteeFrom);
       rowsOf(b).forEach(function(r){
         if(!day(r.out)) return;
-        var m = monthPay(r, thisM);
+        var m = monthPay(r, thisM, term);
         if(!m) return;
-        var f = firstMonth(r);
+        var f = firstBill(r);
         out.push({ bld:(b.name || ''), room:(r.room || ''), nth:nth(r, now),
                    amount:amount(r), from:ymd(startDay(r)),
                    month:(f ? monthNo(f, thisM) : 1),
                    days:m.days, dim:m.dim, full:m.full, pay:m.yen,
+                   pFrom:m.from, pTo:m.to, parts:m.parts,
                    lines:[m], total:m.yen });
       });
     });
@@ -768,9 +932,7 @@
       return '・' + x.bld + '　' + (x.room || '(部屋番号なし)') +
              '　¥' + yen(x.pay) +
              (x.full ? '（満額）'
-                     : ('（日割り ' + x.days + '日 / ' + x.dim + '日　' +
-                        (x.mo || (now.getMonth() + 1)) + '/' + x.lines[0].from.getDate() + '〜' +
-                        (now.getMonth() + 1) + '/' + x.lines[0].to.getDate() + '）'));
+                     : ('（' + md(x.pFrom) + '〜' + md(x.pTo) + '　' + x.days + '日ぶん）'));
     });
     try{
       window.alert('【30％保証賃料　' + (now.getMonth() + 1) + '月分の送金のお知らせ】\n\n' +
@@ -789,6 +951,10 @@
   try{
     window.pvHosho = { rows:function(){ return _rows; }, log:function(){ return _log; },
                        nth:nth, live:live, base:base, amount:amount, split:split,
-                       monthPay:monthPay, DAYS:DAYS, RATE:RATE, MAX:MAX, PAY_DAY:PAY_DAY };
+                       monthPay:monthPay, plusM:plusM, left:left, rest:rest,
+                       startDay:startDay, endDay:endDay, firstBill:firstBill,
+                       termEnd:termEnd, termOf:termOf, countdown:countdown,
+                       FREE_DAYS:FREE_DAYS, YEARS:YEARS,
+                       RATE:RATE, MAX:MAX, PAY_DAY:PAY_DAY };
   }catch(e){}
 })();
