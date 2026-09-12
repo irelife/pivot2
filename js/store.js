@@ -765,7 +765,8 @@
           jobs[j].prev = snaps[j].exists ? (snaps[j].data() || null) : null;   /* 履歴・ごみ箱用 */
           cur = snaps[j].exists ? ((snaps[j].data() || {}).rev || 0) : 0;
           if(cur !== jobs[j].base){
-            bad.push({ name:jobs[j].name, by:(snaps[j].exists ? ((snaps[j].data() || {}).updatedBy || '') : '') });
+            bad.push({ kind:'b', id:jobs[j].id, name:jobs[j].name,
+                       by:(snaps[j].exists ? ((snaps[j].data() || {}).updatedBy || '') : '') });
           }
         }
         /* ★★ ぶつかった1件のせいで、ほかのぜんぶが保存できなくなっていました。
@@ -817,17 +818,102 @@
     });
   }
 
+  /* ★★ ぶつかったあとの、かたづけ
+   *
+   *  【これまで】
+   *    「ほかの人が先に保存しました。開き直して、もう一度入力してください」
+   *    と出して、画面を開き直すだけでした。
+   *
+   *    ところが、開き直しても直りません。
+   *    この端末の入力は残す作りなので、版番号の控えも古いままです。
+   *    もう一度保存すると、また同じところでぶつかります。
+   *    その物件は、二度と保存できなくなっていました。
+   *
+   *  【これから】
+   *    どちらにするか選んでいただきます。ぶつかりは、
+   *    どちらかを捨てないと終わりません。何を捨てるかを、はっきり書きます。
+   *
+   *      ［OK］　　　 この端末の内容で上書きする
+   *      ［キャンセル］相手の内容に合わせる（この端末の入力は消えます）
+   *
+   *    選んだとおりに、その場でかたづけます。開き直す必要はありません。   */
+  function conflictFix(bad, mine){
+    var jobs = [], i;
+    for(i = 0; i < bad.length; i++){
+      if(!bad[i] || !bad[i].id) continue;
+      jobs.push({ kind:(bad[i].kind === 'c' ? 'c' : 'b'), id:bad[i].id,
+                  ref:(bad[i].kind === 'c' ? ctCol() : col()).doc(bad[i].id) });
+    }
+    if(!jobs.length) return Promise.resolve(false);
+    var gets = [], k;
+    for(k = 0; k < jobs.length; k++) gets.push(jobs[k].ref.get());
+    return Promise.all(gets).then(function(snaps){
+      use('read', jobs.length, 'ぶつかりのかたづけ');
+      var bR = readMap(revKey()),  bS = readMap(sigKey());
+      var cR = readMap(ctRevK()),  cS = readMap(ctSigK());
+      var blds = null, cts = null, j, d, id;
+      if(!mine){
+        try{ blds = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : null; }catch(e){ blds = null; }
+        try{ cts  = JSON.parse(localStorage.getItem(ctLS()) || '{}') || null; }catch(e){ cts = null; }
+      }
+      for(j = 0; j < jobs.length; j++){
+        id = jobs[j].id;
+        d  = snaps[j].exists ? (snaps[j].data() || {}) : null;
+        if(jobs[j].kind === 'c'){
+          if(mine){ cR[id] = d ? (d.rev || 0) : 0; }          /* 版番号だけ合わせて、手元を送ります */
+          else if(cts){                                        /* 相手に合わせます */
+            if(d){ cts[id] = ctFrom(d); cR[id] = d.rev || 0; cS[id] = sig(ctDoc(id, cts[id])); }
+            else { delete cts[id]; delete cR[id]; delete cS[id]; }
+          }
+        }else{
+          if(mine){ bR[id] = d ? (d.rev || 0) : 0; }
+          else if(blds){
+            if(d){ blds[id] = fromDoc(d); bR[id] = d.rev || 0; bS[id] = sig(toDoc(id, blds[id])); }
+            else { delete blds[id]; delete bR[id]; delete bS[id]; }
+          }
+        }
+      }
+      writeMap(revKey(), bR); writeMap(sigKey(), bS);
+      writeMap(ctRevK(), cR); writeMap(ctSigK(), cS);
+      if(!mine){
+        try{ if(blds && typeof pbSaveRaw === 'function') pbSaveRaw(blds); }catch(e){}
+        try{ if(cts) localStorage.setItem(ctLS(), JSON.stringify(cts)); }catch(e){}
+        try{ if(typeof requestRender === 'function') requestRender('buildings'); }catch(e){}
+      }
+      try{ console.log('[D] ぶつかりを ' + (mine ? 'この端末の内容' : '相手の内容') + ' でかたづけました'); }catch(e){}
+      return true;
+    }).catch(function(e){
+      try{ console.warn('[D] ぶつかりのかたづけに失敗しました', e); }catch(x){}
+      return false;
+    });
+  }
+
   function tellConflict(bad){
     var names = [], i;
     for(i = 0; i < bad.length && i < 5; i++) names.push('・' + bad[i].name + (bad[i].by ? '（' + bad[i].by + 'さんが保存）' : ''));
-    status('error', '⚠️ 他の人が先に保存しました（保存していません）');
+    status('error', '⚠️ 他の人が先に保存しました');
     var msg = 'ほかの人が先に保存したため、この内容は保存できませんでした。\n\n' +
               names.join('\n') + (bad.length > 5 ? '\n・ほか ' + (bad.length - 5) + ' 件' : '') + '\n\n' +
-              'あなたの入力は、この端末に残っています。\n' +
-              '【OK】を押すと最新を読み込みます。そのあと、もう一度入力してください。';
-    var go = false;
-    try{ go = window.confirm(msg); }catch(e){ go = false; }
-    if(go){ try{ location.reload(); }catch(e){} }
+              'どちらかを選んでください。\n\n' +
+              '［OK］　　　 この端末の内容で上書きする\n' +
+              '　　　　　　 （上に出ている相手の変更は、消えます）\n\n' +
+              '［キャンセル］相手の内容に合わせる\n' +
+              '　　　　　　 （この端末で入れた内容は、消えます）';
+    var mine = false;
+    try{ mine = window.confirm(msg); }catch(e){ mine = false; }
+    conflictFix(bad, mine).then(function(okk){
+      if(!okk){
+        status('error', '⚠️ かたづけに失敗しました。開き直してください');
+        return;
+      }
+      if(mine){
+        status('saving', '⏳ この端末の内容で保存し直します');
+        try{ if(typeof window.__pushNow === 'function') setTimeout(window.__pushNow, 400); }catch(e){}
+      }else{
+        status('saved', '✅ 相手の内容に合わせました');
+        try{ if(typeof window.__pvUnsent === 'object') window.__pvUnsent.clear(); }catch(e){}
+      }
+    });
   }
 
   function spotCount(bm){
@@ -1240,7 +1326,8 @@
         for(j = 0; j < jobs.length; j++){
           jobs[j].prev = snaps[j].exists ? (snaps[j].data() || null) : null;
           cur = snaps[j].exists ? ((snaps[j].data() || {}).rev || 0) : 0;
-          if(cur !== jobs[j].base) bad.push({ name:jobs[j].label, by:(jobs[j].prev && jobs[j].prev.updatedBy2) || '' });
+          if(cur !== jobs[j].base) bad.push({ kind:'c', id:jobs[j].id, name:jobs[j].label,
+                                              by:(jobs[j].prev && jobs[j].prev.updatedBy2) || '' });
         }
         if(bad.length){ var e = new Error('conflict'); e.__conflict = bad; throw e; }
         for(j = 0; j < jobs.length; j++){
