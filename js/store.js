@@ -344,7 +344,8 @@
         if(ows){
           if(!ows.list && inOw >= 3){
             after.push(seedOws(r.payload.owners).then(function(okk){
-              if(okk) writeMap(owRevK(), { rev:1, sig:sig(r.payload.owners) });
+              if(okk){ writeMap(owRevK(), { rev:1, sig:sig(r.payload.owners) });
+                       owBaseWrite(r.payload.owners); }
             }));
           }else if(ows.list && ows.list.length){
             if(inOw >= 3 && ows.list.length < inOw * 0.5){
@@ -352,6 +353,7 @@
             }else{
               r.payload.owners = ows.list;
               writeMap(owRevK(), { rev:ows.rev, sig:sig(ows.list) });
+              owBaseWrite(ows.list);
               try{ console.log('[E] 読み込み：Firestore からオーナー ' + ows.list.length + ' 件'); }catch(e){}
             }
           }
@@ -685,6 +687,36 @@
   function ctRevK(){ return pfx() + 'fs_ct_rev'; }
   function ctSigK(){ return pfx() + 'fs_ct_sig'; }
   function owRevK(){ return pfx() + 'fs_ow_rev'; }
+  /* ★ オーナー：前に読んだクラウドの中身を、そのまま控えておきます。
+       これがないと「この端末で直したもの」と「ほかの端末で直されたもの」を
+       見分けられません。見分けられないと、直しをまるごと捨てるしかなくなります。 */
+  function owBaseK(){ return pfx() + 'fs_ow_base'; }
+  /* 目印（_addedAt）は端末ごとに付け外しするので、見くらべる前に外します */
+  function owNorm(o){
+    var d = {}, f;
+    if(!o || typeof o !== 'object') return d;
+    for(f in o){
+      if(!Object.prototype.hasOwnProperty.call(o, f) || f === '_addedAt') continue;
+      d[f] = o[f];
+    }
+    return d;
+  }
+  function owId(o){
+    var k = String((o && o.name) || '').trim();
+    return k ? ('n:' + k) : ('a:' + String((o && o._addedAt) || ''));
+  }
+  function owBaseRead(){
+    var v = null;
+    try{ v = JSON.parse(localStorage.getItem(owBaseK()) || 'null'); }catch(e){ v = null; }
+    return Array.isArray(v) ? v : null;
+  }
+  function owBaseWrite(list){
+    try{
+      var out = [], i;
+      for(i = 0; i < (list || []).length; i++) out.push(owNorm(list[i]));
+      localStorage.setItem(owBaseK(), JSON.stringify(out));
+    }catch(e){}
+  }
 
   var CMETA = { rev:1, updatedAt2:1, updatedBy2:1 };
   var _seedC = false, _seedO = false;   /* 移行を二度走らせないための印 */
@@ -760,6 +792,7 @@
     return owRef().set({ list:list, rev:1, updatedAt2:new Date().toISOString(),
                          updatedBy2:(me() || '(名前なし)') + '（移行）' }).then(function(){
       try{ console.log('[E] オーナー ' + list.length + ' 件を Firestore に写しました'); }catch(e){}
+      owBaseWrite(list);
       return true;
     }).catch(function(){ return false; });
   }
@@ -922,6 +955,7 @@
         });
       }).then(function(rv){
         writeMap(owRevK(), { rev:rv, sig:cur });
+        owBaseWrite(list);
         try{ console.log('[E] オーナー ' + list.length + ' 件を保存しました'); }catch(e){}
         return rv;
       });
@@ -933,24 +967,64 @@
        物件側が止まると（読み込み前・契約が減る・通信の失敗など）、
        オーナーも保存されず、次の読み込みで消えていました。
        ここは物件と切り離して、単独で通します。 */
+  /* ★ オーナーの突き合わせ（三方向）
+   *
+   *  【これまでの作り】
+   *    クラウドの一覧をそのまま土台にして、手元からは
+   *    「新しく手で足したもの（_addedAt 付き）」だけを足していました。
+   *    そのため、もともといるオーナーの住所・宛名・メールを直しても、
+   *    その直しは一切引き継がれず、クラウドの古い内容が書き戻されていました。
+   *    さらに、その古い内容で直した端末の画面まで上書きされていました。
+   *
+   *  【これから】
+   *    3つを見くらべます。
+   *      base  … この端末が前に読んだ、クラウドの中身
+   *      mine  … いまの、この端末の中身
+   *      cloud … いまの、クラウドの中身
+   *
+   *    オーナー1人ずつ、こう決めます。
+   *      ・base と mine がちがう　→ この端末で直した　→ mine を採る
+   *      ・base と mine が同じ　　→ 触っていない　　　→ cloud を採る
+   *      ・cloud に無い
+   *          base にある　→ ほかの端末で消された　→ 足し戻さない
+   *          base にも無い→ この端末で足した　　　→ 足す
+   *
+   *    base が無いとき（はじめての端末）は、安全側に倒してクラウドを採り、
+   *    手で足したものだけを足します。これまでと同じ動きです。            */
   function mergeOws(cloud, mine){
-    var out = Array.isArray(cloud) ? cloud.slice() : [];
-    var have = {}, i, o, n;
-    for(i = 0; i < out.length; i++){
-      o = out[i] || {};
-      n = String(o.name || '').trim();
-      if(n) have['n:' + n] = 1;
-      if(o._addedAt) have['a:' + o._addedAt] = 1;
+    var out  = Array.isArray(cloud) ? cloud.slice() : [];
+    var base = owBaseRead();
+    var add  = [];                                 /* 足す人は、最後にまとめて前へ */
+    var i, o, k;
+
+    var cAt = {};                                  /* クラウドの、どこに居るか */
+    for(i = 0; i < out.length; i++) cAt[owId(out[i])] = i;
+
+    var bSig = null;                               /* 前に読んだクラウドの指紋 */
+    if(base){
+      bSig = {};
+      for(i = 0; i < base.length; i++) bSig[owId(base[i])] = sig(owNorm(base[i]));
     }
+
     for(i = 0; i < (mine || []).length; i++){
       o = mine[i] || {};
-      if(!o._addedAt) continue;                       /* 手で足したものだけ足します */
-      if(have['a:' + o._addedAt]) continue;
-      n = String(o.name || '').trim();
-      if(n && have['n:' + n]) continue;
-      out.unshift(o);
+      k = owId(o);
+
+      if(Object.prototype.hasOwnProperty.call(cAt, k)){
+        if(!bSig) continue;                        /* 控えが無い → クラウドを立てます */
+        if(!Object.prototype.hasOwnProperty.call(bSig, k)) continue;
+        if(sig(owNorm(o)) === bSig[k]) continue;   /* この端末では触っていません */
+        out[cAt[k]] = o;                           /* ★ この端末の直しを活かします */
+        continue;
+      }
+
+      if(bSig && Object.prototype.hasOwnProperty.call(bSig, k)) continue;  /* 他で消された */
+      if(!bSig && !o._addedAt) continue;           /* 控えが無いときは、足したものだけ */
+      add.push(o);                                 /* この端末で足した1人 */
     }
-    return out;
+    /* ★ ここで足します。途中で out.unshift すると番号がずれて、
+         直しを書き込む先がひとつ後ろになり、足した人を踏みつぶします。 */
+    return add.concat(out);
   }
   function saveOwsAlone(list){
     try{ if(!(window.firebase && firebase.firestore)) return Promise.resolve(null); }catch(e){ return Promise.resolve(null); }
@@ -976,6 +1050,7 @@
       });
     }).then(function(rv){
       writeMap(owRevK(), { rev:rv, sig:sig(sent) });
+      owBaseWrite(sent);
       try{ console.log('[E] オーナー ' + sent.length + ' 件を保存しました（単独）'); }catch(e){}
       try{ if(sent !== list && typeof window.applyCloudOwners === 'function') window.applyCloudOwners(sent); }catch(e){}
       return rv;
@@ -1420,13 +1495,71 @@
        5分ごとなら1台あたり1日6,400回程度で収まります。
        ほかの端末の直しに気づくのが最大5分遅れますが、
        保存のときの衝突検知は別のしくみなので、安全性は変わりません。 */
+    /* ★ オーナー一覧の読み直し（ここから）
+     *
+     *  これまで、下の自動読み直しは「物件」だけを見ていました。
+     *  オーナーを読むのは、ページを開いたときの1回きりでした。
+     *  そのため
+     *    ・画面を開いたままにしていると、ほかの端末で直したオーナーが
+     *      いつまでも出てこない
+     *    ・物件の読み込みでつまずくと、オーナーの取り込みも道連れで飛ぶ
+     *  の2つが起きていました。スマホでオーナーだけ古いままだったのは、これです。
+     *
+     *  ここは物件と切り離して、オーナーだけを見に行きます。
+     *  読むのは1回だけ（1件の書類）なので、回数はほとんど増えません。   */
+    var _lastOw = 0;
+    function syncOws(force){
+      var now = Date.now();
+      if(!force && (now - _lastOw) < MIN_GAP) return;
+      if(_tooOld || busy()) return;
+      try{ if(document.hidden) return; }catch(e){}
+      try{ if(!firebase.auth().currentUser) return; }catch(e){ return; }
+      _lastOw = now;
+      readOws().then(function(ow){
+        if(!ow || !Array.isArray(ow.list) || !ow.list.length) return;
+        var was = readMap(owRevK());
+        if(Number(was.rev || 0) === Number(ow.rev || 0)) return;   /* 変わっていません */
+        if(busy()) return;                       /* 触りはじめていたら、やめます */
+        owBaseWrite(ow.list);                    /* 見くらべる土台を控えます */
+        /* applyCloudOwners は、受け取った中身の目印（_addedAt）を外します。
+           指紋は外したあとで控えないと、次の保存が毎回「変わった」になり、
+           端末どうしで送り合いになってしまいます。 */
+        try{ if(typeof window.applyCloudOwners === 'function') window.applyCloudOwners(ow.list); }catch(e){}
+        writeMap(owRevK(), { rev:ow.rev, sig:sig(ow.list) });
+        try{ console.log('[E] オーナー一覧を最新にしました（' + ow.list.length + ' 件）'); }catch(e){}
+      }).catch(function(){});
+    }
+    try{ setInterval(function(){ syncOws(true); }, 900000); }catch(e){}
+    try{ document.addEventListener('visibilitychange', function(){
+      if(!document.hidden) setTimeout(function(){ syncOws(false); }, 2000);
+    }); }catch(e){}
+    try{ firebase.auth().onAuthStateChanged(function(u){
+      if(u) setTimeout(function(){ syncOws(true); }, 4000);
+    }); }catch(e){}
+    try{ window.__pvSyncOwners = function(){ _lastOw = 0; syncOws(true); }; }catch(e){}
+    /* PIVOT のロゴをタップしたとき（＝最新を取り込む）にも、オーナーを読みます。
+       ロゴの取り込みは物件の読み込みを通るので、そこでつまずくと
+       オーナーだけ古いままになっていました。 */
+    try{
+      var FP0 = window.forcePullLatest;
+      if(typeof FP0 === 'function'){
+        window.forcePullLatest = function(){
+          var r;
+          try{ r = FP0.apply(this, arguments); }catch(e){ r = null; }
+          try{ _lastOw = 0; setTimeout(function(){ syncOws(true); }, 1200); }catch(e){}
+          return r;
+        };
+      }
+    }catch(e){}
+    /* ★ オーナー一覧の読み直し（ここまで） */
+
     try{ setInterval(function(){ quietSync(true); }, 900000); }catch(e){}
     /* ★ v21）ほかのタブから戻ったときは、1分に1回までにします。
        これまでは戻るたびに全部を読み直していました。 */
     try{ document.addEventListener('visibilitychange', function(){
       if(!document.hidden) setTimeout(function(){ quietSync(false); }, 1500);
     }); }catch(e){}
-    try{ window.__pvSyncNow = function(){ quietSync(true); }; }catch(e){}
+    try{ window.__pvSyncNow = function(){ quietSync(true); _lastOw = 0; syncOws(true); }; }catch(e){}
   })();
 
   /* ---------- 古い画面かどうかを確かめます ---------- */
