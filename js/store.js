@@ -691,6 +691,12 @@
        これがないと「この端末で直したもの」と「ほかの端末で直されたもの」を
        見分けられません。見分けられないと、直しをまるごと捨てるしかなくなります。 */
   function owBaseK(){ return pfx() + 'fs_ow_base'; }
+  /* 契約：どこまで読んだかの目印と、この端末の置き場 */
+  function ctSeenK(){ return pfx() + 'fs_ct_seen'; }
+  function ctLS(){
+    try{ if(typeof ctKey === 'function') return ctKey(); }catch(e){}
+    return pfx() + 'contract_kanban_v2';
+  }
   /* 目印（_addedAt）は端末ごとに付け外しするので、見くらべる前に外します */
   function owNorm(o){
     var d = {}, f;
@@ -749,10 +755,43 @@
         sigs[id] = sig(ctDoc(id, m[id]));
       });
       use('read', Math.max(qs.size || 0, 1), '契約をぜんぶ読む');
-      return { map:m, revs:revs, sigs:sigs };
+      return { map:m, revs:revs, sigs:sigs, partial:false, at:ctNewest_(qs) };
     }).catch(function(){ return null; });
     }catch(e){ return Promise.resolve(null); }
   }
+  /* 契約：いちばん新しい updatedAt2 を控えます（次に「そこから先」を読むため） */
+  function ctNewest_(qs){
+    var t = '';
+    try{ qs.forEach(function(doc){
+      var v = String((doc.data() || {}).updatedAt2 || '');
+      if(v > t) t = v;
+    }); }catch(e){}
+    return t;
+  }
+  /* ★ 契約：直されたものだけを読みます。
+       1件も直っていなくても、Firestore の決まりで1回ぶんは数えられます。
+       契約が何件あっても、ふだんは1回です。 */
+  function readCtsSince(since){
+    if(!since) return readCts();
+    try{
+    return ctCol().where('updatedAt2', '>', since).get().then(function(qs){
+      var m = {}, revs = {}, sigs = {};
+      qs.forEach(function(doc){
+        var d = doc.data() || {}, id = doc.id;
+        m[id]    = ctFrom(d);
+        revs[id] = d.rev || 0;
+        sigs[id] = sig(ctDoc(id, m[id]));
+      });
+      use('read', Math.max(qs.size || 0, 1), '直された契約だけ読む');
+      var t = ctNewest_(qs);
+      return { map:m, revs:revs, sigs:sigs, partial:true, at:(t || since) };
+    }).catch(function(e){
+      try{ console.warn('[E] 契約の差分を読めませんでした。全部を読み直します', e); }catch(x){}
+      return readCts();
+    });
+    }catch(e){ return readCts(); }
+  }
+
   function readOws(){
     try{
     return owRef().get().then(function(d){
@@ -1536,6 +1575,101 @@
         try{ console.log('[E] オーナー一覧を最新にしました（' + ow.list.length + ' 件）'); }catch(e){}
       }).catch(function(){});
     }
+
+    /* ★ 契約の読み直し
+     *
+     *  オーナーと同じで、契約もページを開いたときしか読んでいませんでした。
+     *  PIVOT を開きっぱなしにしていると、ほかの人が入れた契約が
+     *  いつまでも画面に出ません。予約中になった区画が空きに見えるので、
+     *  同じ区画を二重に案内してしまうおそれがあります。
+     *
+     *  ふだんは「直された契約だけ」を読みます。契約が何件あっても1回です。
+     *  消された契約は差分では分からないので、1時間に1回は全部を読みます。   */
+    var _lastCt = 0, _lastCtFull = 0;
+    /* 契約はめったに変わらないので、ほかのアプリから戻ったときの読み直しは
+       5分に1回までにします。物件やオーナーは1分に1回です。
+       ここを1分にすると、行き来のたびに読むぶんだけ回数が増えてしまいます。 */
+    var CT_GAP = 300000;
+    function syncCts(force){
+      var now = Date.now();
+      if(!force && (now - _lastCt) < CT_GAP) return;
+      if(_tooOld || busy()) return;
+      try{ if(document.hidden) return; }catch(e){}
+      try{ if(!firebase.auth().currentUser) return; }catch(e){ return; }
+      _lastCt = now;
+
+      var seen = '';
+      try{ seen = String(localStorage.getItem(ctSeenK()) || ''); }catch(e){ seen = ''; }
+      var full = !seen || (now - _lastCtFull) > FULL_EVERY;
+
+      (full ? readCts() : readCtsSince(seen)).then(function(cs){
+        if(!cs || !cs.map) return;
+        if(busy()) return;                       /* 触りはじめていたら、やめます */
+        if(cs.partial !== true) _lastCtFull = Date.now();
+        try{ if(cs.at) localStorage.setItem(ctSeenK(), cs.at); }catch(e){}
+
+        var mine = {};
+        try{ mine = JSON.parse(localStorage.getItem(ctLS()) || '{}'); }catch(e){ return; }
+        if(!mine || typeof mine !== 'object') return;
+        var base = readMap(ctSigK());
+        var out = {}, id, changed = 0, mySig;
+        var has = function(o, k){ return Object.prototype.hasOwnProperty.call(o, k); };
+
+        for(id in mine){ if(has(mine, id)) out[id] = mine[id]; }
+
+        for(id in cs.map){
+          if(!has(cs.map, id)) continue;
+          if(has(mine, id)){
+            try{ mySig = sig(ctDoc(id, mine[id])); }catch(e){ continue; }
+            if(mySig !== base[id]) continue;           /* 手元に、まだ送っていない直しがあります */
+            if(mySig === cs.sigs[id]) continue;        /* 同じ中身です */
+          }
+          out[id] = cs.map[id];
+          changed++;
+        }
+
+        /* 「ほかの端末で消された」の見分けは、全部を読んだときだけです。
+           直されたぶんだけを読んだときにこれをすると、
+           直っていない契約を「消された」と取りちがえて、全部消してしまいます。 */
+        if(cs.partial !== true){
+          for(id in mine){
+            if(!has(mine, id)) continue;
+            if(has(cs.map, id)) continue;
+            if(base[id] === undefined) continue;       /* 元から知らない契約 → 触りません */
+            try{ mySig = sig(ctDoc(id, mine[id])); }catch(e){ continue; }
+            if(mySig !== base[id]) continue;           /* 手元で直しかけ → 触りません */
+            delete out[id];
+            changed++;
+          }
+        }
+
+        if(!changed) return;
+        if(busy()) return;
+        try{ localStorage.setItem(ctLS(), JSON.stringify(out)); }catch(e){ return; }
+        if(cs.partial === true){
+          mergeMap(ctRevK(), cs.revs);
+          mergeMap(ctSigK(), cs.sigs);
+        }else{
+          writeMap(ctRevK(), cs.revs);
+          writeMap(ctSigK(), cs.sigs);
+        }
+        /* 契約の画面は、開くたびに置き場から読み直す作りです。
+           いま契約の画面を見ている人のために、描き直しておきます。 */
+        try{ if(typeof renderBoard      === 'function') renderBoard(); }catch(e){}
+        try{ if(typeof renderStats      === 'function') renderStats(); }catch(e){}
+        try{ if(typeof drawArchiveNotice === 'function') drawArchiveNotice(); }catch(e){}
+        try{ console.log('[E] ほかの端末の契約を取り込みました（' + changed + ' 件）'); }catch(e){}
+      }).catch(function(){});
+    }
+    try{ setInterval(function(){ syncCts(true); }, 900000); }catch(e){}
+    try{ document.addEventListener('visibilitychange', function(){
+      if(!document.hidden) setTimeout(function(){ syncCts(false); }, 2600);
+    }); }catch(e){}
+    try{ firebase.auth().onAuthStateChanged(function(u){
+      if(u) setTimeout(function(){ syncCts(true); }, 5000);
+    }); }catch(e){}
+    try{ window.__pvSyncContracts = function(){ _lastCt = 0; syncCts(true); }; }catch(e){}
+
     try{ setInterval(function(){ syncOws(true); }, 900000); }catch(e){}
     try{ document.addEventListener('visibilitychange', function(){
       if(!document.hidden) setTimeout(function(){ syncOws(false); }, 2000);
@@ -1554,6 +1688,7 @@
           var r;
           try{ r = FP0.apply(this, arguments); }catch(e){ r = null; }
           try{ _lastOw = 0; setTimeout(function(){ syncOws(true); }, 1200); }catch(e){}
+          try{ _lastCt = 0; setTimeout(function(){ syncCts(true); }, 1600); }catch(e){}
           return r;
         };
       }
@@ -1566,7 +1701,8 @@
     try{ document.addEventListener('visibilitychange', function(){
       if(!document.hidden) setTimeout(function(){ quietSync(false); }, 1500);
     }); }catch(e){}
-    try{ window.__pvSyncNow = function(){ quietSync(true); _lastOw = 0; syncOws(true); }; }catch(e){}
+    try{ window.__pvSyncNow = function(){ quietSync(true);
+      _lastOw = 0; syncOws(true); _lastCt = 0; syncCts(true); }; }catch(e){}
   })();
 
   /* ---------- 古い画面かどうかを確かめます ---------- */
