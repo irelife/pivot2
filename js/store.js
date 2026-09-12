@@ -291,10 +291,12 @@
   /* ============================================================
    *  読み込み：Firestore の内容に差し替えます
    * ============================================================ */
+  var _fsReadOk = null;   /* 直前の読み込みで、クラウドを読めたか（null＝まだ読んでいない） */
   function onLoad(P, url, body, t){
     var gas = Promise.resolve(P(url, body, t)).catch(function(e){ return { ok:false, message:String(e && e.message || e) }; });
     return Promise.all([gas, readAll('画面を開いたとき'), readCts(), readOws()]).then(function(a){
       var r = a[0], fs = a[1], cts = a[2], ows = a[3];
+      _fsReadOk = !!(fs && count(fs.buildings) > 0);
       if(!fs) return r;                                   /* Firestore が読めない → 従来どおり */
       var n = count(fs.buildings);
       if(n === 0) return r;                               /* 移行前 → 従来どおり */
@@ -1034,7 +1036,10 @@
     var out  = Array.isArray(cloud) ? cloud.slice() : [];
     var base = owBaseRead();
     var add  = [];                                 /* 足す人は、最後にまとめて前へ */
+    var mAt  = {};                                 /* 手元に、まだ居るかどうか */
     var i, o, k;
+
+    for(i = 0; i < (mine || []).length; i++) mAt[owId(mine[i])] = 1;
 
     var cAt = {};                                  /* クラウドの、どこに居るか */
     for(i = 0; i < out.length; i++) cAt[owId(out[i])] = i;
@@ -1061,6 +1066,23 @@
       if(!bSig && !o._addedAt) continue;           /* 控えが無いときは、足したものだけ */
       add.push(o);                                 /* この端末で足した1人 */
     }
+    /* ★ この端末で消した人を、クラウドから落とします。
+         これをしないと、ほかの端末が先に保存していたときに
+         「保存しました」と出るのに、消したはずの人が戻ってきます。
+         ただし、ほかの端末がその人を直していたときは落としません。
+         消すより、残すほうが安全だからです。 */
+    if(bSig){
+      var keep2 = [], ck;
+      for(i = 0; i < out.length; i++){
+        ck = owId(out[i]);
+        if(!mAt[ck] &&
+           Object.prototype.hasOwnProperty.call(bSig, ck) &&
+           sig(owNorm(out[i])) === bSig[ck]) continue;     /* この端末で消した人 */
+        keep2.push(out[i]);
+      }
+      out = keep2;
+    }
+
     /* ★ ここで足します。途中で out.unshift すると番号がずれて、
          直しを書き込む先がひとつ後ろになり、足した人を踏みつぶします。 */
     return add.concat(out);
@@ -1689,6 +1711,11 @@
           try{ r = FP0.apply(this, arguments); }catch(e){ r = null; }
           try{ _lastOw = 0; setTimeout(function(){ syncOws(true); }, 1200); }catch(e){}
           try{ _lastCt = 0; setTimeout(function(){ syncCts(true); }, 1600); }catch(e){}
+          /* ★ クラウドを読めていないのに「✅ 最新です」と出ると、
+               古い画面を最新だと思ってしまいます。正しく伝えます。 */
+          try{ setTimeout(function(){
+            if(_fsReadOk === false) status('error', '⚠️ クラウドを読めませんでした（古いままです）');
+          }, 2200); }catch(e){}
           return r;
         };
       }
