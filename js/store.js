@@ -585,17 +585,30 @@
       s = sig(d);
       if(sigs[id] !== s) changed.push({ id:id, doc:d, sig:s, base:(revs[id] || 0), name:(d.name || id) });
     }
-    var known = count(revs), here = count(buildings);
-    if(known >= 3 && here < known * 0.5){
-      /* 手元が極端に少ない＝読み込みが途中で止まった等。消す判断はしません。 */
-      try{ console.warn('[D] 手元の物件が少ないため、削除の判定を見送りました ' + here + ' < ' + known); }catch(e){}
-      return { changed:changed, removed:[] };
-    }
     for(id in revs){
       if(!Object.prototype.hasOwnProperty.call(revs, id)) continue;
       if(!Object.prototype.hasOwnProperty.call(buildings, id)) removed.push({ id:id, base:(revs[id] || 0), name:id });
     }
-    return { changed:changed, removed:removed };
+    /* ★★ ここが、いちばん気づけない不具合でした。
+     *
+     *  これまでは、手元の物件が「前に控えた数」の半分より少ないとき、
+     *  消す判断をせずに、黙って消さないまま返していました。
+     *
+     *    30件のうち20件を消して保存する
+     *      → 10件 < 15件 なので、消す判断を見送り
+     *      → 画面には「✅ 同期済み」と出る
+     *      → でも1件も消えていない
+     *
+     *  何も言わずに終わるので、消えていないことに気づけません。
+     *  保存できたと思って、その日の作業を終えてしまいます。
+     *
+     *  これからは、黙って見送りません。
+     *  そういう形のときは印をつけて返し、人に確かめます。
+     *  「キャンセル」を選んでも、直したぶんはちゃんと保存します。 */
+    var known = count(revs), here = count(buildings);
+    var few = (known >= 3 && here < known * 0.5);
+    if(few){ try{ console.warn('[D] 手元の物件が少ないので、消す前に確かめます ' + here + ' < ' + known); }catch(e){} }
+    return { changed:changed, removed:removed, few:few };
   }
 
   /* 版番号の控えが無いまま保存すると、全物件が衝突扱いになってしまいます。
@@ -918,16 +931,28 @@
     var pl;
     try{ pl = plan(bl); }catch(e){ return P(url, body, t); }
 
-    /* たくさん消えるときだけ、念のため確認します */
-    if(pl.removed.length >= 20){
-      var okDel = true;
+    /* たくさん消えるとき、または手元が極端に少ないときは、念のため確認します。
+       ★ キャンセルを選んでも、直したぶんは保存します。
+         これまでは全部を取りやめていたので、いっしょに直した内容も
+         保存されないままになっていました。 */
+    if(pl.removed.length >= 20 || (pl.few && pl.removed.length)){
+      var okDel = false;
       try{
-        okDel = window.confirm('この保存で ' + pl.removed.length + ' 件の物件が消えます。\n\n' +
-                               '本当に消してよろしいですか？\n（心当たりがなければ「キャンセル」を選んでください）');
+        okDel = window.confirm(
+          'この保存で、物件 ' + pl.removed.length + ' 件が消えます。\n\n' +
+          (pl.few ? ('この端末の物件が、クラウドより大きく少なくなっています。\n' +
+                     '読み込みが途中で止まっていると、この形になります。\n\n') : '') +
+          '［OK］　　　 わざと消したので、このまま消す\n' +
+          '［キャンセル］消さない（直したぶんだけ保存します）\n\n' +
+          '心当たりがなければ、キャンセルを選んでください。');
       }catch(e){ okDel = false; }
       if(!okDel){
-        status('idle', '');
-        return Promise.resolve({ ok:false, message:'保存を取りやめました' });
+        pl.removed = [];                      /* 消すのはやめて、直しぶんは通します */
+        try{ console.warn('[D] 消すのは取りやめました。直したぶんだけ保存します'); }catch(e){}
+        if(!pl.changed.length){
+          status('idle', '');
+          return Promise.resolve({ ok:false, message:'保存を取りやめました' });
+        }
       }
     }
 
