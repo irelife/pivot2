@@ -1038,11 +1038,25 @@ async function pushFeatureToCloud(feature){
     } else if(feature === 'contracts'){
       let cts = {};
       try{ cts = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){ cts = {}; }
+      // ★ 契約0件は送りません。
+      //    物件には前から同じ守りがありましたが、契約にはありませんでした。
+      //    GAS 側は受け取った契約でシートを作り直すので、0件を送ると
+      //    控えの表から契約がぜんぶ消えます。
+      //    置き場の読み取りに失敗したときも {} になるため、そこも防ぎます。
+      if(!cts || Object.keys(cts).length === 0){
+        try{ console.warn('[D] 契約0件だったので、控えの表へは送りませんでした'); }catch(e){}
+        return;
+      }
       action = 'saveContractsOnly';
       payload = { contracts: cts };
     } else if(feature === 'owners'){
       let ow = [];
       try{ ow = JSON.parse(localStorage.getItem(insPrefix() + 'rent_owner_send_owners_v1') || '[]'); }catch(e){ ow = []; }
+      // ★ オーナー0件も送りません。理由は契約と同じです。
+      if(!Array.isArray(ow) || ow.length === 0){
+        try{ console.warn('[D] オーナー0件だったので、控えの表へは送りませんでした'); }catch(e){}
+        return;
+      }
       action = 'saveOwnersOnly';
       payload = { owners: ow };
     } else {
