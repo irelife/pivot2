@@ -174,31 +174,60 @@ async function doAutoPush(){
         const cloudCount = Object.keys(cloudAll).length;
         // クラウドに3件以上あるのに、手元がその半分未満 → 異常とみなして送信中止
         if(cloudCount >= 3 && localCount < cloudCount * 0.5){
-          setSyncStatus('error', '⚠️ 安全のため同期を中止(データ保護)');
-          alert('同期を安全のため中止しました。\n\nこの端末の物件数('+localCount+'件)が、クラウド('+cloudCount+'件)より大幅に少ないため、クラウドの正しいデータを誤って消さないよう保護しました。\n\nまずページを再読み込みして、クラウドから最新データを取り込んでください。');
-          _autoPushInFlight = false;
-          return;
+          // ★ これまでは、ここで一方的に止めていました。
+          //    わざとまとめて消したときに、どうやっても保存できなくなります。
+          //    （30件のうち20件を消すと、10 < 15 なので必ず止まりました）
+          //    止めるのをやめたのではなく、選べるようにしました。
+          setSyncStatus('error', '⚠️ 物件が大きく減ります');
+          let _okB = false;
+          try{
+            _okB = confirm('この送信で、物件が大きく減ります。\n\n'+
+                           '　この端末 : '+localCount+'件\n'+
+                           '　クラウド : '+cloudCount+'件\n\n'+
+                           '［OK］　　　 わざと消したので、このまま送る\n'+
+                           '［キャンセル］送らない（ページを開き直して確かめる）\n\n'+
+                           '心当たりがないときは、キャンセルを選んでください。\n'+
+                           'この端末が古い内容を持っていることがあります。');
+          }catch(e){ _okB = false; }
+          if(!_okB){ _autoPushInFlight = false; return; }
         }
         // 契約の安全装置: 手元の契約がクラウドより大幅に少なければ上書きしない
         const cloudContracts = (chk.payload && chk.payload.contracts) ? chk.payload.contracts : {};
         const cloudContractCount = Object.keys(cloudContracts).length;
         if(cloudContractCount >= 3 && localContractCount < cloudContractCount * 0.5){
-          setSyncStatus('error', '⚠️ 安全のため同期を中止(契約データ保護)');
-          alert('同期を安全のため中止しました。\n\nこの端末の契約数('+localContractCount+'件)が、クラウド('+cloudContractCount+'件)より大幅に少ないため、クラウドの正しい契約データ(完了カードなど)を誤って消さないよう保護しました。\n\nまずページを再読み込みして、クラウドから最新データを取り込んでください。');
-          _autoPushInFlight = false;
-          return;
+          // ★ ①と同じ理由で、選べるようにしました。
+          setSyncStatus('error', '⚠️ 契約が大きく減ります');
+          let _okC = false;
+          try{
+            _okC = confirm('この送信で、契約が大きく減ります。\n\n'+
+                           '　この端末 : '+localContractCount+'件\n'+
+                           '　クラウド : '+cloudContractCount+'件\n\n'+
+                           '［OK］　　　 わざと消したので、このまま送る\n'+
+                           '［キャンセル］送らない（ページを開き直して確かめる）\n\n'+
+                           '心当たりがないときは、キャンセルを選んでください。');
+          }catch(e){ _okC = false; }
+          if(!_okC){ _autoPushInFlight = false; return; }
         }
         // ===== 取りこぼし防止(pv-sync-guard) =====
         // 件数が半分あっても、1件だけ消える押し戻しは今までの安全装置を素通りしていました。
         // クラウドにあって、この端末が一度も持っていない物件があれば、送信そのものを止めます。
         const _miss = pvMissingFromLocal(cloudAll, all);
         if(_miss.length){
-          setSyncStatus('error', '⚠️ 送信を中止(消える物件があります)');
-          alert('同期を安全のため中止しました。\n\n' +
-                'クラウドにあって、この端末に無い物件が ' + _miss.length + '件あります。\n' +
+          // ★ ここは止めたままにします。ほかの人が作った物件を消してしまうためです。
+          //    ただし、ほうっておいても直るようにしました。
+          //    画面はいま15分ごとにクラウドを見ているので、
+          //    待つか、PIVOTロゴを押せば取り込まれます。そのあと保存できます。
+          setSyncStatus('error', '⚠️ まだ取り込めていない物件があります');
+          alert('いま送るのを見合わせました。\n\n' +
+                'クラウドにあって、この端末にまだ無い物件が ' + _miss.length + '件あります。\n' +
                 pvMissingText(_miss) + '\n\n' +
-                'このまま送ると、これらが消えてしまいます。\n' +
-                '設定 →「⬇️ クラウドから読込」で、先にクラウドの内容を取り込んでください。');
+                'このまま送ると、これらが消えてしまいます。\n\n' +
+                '【どうすれば】\n' +
+                '　画面いちばん上の PIVOT ロゴを押してください。\n' +
+                '　取り込まれたあと、もう一度 保存すれば通ります。\n' +
+                '　（何もしなくても、15分以内に自動で取り込まれます）\n\n' +
+                '入力した内容は、この端末に残っています。消えていません。');
+          try{ if(typeof window.forcePullLatest === 'function') setTimeout(window.forcePullLatest, 800); }catch(e){}
           _autoPushInFlight = false;
           return;
         }
