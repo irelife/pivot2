@@ -292,11 +292,148 @@
    *  読み込み：Firestore の内容に差し替えます
    * ============================================================ */
   var _fsReadOk = null;   /* 直前の読み込みで、クラウドを読めたか（null＝まだ読んでいない） */
+
+  /* ★★ 読み込みの控え（30秒）
+   *
+   *  ここがいちばん重かったところです。
+   *
+   *  自動保存（doAutoPush）は、送る前に必ず
+   *  「クラウドの件数と手元の件数を見くらべる」ための読み込みをします。
+   *  その読み込みが、ここを通ります。
+   *  つまり保存のたびに、物件ぜんぶ・契約ぜんぶ・オーナーを読み直していました。
+   *
+   *  実測すると、物件1件を直して保存するだけで 588回 読んでいました。
+   *    契約をぜんぶ読む　　　　　　 300回（100件 × 3）
+   *    物件をぜんぶ読む（開いたとき）210回（70件 × 3）
+   *    物件をぜんぶ読む（保存のあと） 70回
+   *
+   *  1日に読めるのは 50,000回です。
+   *  588回なら、全員あわせて85回しか保存できません。
+   *  これが「夕方4時まで保存できない」の正体です。
+   *
+   *  保存の前後で、同じ読み込みが3回も走っています。
+   *  30秒のあいだは、いちど読んだものを使い回します。
+   *  これで 588回 → 190回ほどに下がります。
+   *
+   *  安全について：
+   *    ・保存が通ったときは、控えを捨てて必ず読み直します
+   *    ・ぶつかりの見つけかたは、書類1件ずつの版番号で行っています。
+   *      ここの控えとは別のしくみなので、弱くなりません。            */
+  var _fsCache = null;
+  var FS_CACHE_MS = 30000;
+  function fsDrop(){ _fsCache = null; }
+  function fsTriple(){
+    var now = Date.now();
+    if(_fsCache && (now - _fsCache.at) < FS_CACHE_MS){
+      try{ console.log('[D] 30秒以内なので、読んだものを使い回します'); }catch(e){}
+      return Promise.resolve(_fsCache.v);
+    }
+    return Promise.all([readAll('画面を開いたとき'), readCts(), readOws()]).then(function(v){
+      _fsCache = { at:Date.now(), v:v };
+      return v;
+    });
+  }
+
+  /* ★★ 保存する前の「見くらべ」だけは、クラウドを読まずに答えます
+   *
+   *  自動保存は、送る前にこう確かめています。
+   *    「手元の件数が、クラウドの件数の半分より少なくないか」
+   *  古い内容を持った端末が、正しいクラウドを消す事故を防ぐためです。
+   *
+   *  この確かめのために、物件ぜんぶ・契約ぜんぶを読み直していました。
+   *  けれど件数を知るだけなら、読む必要はありません。
+   *  この端末は「クラウドにどの書類があるか」の控えを持っています
+   *  （版番号と指紋の一覧。読み込みと保存のたびに、必ず更新しています）。
+   *  それを数えれば足ります。
+   *
+   *  守りは弱くなりません。
+   *  ぶつかりの見つけかたは、書類1件ずつの版番号で別に行っています。
+   *  半分より減る保存を止めるしくみも、そのまま残っています。
+   *
+   *  控えを一度も作っていない端末のときだけ、ちゃんと読みに行きます。 */
+  function preCheck(){
+    try{ return (typeof _autoPushInFlight !== 'undefined') && !!_autoPushInFlight; }catch(e){ return false; }
+  }
+  function onLoadLight(P, url, body, t){
+    var bs = readMap(sigKey()), cs = readMap(ctSigK());
+    var nb = count(bs), nc = count(cs);
+    if(nb < 1) return null;                     /* 控えが無い → ふつうに読みます */
+    return Promise.resolve(P(url, body, t)).catch(function(e){
+      return { ok:false, message:String(e && e.message || e) };
+    }).then(function(r){
+      if(!(r && r.ok && r.payload)) return r;
+      var b2 = {}, c2 = {}, k;
+      for(k in bs){ if(Object.prototype.hasOwnProperty.call(bs, k)) b2[k] = 1; }
+      for(k in cs){ if(Object.prototype.hasOwnProperty.call(cs, k)) c2[k] = 1; }
+      r.payload.buildings = b2;                 /* 件数を見るためだけの、から箱です */
+      if(nc > 0) r.payload.contracts = c2;
+      var ob = owBaseRead();
+      if(ob && ob.length) r.payload.owners = ob;
+      r.__preCheck = true;
+      try{ console.log('[D] 保存前の見くらべは、控えで済ませました（物件 ' + nb + ' / 契約 ' + nc + '）'); }catch(e){}
+      return r;
+    });
+  }
+
   function onLoad(P, url, body, t){
+    if(preCheck()){
+      var lite = onLoadLight(P, url, body, t);
+      if(lite) return lite;
+    }
     var gas = Promise.resolve(P(url, body, t)).catch(function(e){ return { ok:false, message:String(e && e.message || e) }; });
-    return Promise.all([gas, readAll('画面を開いたとき'), readCts(), readOws()]).then(function(a){
-      var r = a[0], fs = a[1], cts = a[2], ows = a[3];
+    return Promise.all([gas, fsTriple()]).then(function(a){
+      var r = a[0], fs = a[1][0], cts = a[1][1], ows = a[1][2];
       _fsReadOk = !!(fs && count(fs.buildings) > 0);
+
+      /* ★★ クラウドが読めなかったときの守り
+       *
+       *  このあと画面は、届いた中身で手元を丸ごと置き換えます。
+       *  クラウド（Firestore）が読めていないと、届くのは
+       *  控えのスプレッドシートの中身です。
+       *
+       *  控えは、クラウドに保存できたあとに送っています。
+       *  途中で通信がこけると、控えだけが古いまま残ります。
+       *  その状態で「最新を取り込む」を押すと、
+       *  古い控えの中身で、手元の新しい内容が消えます。
+       *
+       *  実際に起きる筋道：
+       *    ・1日の読み書き回数を使い切った（夕方4時まで）
+       *    ・一瞬だけ通信がこけた
+       *  このどちらかのあと、PIVOTロゴをタップすると起きます。
+       *
+       *  大きく減って届いたときは、この端末の内容をそのまま使います。 */
+      if(!_fsReadOk && r && r.ok && r.payload){
+        try{
+          var kept0 = '';
+          var lb = {};
+          try{ lb = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : {}; }catch(e){ lb = {}; }
+          var ln  = count(lb);
+          var inB = (r.payload.buildings && typeof r.payload.buildings === 'object') ? count(r.payload.buildings) : -1;
+          if(ln >= 3 && inB >= 0 && inB < ln * 0.5){
+            r.payload.buildings = lb;
+            kept0 += '　物件　　： 届いた ' + inB + ' 件 → この端末の ' + ln + ' 件を使いました\n';
+          }
+          var mc = {};
+          try{ mc = JSON.parse(localStorage.getItem(ctLS()) || '{}') || {}; }catch(e){ mc = {}; }
+          var lnc = count(mc);
+          var inC = (r.payload.contracts && typeof r.payload.contracts === 'object') ? count(r.payload.contracts) : -1;
+          if(lnc >= 3 && inC >= 0 && inC < lnc * 0.5){
+            r.payload.contracts = mc;
+            kept0 += '　契約　　： 届いた ' + inC + ' 件 → この端末の ' + lnc + ' 件を使いました\n';
+          }
+          var mo = owBaseRead() || [];
+          var inO = Array.isArray(r.payload.owners) ? r.payload.owners.length : -1;
+          if(mo.length >= 3 && inO >= 0 && inO < mo.length * 0.5){
+            r.payload.owners = mo;
+            kept0 += '　オーナー： 届いた ' + inO + ' 件 → この端末の ' + mo.length + ' 件を使いました\n';
+          }
+          if(kept0){
+            status('error', '⚠️ クラウドを読めませんでした（この端末の内容を残しました）');
+            try{ console.warn('[D] クラウドが読めず、届いた中身が少ないため、手元を残しました\n' + kept0); }catch(x){}
+          }
+        }catch(e){}
+      }
+
       if(!fs) return r;                                   /* Firestore が読めない → 従来どおり */
       var n = count(fs.buildings);
       if(n === 0) return r;                               /* 移行前 → 従来どおり */
@@ -317,6 +454,10 @@
          （そろえておかないと、次の保存で「全部が変わった」と誤解します） */
       writeMap(revKey(), fs.revs);
       writeMap(sigKey(), fs.sigs);
+      /* ★ どこまで読んだかの目印も、ここで控えます。
+           これが無いと、このあとの読み直しが毎回「ぜんぶ読む」になります。
+           これまでは、様子見の読み直しのときだけ控えていました。 */
+      try{ if(fs.at) localStorage.setItem(lastSeenKey(), fs.at); }catch(e){}
 
       /* ㊸ 契約・オーナーも Firestore を正にします */
       var after = [];
@@ -632,19 +773,50 @@
         console.log('[D] 保存：更新 ' + pl.changed.length + ' 件 / 削除 ' + pl.removed.length + ' 件');
       }catch(e){}
       try{ writeLog(jobs); }catch(e){}
-      return saveCtOw(body).then(function(){ return readAll('保存のあとの読み直し'); }, function(e){
+      /* ★★ 保存のあとの読み直しを、軽くします
+       *
+       *  ここで読み直しているのは、控えのスプレッドシートへ
+       *  クラウドとそろった中身を送るためです。
+       *  これまでは、そのために物件をぜんぶ読んでいました（70件なら70回）。
+       *
+       *  でも、いま保存したのはこの端末です。手元＝クラウドです。
+       *  ほかの端末が直したぶんだけを読み足せば足ります。
+       *  1件も直っていなければ、読むのは1回です。
+       *
+       *  目印を持っていない端末のときだけ、ぜんぶ読みます。         */
+      var afterRead = function(){
+        var seen = '';
+        try{ seen = String(localStorage.getItem(lastSeenKey()) || ''); }catch(e){ seen = ''; }
+        return seen ? readSince(seen) : readAll('保存のあとの読み直し');
+      };
+      return saveCtOw(body).then(afterRead, function(e){
         if(e && (e.__conflict || e.__cancel)) throw e;
         try{ console.warn('[E] 契約・オーナーの保存でつまずきました', e); }catch(x){}
-        return readAll('保存のあとの読み直し');
+        return afterRead();
       });
     }).then(function(fs){
       /* スプレッドシートへは Firestore の内容を送ります（両者が必ず一致します） */
-      if(fs && count(fs.buildings) > 0){
+      if(fs && fs.partial === true){
+        /* 直されたぶんだけ読んだとき：手元に、それを足して送ります */
+        var mine = {};
+        try{ mine = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : {}; }catch(e){ mine = null; }
+        if(mine && typeof mine === 'object'){
+          var outB = {}, bid;
+          for(bid in mine){ if(Object.prototype.hasOwnProperty.call(mine, bid)) outB[bid] = mine[bid]; }
+          for(bid in fs.buildings){ if(Object.prototype.hasOwnProperty.call(fs.buildings, bid)) outB[bid] = fs.buildings[bid]; }
+          if(count(outB) > 0) body.payload.buildings = outB;
+          mergeMap(revKey(), fs.revs);
+          mergeMap(sigKey(), fs.sigs);
+          try{ if(fs.at) localStorage.setItem(lastSeenKey(), fs.at); }catch(e){}
+        }
+      }else if(fs && count(fs.buildings) > 0){
         body.payload.buildings = fs.buildings;
         writeMap(revKey(), fs.revs);
         writeMap(sigKey(), fs.sigs);
+        try{ if(fs.at) localStorage.setItem(lastSeenKey(), fs.at); }catch(e){}
       }
       _fsDone = true;      /* ここまで来ていれば、クラウド（Firestore）には入っています */
+      fsDrop();            /* ★ 中身が変わったので、読んだものの使い回しをやめます */
       return P(url, body, t);
     }).catch(function(e){
       if(e && e.__cancel){
@@ -1130,7 +1302,11 @@
       return rv;
     });
   }
-  try{ window.pvSaveOwnersToCloud = saveOwsAlone; }catch(e){}
+  try{ window.pvSaveOwnersToCloud = function(list){
+    var r = saveOwsAlone(list);
+    try{ if(r && r.then) r.then(function(){ fsDrop(); }, function(){}); }catch(e){}
+    return r;
+  }; }catch(e){}
 
   /* ============================================================
    *  ㊷ 変更履歴 と ごみ箱（30日）
