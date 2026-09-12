@@ -184,7 +184,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 21;
+  var STORE_VER = 22;   /* ★ オーナー・契約の読み直しを入れた版 */
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -540,17 +540,30 @@
     var bl = body && body.payload && body.payload.buildings;
     if(!bl || typeof bl !== 'object') return P(url, body, t);   /* 形が違えば従来どおり */
 
+    /* ★ 契約やオーナーが半分より減る保存は、いったん止めます。
+         古い内容を持った端末が上書きする事故を防ぐためです。
+
+         ただし、以前はここで一方的に止めていました。
+         わざとまとめて消したときに、どうやっても保存できなくなります。
+         （10人のうち6人を消すと、4 < 5 なので必ず止まりました）
+         わざとなら通せるように、選べる形に変えました。 */
     var lost = keepsContracts(body);
     if(lost){
-      status('error', '⚠️ 契約が大きく減る保存を止めました');
-      try{ console.warn('[D] 契約／オーナーが激減する保存を止めました\n' + lost); }catch(e){}
+      var okDrop = false;
       try{
-        window.alert('保存を止めました。\n\n' +
-                     'この保存で、次のものが大きく減ります。\n\n' + lost + '\n' +
-                     'この端末が古い内容を持っている可能性があります。\n' +
-                     'ページを開き直して、最新を読み込んでください。');
-      }catch(e){}
-      return Promise.resolve({ ok:false, error:'contracts-drop', message:'契約が大きく減る保存を止めました' });
+        okDrop = window.confirm(
+          'この保存で、次のものが大きく減ります。\n\n' + lost + '\n' +
+          '［OK］　　　 わざと消したので、このまま保存する\n' +
+          '［キャンセル］保存しない（ページを開き直して確かめる）\n\n' +
+          '心当たりがないときは、キャンセルを選んでください。\n' +
+          'この端末が古い内容を持っていることがあります。');
+      }catch(e){ okDrop = false; }
+      if(!okDrop){
+        status('error', '⚠️ 契約が大きく減る保存を止めました');
+        try{ console.warn('[D] 契約／オーナーが激減する保存を止めました\n' + lost); }catch(e){}
+        return Promise.resolve({ ok:false, error:'contracts-drop', message:'契約が大きく減る保存を止めました' });
+      }
+      try{ console.warn('[D] 大きく減る保存を、確認のうえ通しました\n' + lost); }catch(e){}
     }
 
     if(_loaded){
