@@ -2166,6 +2166,176 @@
   try{ setInterval(checkVer, 30 * 60 * 1000); }catch(e){}
   try{ window.__pvCheckVer = checkVer; }catch(e){}
 
+  /* ============================================================
+   *  ㊿ 未送信の見張りと、自動の送り直し
+   *
+   *  【なぜ作ったか】
+   *
+   *  いちばん怖いのは「保存できていないのに、気づかないまま帰る」ことです。
+   *  これまでは、送れなかったとき「⚠️ 同期失敗」と一瞬出るだけでした。
+   *  次に何か操作すると、その表示は消えます。
+   *  そして、つながっても自分からは送り直しませんでした。
+   *
+   *  【これから】
+   *
+   *  ・送れていないあいだ、画面の左下に赤い札を出しっぱなしにします
+   *  ・回線が戻ったとき、画面に戻ったとき、決まった間かくで、
+   *    自動で送り直します
+   *  ・送れたら、札が消えます。消えたら送れた合図です
+   *  ・札を押すと、その場で送り直します
+   *
+   *  【送り直すもの・送り直さないもの】
+   *
+   *  送り直す　： 通信が切れた／クラウドの回数切れ／読み込み前だった
+   *              → 時間がたてば直るものです
+   *  送り直さない： ぶつかった／ご自身がキャンセルした／古い画面
+   *              → 人が決めないと、どうにもならないものです
+   *              → 札は出したままにして、何をすればよいか書きます
+   *
+   *  ★ PIVOT は保存のたびに全部をまとめて送る作りなので、
+   *    送り直しは「もう一度 保存する」だけで足ります。
+   *    送れなかった1件だけを覚えておく必要がありません。
+   * ============================================================ */
+  (function(){
+    var UKEY  = function(){ return pfx() + 'unsent'; };
+    var BADGE = 'pv-unsent-badge';
+    var _tries = 0, _tm = null;
+
+    /* 時間がたてば直るもの＝送り直します */
+    var AUTO = { net:1, quota:1, 'not-loaded':1 };
+    /* 人が決めないと直らないもの＝札は出しますが、送り直しません */
+    var WORD = {
+      net        : ['⚠️ 保存できていません', '通信を確かめています。押すと、いま送り直します'],
+      quota      : ['⚠️ 保存できていません', 'クラウドの1日の回数切れです。夕方4時すぎに自動で送ります'],
+      'not-loaded':['⚠️ 保存できていません', '最新を読み込んでから送ります。押すと、いま送り直します'],
+      conflict   : ['⚠️ 一部が保存できていません', 'ほかの人が先に保存しました。開き直して、入れ直してください'],
+      local      : ['⚠️ 保存できていません', 'この端末の置き場がいっぱいです。写真を減らしてください'],
+      other      : ['⚠️ 保存できていません', '押すと、いま送り直します']
+    };
+
+    function readU(){
+      try{ var v = JSON.parse(localStorage.getItem(UKEY()) || 'null');
+           return (v && typeof v === 'object') ? v : null; }catch(e){ return null; }
+    }
+    function writeU(o){
+      try{ if(o) localStorage.setItem(UKEY(), JSON.stringify(o));
+           else   localStorage.removeItem(UKEY()); }catch(e){}
+    }
+    function mark(kind){
+      var u = readU() || { from:Date.now() };
+      u.kind = kind || 'other';
+      u.at   = Date.now();
+      writeU(u); paint(); plan_();
+      try{ console.warn('[U] 送れていません（' + u.kind + '）。札を出して、送り直します'); }catch(e){}
+    }
+    function clear_(){
+      if(!readU()) return;
+      writeU(null); _tries = 0;
+      if(_tm){ clearTimeout(_tm); _tm = null; }
+      paint();
+      try{ console.log('[U] 送れました。札を消します'); }catch(e){}
+    }
+    function since(u){
+      var m = Math.floor((Date.now() - (u.from || u.at || Date.now())) / 60000);
+      if(m < 1) return '';
+      if(m < 60) return '（' + m + '分まえから）';
+      return '（' + Math.floor(m / 60) + '時間' + (m % 60) + '分まえから）';
+    }
+
+    function paint(){
+      try{
+        var u  = readU();
+        var el = document.getElementById(BADGE);
+        if(!u){ if(el && el.parentNode) el.parentNode.removeChild(el); return; }
+        if(!document.body) return;
+        if(!el){
+          el = document.createElement('div');
+          el.id = BADGE;
+          el.style.cssText =
+            'position:fixed;left:10px;bottom:44px;z-index:99998;max-width:min(340px,86vw);' +
+            'background:#b91c1c;color:#fff;font-size:12px;line-height:1.5;font-weight:700;' +
+            'padding:9px 13px;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,.32);' +
+            'cursor:pointer;white-space:normal;text-align:left';
+          el.onclick = function(){ _tries = 0; go(true); };
+          document.body.appendChild(el);
+        }
+        var w = WORD[u.kind] || WORD.other;
+        el.innerHTML = '';
+        var a = document.createElement('div'); a.textContent = w[0] + ' ' + since(u);
+        var b = document.createElement('div');
+        b.style.cssText = 'font-weight:500;font-size:11px;opacity:.92;margin-top:3px';
+        b.textContent = w[1];
+        el.appendChild(a); el.appendChild(b);
+      }catch(e){}
+    }
+
+    /* 送り直すまでの待ち時間。だんだん長くします */
+    function wait_(){
+      var u = readU();
+      if(u && u.kind === 'quota') return 600000;              /* 10分（4時まで待ちます） */
+      var w = [30000, 60000, 120000, 300000, 600000];
+      return w[Math.min(_tries, w.length - 1)];
+    }
+    function plan_(){
+      var u = readU();
+      if(_tm){ clearTimeout(_tm); _tm = null; }
+      if(!u || !AUTO[u.kind]) return;
+      _tm = setTimeout(function(){ _tm = null; go(false); }, wait_());
+    }
+    function go(byHand){
+      var u = readU();
+      if(!u) return;
+      if(!byHand && !AUTO[u.kind]) return;
+      try{ if(!firebase.auth().currentUser) { plan_(); return; } }catch(e){ plan_(); return; }
+      try{ if(!navigator.onLine){ plan_(); return; } }catch(e){}
+      _tries++;
+      try{ console.log('[U] 送り直します（' + _tries + '回目）'); }catch(e){}
+      try{ if(typeof window.__pushNow === 'function') window.__pushNow(); }catch(e){}
+      plan_();
+    }
+
+    /* 保存の結果を見て、札を出したり消したりします */
+    function note(r){
+      try{
+        if(r && r.ok === true){ clear_(); return; }
+        var k = String((r && r.error) || '');
+        if(k === 'conflict')        return mark('conflict');
+        if(k === 'not-loaded')      return mark('not-loaded');
+        if(k === 'old-version')     return;               /* 赤い帯が別に出ています */
+        if(k === 'contracts-drop')  return;               /* ご自身が選んだ結果です */
+        if(r && /取りやめ/.test(String(r.message || ''))) return;
+        mark('net');
+      }catch(e){}
+    }
+    function noteErr(e){
+      try{
+        if(isCloudQuota(e)) return mark('quota');
+        if(isLocalQuota(e)) return mark('local');
+      }catch(x){}
+      mark('net');
+    }
+    try{ window.__pvUnsent = { mark:mark, clear:clear_, read:readU, retry:function(){ _tries = 0; go(true); } }; }catch(e){}
+
+    /* 回線が戻ったとき・画面に戻ったとき・ログインしたときに、送り直します */
+    try{ window.addEventListener('online', function(){ _tries = 0; go(false); }); }catch(e){}
+    try{ document.addEventListener('visibilitychange', function(){
+      if(!document.hidden) setTimeout(function(){ go(false); }, 3000);
+    }); }catch(e){}
+    try{ firebase.auth().onAuthStateChanged(function(u){
+      if(u) setTimeout(function(){ paint(); go(false); }, 6000);
+    }); }catch(e){}
+    try{
+      if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', paint);
+      else paint();
+      setTimeout(paint, 1500);
+      setTimeout(plan_, 2000);
+    }catch(e){}
+    /* 出しっぱなしの札が、消え残らないように見張ります */
+    try{ setInterval(paint, 30000); }catch(e){}
+
+    try{ window.__pvNoteSave = note; window.__pvNoteErr = noteErr; }catch(e){}
+  })();
+
   /* ---------- 出入口を包みます ---------- */
   try{
     var P0 = window.postToGas;
@@ -2182,7 +2352,16 @@
           return Promise.resolve({ ok:false, error:'old-version', message:'古い画面のため保存しませんでした' });
         }
         if(act === 'load') return onLoad(P0, url, body, timeoutMs);
-        if(act === 'save') return onSave(P0, url, body, timeoutMs);
+        if(act === 'save'){
+          /* ★ 保存の結果を見て、未送信の札を出したり消したりします */
+          return Promise.resolve(onSave(P0, url, body, timeoutMs)).then(function(r){
+            try{ if(typeof window.__pvNoteSave === 'function') window.__pvNoteSave(r); }catch(e){}
+            return r;
+          }, function(e){
+            try{ if(typeof window.__pvNoteErr === 'function') window.__pvNoteErr(e); }catch(x){}
+            throw e;
+          });
+        }
         return P0(url, body, timeoutMs);
       };
     }
