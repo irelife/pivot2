@@ -178,6 +178,95 @@
 
   var META = { rev:1, updatedAt:1, updatedBy:1, migratedAt:1 };
 
+  /* ============================================================
+   *  ★★ 区画1つずつの保存（欄ごとの指紋）
+   *
+   *  【これまでの作り】
+   *
+   *  物件を1件ずつ保存する、ここまではできていました。
+   *  ただ、1件のなかみは丸ごと送っていました。
+   *  ナディアの20区画ぜんぶが1枚の紙に書かれていて、
+   *  その紙をまるごと送り直す形です。
+   *
+   *  だから、Aさんが1番区画、Bさんが2番区画を触ると、
+   *  同じ1枚を2人で書き替えることになり、必ずぶつかりました。
+   *
+   *  【これから】
+   *
+   *  変わった区画だけを送ります。
+   *  「ナディアの3番区画を、こう変える」という指示だけです。
+   *  紙を送り直しません。
+   *
+   *  そのために、物件ごとに「部品ごとの指紋」を控えます。
+   *
+   *    f:name → 物件名の指紋
+   *    f:addr → 住所の指紋
+   *    s:3    → 3番区画の指紋
+   *    s:4    → 4番区画の指紋
+   *
+   *  保存のときは、手元の指紋と控えを見くらべて、
+   *  変わった部品だけを送ります。
+   *  ほかの人が別の部品を変えていても、こちらは触りません。
+   *
+   *  ★ まったく同じ部品を、同時に2人が変えたときだけ、
+   *    これまでどおりお知らせします。そこは避けられません。
+   * ============================================================ */
+  function fprKey(){ return pfx() + 'fs_fpr'; }     /* 部品ごとの指紋の控え */
+  /* Firestore に「この欄を消す」と伝える印 */
+  function DEL(){
+    try{ return firebase.firestore.FieldValue.delete(); }catch(e){ return null; }
+  }
+
+  /* 物件1件から、部品ごとの指紋を作ります */
+  function fprOf(d){
+    var m = {}, f, sp, k;
+    for(f in d){
+      if(!Object.prototype.hasOwnProperty.call(d, f)) continue;
+      if(f === 'spots' || META[f]) continue;
+      m['f:' + f] = sig(d[f]);
+    }
+    sp = d && d.spots;
+    for(k in (sp || {})){
+      if(!Object.prototype.hasOwnProperty.call(sp, k)) continue;
+      m['s:' + k] = sig(sp[k]);
+    }
+    return m;
+  }
+  function fprRead(){ return readMap(fprKey()); }
+  /* ★ クラウドから読んだそのままの形と、手元の形は、欄の並びや
+       初期値の入れかたが違います。同じ形にそろえてから指紋を取ります。
+       そろえないと、何も変わっていないのに「相手が変えた」と誤認します。 */
+  function fprOfCloud(id, data){
+    try{ return fprOf(toDoc(id, fromDoc(data || {}))); }catch(e){ return {}; }
+  }
+  function fprWriteAll(o){ writeMap(fprKey(), o || {}); }
+
+  /* 手元と控えを見くらべて、この端末が変えた部品だけを挙げます */
+  function fprDiff(now, base){
+    var out = { set:[], del:[] }, k;
+    now  = now  || {};
+    base = base || {};
+    for(k in now){
+      if(!Object.prototype.hasOwnProperty.call(now, k)) continue;
+      if(base[k] !== now[k]) out.set.push(k);            /* 足した・変えた */
+    }
+    for(k in base){
+      if(!Object.prototype.hasOwnProperty.call(base, k)) continue;
+      if(now[k] === undefined) out.del.push(k);          /* 消した */
+    }
+    return out;
+  }
+
+  /* 部品の名前から、Firestore へ送るときの場所を作ります */
+  function fprPath(k){
+    if(k.indexOf('s:') === 0) return 'spots.' + k.slice(2);
+    return k.slice(2);
+  }
+  function fprValue(d, k){
+    if(k.indexOf('s:') === 0) return (d.spots || {})[k.slice(2)];
+    return d[k.slice(2)];
+  }
+
   var _loaded = false;   /* この画面で Firestore から読み込めたか */
 
   /* ㊹ 古い画面のまま使っている端末を見つけます。
@@ -455,6 +544,7 @@
          （そろえておかないと、次の保存で「全部が変わった」と誤解します） */
       writeMap(revKey(), ad.revs);
       writeMap(sigKey(), ad.sigs);
+      fprWriteAll(ad.fprs);        /* ★ 部品ごとの指紋も、そろえます */
 
       /* ★★ ここで、手元にも同じ中身を書きます。
        *
@@ -567,6 +657,7 @@
       try{ window.__fsPrimary = true; }catch(e){}
       writeMap(revKey(), ad.revs);
       writeMap(sigKey(), ad.sigs);
+      fprWriteAll(ad.fprs);
       try{ console.log('[D] 読み込み：Firestore から物件 ' + n + ' 件'); }catch(e){}
       if(after.length) return Promise.all(after).then(function(){ return r; }).catch(function(){ return r; });
       return r;
@@ -577,13 +668,18 @@
    *  保存：変わった物件だけ。先を越されていたら止めます
    * ============================================================ */
   function plan(buildings){
-    var revs = readMap(revKey()), sigs = readMap(sigKey());
+    var revs = readMap(revKey()), sigs = readMap(sigKey()), fprs = fprRead();
     var changed = [], removed = [], id, d, s;
     for(id in buildings){
       if(!Object.prototype.hasOwnProperty.call(buildings, id)) continue;
       d = toDoc(id, buildings[id]);
       s = sig(d);
-      if(sigs[id] !== s) changed.push({ id:id, doc:d, sig:s, base:(revs[id] || 0), name:(d.name || id) });
+      if(sigs[id] === s) continue;                    /* 変わっていません */
+      /* ★ この端末が変えた部品だけを挙げます（区画1つずつ） */
+      var nowF = fprOf(d);
+      changed.push({ id:id, doc:d, sig:s, base:(revs[id] || 0), name:(d.name || id),
+                     fpr:nowF, diff:fprDiff(nowF, fprs[id]),
+                     isNew:(revs[id] === undefined) });
     }
     for(id in revs){
       if(!Object.prototype.hasOwnProperty.call(revs, id)) continue;
@@ -632,7 +728,7 @@
        どちらも、黙って上書きするより安全です。                        */
   function mergeBase(fs, mine){
     try{
-      var revs = readMap(revKey()), sigs = readMap(sigKey()), id, mySig;
+      var revs = readMap(revKey()), sigs = readMap(sigKey()), fprs = fprRead(), id, mySig;
       var has = function(o, k){ return o && Object.prototype.hasOwnProperty.call(o, k); };
       for(id in fs.sigs){
         if(!has(fs.sigs, id)) continue;
@@ -642,9 +738,11 @@
         }
         revs[id] = fs.revs[id];
         sigs[id] = fs.sigs[id];
+        try{ fprs[id] = fprOf(toDoc(id, fs.buildings[id])); }catch(e){}
       }
       writeMap(revKey(), revs);
       writeMap(sigKey(), sigs);
+      fprWriteAll(fprs);
     }catch(e){}
   }
 
@@ -679,8 +777,8 @@
     var mine = {};
     try{ mine = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : {}; }catch(e){ mine = {}; }
     if(!mine || typeof mine !== 'object') mine = {};
-    var oldR = readMap(revKey()), oldS = readMap(sigKey());
-    var out = {}, revs = {}, sigs = {}, id, mySig, kept = 0;
+    var oldR = readMap(revKey()), oldS = readMap(sigKey()), oldF = fprRead();
+    var out = {}, revs = {}, sigs = {}, fprs = {}, id, mySig, kept = 0;
     var has = function(o, k){ return o && Object.prototype.hasOwnProperty.call(o, k); };
 
     for(id in fs.buildings){
@@ -692,6 +790,7 @@
           out[id]  = mine[id];                 /* まだ送っていない直し → 残します */
           revs[id] = oldR[id];
           sigs[id] = oldS[id];
+          if(oldF[id]) fprs[id] = oldF[id];
           kept++;
           continue;
         }
@@ -699,6 +798,7 @@
       out[id]  = fs.buildings[id];
       revs[id] = fs.revs[id];
       sigs[id] = fs.sigs[id];
+      try{ fprs[id] = fprOf(toDoc(id, fs.buildings[id])); }catch(e){}
     }
     for(id in mine){
       if(!has(mine, id) || has(out, id)) continue;
@@ -707,7 +807,7 @@
       kept++;
     }
     if(kept){ try{ console.log('[D] まだ送っていない直し ' + kept + ' 件は、手元を残しました'); }catch(e){} }
-    return { out:out, revs:revs, sigs:sigs, kept:kept };
+    return { out:out, revs:revs, sigs:sigs, fprs:fprs, kept:kept };
   }
 
   /* 契約も、物件とまったく同じ考え方で取りこみます */
@@ -751,7 +851,8 @@
       var jobs = [], i, c, r;
       for(i = 0; i < pl.changed.length; i++){
         c = pl.changed[i];
-        jobs.push({ kind:'set', id:c.id, name:c.name, base:c.base, doc:c.doc, sig:c.sig, ref:col().doc(c.id) });
+        jobs.push({ kind:'set', id:c.id, name:c.name, base:c.base, doc:c.doc, sig:c.sig,
+                    fpr:c.fpr, diff:c.diff, isNew:c.isNew, ref:col().doc(c.id) });
       }
       for(i = 0; i < pl.removed.length; i++){
         r = pl.removed[i];
@@ -761,13 +862,58 @@
       for(i = 0; i < jobs.length; i++) gets.push(tx.get(jobs[i].ref));
       return Promise.all(gets).then(function(snaps){
         var bad = [], j, cur, d;
+        var fprs0 = fprRead();
         for(j = 0; j < jobs.length; j++){
           jobs[j].prev = snaps[j].exists ? (snaps[j].data() || null) : null;   /* 履歴・ごみ箱用 */
           cur = snaps[j].exists ? ((snaps[j].data() || {}).rev || 0) : 0;
-          if(cur !== jobs[j].base){
-            bad.push({ kind:'b', id:jobs[j].id, name:jobs[j].name,
+
+          /* ★★ 物件をまるごと消すときは、これまでどおり版番号を見ます。
+                 だれかが直した直後に消すのは、確かめたいからです。      */
+          if(jobs[j].kind === 'del'){
+            if(cur !== jobs[j].base){
+              bad.push({ kind:'b', id:jobs[j].id, name:jobs[j].name,
+                         by:(snaps[j].exists ? ((snaps[j].data() || {}).updatedBy || '') : '') });
+            }
+            continue;
+          }
+
+          /* ★★ 直すときは、版番号ぜんたいでは見ません。
+           *
+           *  これまでは、物件の版番号が1つでもずれていたら
+           *  ぶつかりにしていました。だから、AさんとBさんが
+           *  同じ物件の「べつの区画」を触っただけで止まりました。
+           *
+           *  これからは、部品ごとに見ます。
+           *  ぶつかりにするのは「まったく同じ部品を、同時に2人が
+           *  変えたとき」だけです。                                   */
+          if(!snaps[j].exists || jobs[j].isNew || !jobs[j].diff){
+            jobs[j].whole = true;                       /* 新しい物件 → まるごと入れます */
+            continue;
+          }
+          var cloudF = fprOfCloud(jobs[j].id, snaps[j].data());
+          var baseF  = fprs0[jobs[j].id] || {};
+          var mineD  = jobs[j].diff;
+          var okSet = [], okDel = [], hit = [], kk, t;
+          for(t = 0; t < mineD.set.length; t++){
+            kk = mineD.set[t];
+            if(cloudF[kk] !== baseF[kk]){ hit.push(kk); continue; }   /* 相手も同じ部品を変えました */
+            okSet.push(kk);
+          }
+          for(t = 0; t < mineD.del.length; t++){
+            kk = mineD.del[t];
+            if(cloudF[kk] !== baseF[kk]){ hit.push(kk); continue; }
+            okDel.push(kk);
+          }
+          jobs[j].okSet = okSet;
+          jobs[j].okDel = okDel;
+          jobs[j].rev0  = cur;
+          if(hit.length){
+            bad.push({ kind:'b', id:jobs[j].id,
+                       name:jobs[j].name + '（' + hit.map(function(x){
+                         return x.indexOf('s:') === 0 ? (x.slice(2) + '番区画') : x.slice(2); }).join('、') + '）',
                        by:(snaps[j].exists ? ((snaps[j].data() || {}).updatedBy || '') : '') });
           }
+          if(!okSet.length && !okDel.length) jobs[j].skip = true;   /* 送るものがありません */
         }
         /* ★★ ぶつかった1件のせいで、ほかのぜんぶが保存できなくなっていました。
          *
@@ -803,15 +949,39 @@
                  { merge:true });
           use('write', 1, '消したことの目印');
         }
+        var wrote = 0;
         for(j = 0; j < jobs.length; j++){
-          if(jobs[j].kind === 'del'){ tx.delete(jobs[j].ref); continue; }
+          if(jobs[j].kind === 'del'){ tx.delete(jobs[j].ref); wrote++; continue; }
+          if(jobs[j].skip) continue;
           d = jobs[j].doc;
-          d.rev       = jobs[j].base + 1;
-          d.updatedAt = new Date().toISOString();
-          d.updatedBy = me() || '(名前なし)';
-          tx.set(jobs[j].ref, d);
+          if(jobs[j].whole){
+            /* 新しい物件は、まるごと入れます */
+            d.rev       = (jobs[j].base || 0) + 1;
+            d.updatedAt = new Date().toISOString();
+            d.updatedBy = me() || '(名前なし)';
+            tx.set(jobs[j].ref, d);
+            wrote++;
+            continue;
+          }
+          /* ★ 変わった部品だけを送ります */
+          var patch = {}, t2, kk2;
+          for(t2 = 0; t2 < jobs[j].okSet.length; t2++){
+            kk2 = jobs[j].okSet[t2];
+            patch[fprPath(kk2)] = fprValue(d, kk2);
+          }
+          for(t2 = 0; t2 < jobs[j].okDel.length; t2++){
+            kk2 = jobs[j].okDel[t2];
+            patch[fprPath(kk2)] = DEL();
+          }
+          patch.rev       = (jobs[j].rev0 || 0) + 1;
+          patch.updatedAt = new Date().toISOString();
+          patch.updatedBy = me() || '(名前なし)';
+          tx.update(jobs[j].ref, patch);
+          wrote++;
+          try{ console.log('[D] ' + jobs[j].name + '：' +
+                (jobs[j].okSet.length + jobs[j].okDel.length) + ' 部品だけ送りました'); }catch(e){}
         }
-        use('write', jobs.length, '物件の保存');
+        use('write', Math.max(wrote, 1), '物件の保存');
         if(bad.length){ try{ jobs.__conflict = bad; }catch(x){} }
         return jobs;
       });
@@ -849,7 +1019,7 @@
     for(k = 0; k < jobs.length; k++) gets.push(jobs[k].ref.get());
     return Promise.all(gets).then(function(snaps){
       use('read', jobs.length, 'ぶつかりのかたづけ');
-      var bR = readMap(revKey()),  bS = readMap(sigKey());
+      var bR = readMap(revKey()),  bS = readMap(sigKey()), bF = fprRead();
       var cR = readMap(ctRevK()),  cS = readMap(ctSigK());
       var blds = null, cts = null, j, d, id;
       if(!mine){
@@ -866,14 +1036,15 @@
             else { delete cts[id]; delete cR[id]; delete cS[id]; }
           }
         }else{
-          if(mine){ bR[id] = d ? (d.rev || 0) : 0; }
+          if(mine){ bR[id] = d ? (d.rev || 0) : 0; if(d) bF[id] = fprOfCloud(id, d); }
           else if(blds){
-            if(d){ blds[id] = fromDoc(d); bR[id] = d.rev || 0; bS[id] = sig(toDoc(id, blds[id])); }
-            else { delete blds[id]; delete bR[id]; delete bS[id]; }
+            if(d){ blds[id] = fromDoc(d); bR[id] = d.rev || 0; bS[id] = sig(toDoc(id, blds[id]));
+                   bF[id] = fprOfCloud(id, d); }
+            else { delete blds[id]; delete bR[id]; delete bS[id]; delete bF[id]; }
           }
         }
       }
-      writeMap(revKey(), bR); writeMap(sigKey(), bS);
+      writeMap(revKey(), bR); writeMap(sigKey(), bS); fprWriteAll(bF);
       writeMap(ctRevK(), cR); writeMap(ctSigK(), cS);
       if(!mine){
         try{ if(blds && typeof pbSaveRaw === 'function') pbSaveRaw(blds); }catch(e){}
@@ -942,6 +1113,25 @@
     return msg;
   }
 
+  /* ★★ クラウドが確かめられないときは、古い経路へ逃げません
+   *
+   *  これまでは、Firestore が読めない・つまずいた、というときに
+   *  「では従来どおり（スプレッドシートへ直接）」と流していました。
+   *
+   *  そこが、古い内容で上書きする最後の抜け道でした。
+   *  クラウドを確かめられていないのに送ると、
+   *  どちらが新しいか分からないまま書き込むことになります。
+   *
+   *  これからは送りません。
+   *  送れなかったことは画面左下の赤い札に出て、
+   *  つながったら自動で送り直します。入力は消えません。          */
+  function noEscape(why){
+    try{ console.warn('[D] クラウドを確かめられないので、送信を見送りました（' + why + '）'); }catch(e){}
+    status('error', '⚠️ 確認できないので保存を見送りました');
+    try{ if(window.__pvUnsent && window.__pvUnsent.mark) window.__pvUnsent.mark('net'); }catch(e){}
+    return Promise.resolve({ ok:false, error:'no-verify', message:'クラウドを確かめられないので保存しませんでした' });
+  }
+
   function onSave(P, url, body, t){
     tidyAhead('保存の前');                    /* ★ ぶつかる前に片付けます */
     var bl = body && body.payload && body.payload.buildings;
@@ -975,7 +1165,7 @@
 
     if(_loaded){
       return ensureBase().then(function(){ return saveNow(P, url, body, t, bl); })
-                         .catch(function(){ return P(url, body, t); });
+                         .catch(function(){ return noEscape('土台づくりに失敗'); });
     }
 
     /* ★ まだ一度も読み込んでいない状態での保存が、いちばん危ないところです。
@@ -985,7 +1175,14 @@
        のどちらも起こります。増える向きも減る向きも、どちらも危険です。
        そこで「読み込む前に、中身が変わる保存」は一切通しません。 */
     return readAll('保存の前の確かめ').then(function(fs){
-      if(!fs || count(fs.buildings) === 0) return P(url, body, t);   /* 移行前・通信不可 → 従来どおり */
+      /* ★ クラウドが1件も読めないとき。
+           移行前（まだ1件も無い）なら、従来どおり通します。
+           そうでなければ、確かめられていないので送りません。 */
+      if(!fs) return noEscape('クラウドが読めない');
+      if(count(fs.buildings) === 0){
+        if(count(readMap(sigKey())) > 0) return noEscape('クラウドが空に見える');
+        return P(url, body, t);                                   /* 移行前 */
+      }
       /* ★ ここで控えをクラウドの中身で塗り替えると、
            「ほかの端末が直したもの」まで「この端末が直したもの」に見えます。
            手元は古いままなので、そのあとの保存で古い内容を送り返し、
@@ -1009,13 +1206,13 @@
                      'ページを開き直してから、もう一度入力してください。');
       }catch(e){}
       return { ok:false, error:'not-loaded', message:'最新を読み込む前の保存を止めました' };
-    }).catch(function(){ return P(url, body, t); });
+    }).catch(function(){ return noEscape('保存前の確かめに失敗'); });
   }
 
   function saveNow(P, url, body, t, bl){
     var _fsDone = false;   /* クラウド（Firestore）への保存が済んだか */
     var pl;
-    try{ pl = plan(bl); }catch(e){ return P(url, body, t); }
+    try{ pl = plan(bl); }catch(e){ return noEscape('組み立てに失敗'); }
 
     /* たくさん消えるとき、または手元が極端に少ないときは、念のため確認します。
        ★ キャンセルを選んでも、直したぶんは保存します。
@@ -1045,12 +1242,19 @@
     var work = (pl.changed.length || pl.removed.length) ? commit(pl) : Promise.resolve([]);
 
     return work.then(function(jobs){
-      var revs = readMap(revKey()), sigs = readMap(sigKey()), i;
+      var revs = readMap(revKey()), sigs = readMap(sigKey()), fprs = fprRead(), i;
       for(i = 0; i < jobs.length; i++){
-        if(jobs[i].kind === 'del'){ delete revs[jobs[i].id]; delete sigs[jobs[i].id]; }
-        else { revs[jobs[i].id] = jobs[i].base + 1; sigs[jobs[i].id] = jobs[i].sig; }
+        if(jobs[i].kind === 'del'){
+          delete revs[jobs[i].id]; delete sigs[jobs[i].id]; delete fprs[jobs[i].id];
+        }else if(jobs[i].skip){
+          /* 送るものが無かった（相手と同じ部品だった）→ 控えは変えません */
+        }else {
+          revs[jobs[i].id] = (jobs[i].whole ? (jobs[i].base || 0) : (jobs[i].rev0 || 0)) + 1;
+          sigs[jobs[i].id] = jobs[i].sig;
+          if(jobs[i].fpr) fprs[jobs[i].id] = jobs[i].fpr;
+        }
       }
-      writeMap(revKey(), revs); writeMap(sigKey(), sigs);
+      writeMap(revKey(), revs); writeMap(sigKey(), sigs); fprWriteAll(fprs);
       try{
         console.log('[D] 保存：更新 ' + pl.changed.length + ' 件 / 削除 ' + pl.removed.length + ' 件');
       }catch(e){}
@@ -1081,24 +1285,44 @@
       });
     }).then(function(fs){
       /* スプレッドシートへは Firestore の内容を送ります（両者が必ず一致します） */
-      if(fs && fs.partial === true){
-        /* 直されたぶんだけ読んだとき：手元に、それを足して送ります */
-        var mine = {};
-        try{ mine = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : {}; }catch(e){ mine = null; }
+      /* ★★ 保存のあとの取りこみ
+       *
+       *  いま保存した結果を、ここで読み直しています。
+       *  区画1つずつ送る形にしたので、クラウドの中身は
+       *  「この端末が送った区画」＋「ほかの人が送った区画」になります。
+       *
+       *  これまでは、その結果で「控え」だけをそろえて、手元を
+       *  合わせていませんでした。すると手元と控えが食い違ったまま残り、
+       *  そのあと何度読み直しても「手元に未送信の直しがある」と誤解して、
+       *  取りこまなくなります。
+       *
+       *  2台で使っていると、だんだん画面の内容がずれていく原因でした。
+       *  ここで手元も、いっしょにそろえます。                        */
+      if(fs && count(fs.buildings) > 0){
+        var mine = null;
+        try{ mine = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : null; }catch(e){ mine = null; }
         if(mine && typeof mine === 'object'){
-          var outB = {}, bid;
+          var outB = {}, bid, r2 = readMap(revKey()), s2 = readMap(sigKey()), f2 = fprRead(), mSig;
           for(bid in mine){ if(Object.prototype.hasOwnProperty.call(mine, bid)) outB[bid] = mine[bid]; }
-          for(bid in fs.buildings){ if(Object.prototype.hasOwnProperty.call(fs.buildings, bid)) outB[bid] = fs.buildings[bid]; }
+          for(bid in fs.buildings){
+            if(!Object.prototype.hasOwnProperty.call(fs.buildings, bid)) continue;
+            /* この保存に入っていない物件で、手元に未送信の直しがあるものは触りません */
+            if(Object.prototype.hasOwnProperty.call(mine, bid) && s2[bid] !== undefined){
+              mSig = null;
+              try{ mSig = sig(toDoc(bid, mine[bid])); }catch(e){ mSig = null; }
+              if(mSig !== null && mSig !== s2[bid]) continue;
+            }
+            outB[bid] = fs.buildings[bid];
+            r2[bid]   = fs.revs[bid];
+            s2[bid]   = fs.sigs[bid];
+            try{ f2[bid] = fprOf(toDoc(bid, fs.buildings[bid])); }catch(e){}
+          }
           if(count(outB) > 0) body.payload.buildings = outB;
-          mergeMap(revKey(), fs.revs);
-          mergeMap(sigKey(), fs.sigs);
+          try{ if(typeof pbSaveRaw === 'function') pbSaveRaw(outB); }catch(e){}
+          writeMap(revKey(), r2); writeMap(sigKey(), s2); fprWriteAll(f2);
           try{ if(fs.at) localStorage.setItem(lastSeenKey(), fs.at); }catch(e){}
+          try{ if(typeof requestRender === 'function') requestRender('buildings'); }catch(e){}
         }
-      }else if(fs && count(fs.buildings) > 0){
-        body.payload.buildings = fs.buildings;
-        writeMap(revKey(), fs.revs);
-        writeMap(sigKey(), fs.sigs);
-        try{ if(fs.at) localStorage.setItem(lastSeenKey(), fs.at); }catch(e){}
       }
       _fsDone = true;      /* ここまで来ていれば、クラウド（Firestore）には入っています */
       fsDrop();            /* ★ 中身が変わったので、読んだものの使い回しをやめます */
@@ -1952,14 +2176,16 @@
 
         for(id in mine){ if(Object.prototype.hasOwnProperty.call(mine, id)) out[id] = mine[id]; }
 
+        var took = {};      /* ★ どの物件を取りこんだか。控えは、これだけそろえます */
         for(id in fs.buildings){
           if(!Object.prototype.hasOwnProperty.call(fs.buildings, id)) continue;
           if(Object.prototype.hasOwnProperty.call(mine, id)){
             try{ mySig = sig(toDoc(id, mine[id])); }catch(e){ continue; }
             if(mySig !== base[id]) continue;                 /* 手元に未保存の直しがある → 触りません */
-            if(mySig === fs.sigs[id]) continue;              /* 同じ内容 */
+            if(mySig === fs.sigs[id]){ took[id] = 1; continue; }   /* 同じ内容 */
           }
           out[id] = fs.buildings[id];
+          took[id] = 1;
           changed++;
         }
         /* ★ v21）「ほかの端末で消された」の見分けは、
@@ -1981,16 +2207,34 @@
         if(busy()) return;
 
         try{ if(typeof pbSaveRaw === 'function') pbSaveRaw(out); }catch(e){ return; }
-        if(fs.partial === true){
-          /* 直されたぶんだけを読んだときは、控えも「足すだけ」にします。
-             丸ごと置き換えると、読まなかった物件の控えが消えて、
-             次の保存が全部「衝突」になってしまいます。 */
-          mergeMap(revKey(), fs.revs);
-          mergeMap(sigKey(), fs.sigs);
-        }else{
-          writeMap(revKey(), fs.revs);
-          writeMap(sigKey(), fs.sigs);
+        /* ★★ 控えは「取りこんだ物件のぶんだけ」そろえます。
+         *
+         *  これまでは、届いたぶんの控えを丸ごと書き写していました。
+         *  手元を残した物件まで、控えだけクラウドの内容になります。
+         *  すると手元と控えが永久に食い違い、そのあと何度読み直しても
+         *  「手元に未保存の直しがある」と誤解して、取りこまなくなります。
+         *
+         *  2台で使うと、しばらくして画面の内容がずれていく原因でした。 */
+        var nr = readMap(revKey()), ns = readMap(sigKey()), nf = fprRead(), fid;
+        for(fid in fs.buildings){
+          if(!Object.prototype.hasOwnProperty.call(fs.buildings, fid)) continue;
+          if(!took[fid]) continue;                          /* 手元を残した物件は、触りません */
+          nr[fid] = fs.revs[fid];
+          ns[fid] = fs.sigs[fid];
+          try{ nf[fid] = fprOf(toDoc(fid, fs.buildings[fid])); }catch(e){}
         }
+        if(fs.partial !== true){
+          /* 全部を読んだときだけ、手元に無くなった物件の控えを落とします */
+          for(fid in ns){
+            if(!Object.prototype.hasOwnProperty.call(ns, fid)) continue;
+            if(!Object.prototype.hasOwnProperty.call(out, fid)){
+              delete ns[fid]; delete nr[fid]; delete nf[fid];
+            }
+          }
+        }
+        writeMap(revKey(), nr);
+        writeMap(sigKey(), ns);
+        fprWriteAll(nf);
         try{ if(typeof requestRender === 'function') requestRender('buildings'); }catch(e){}
         try{ console.log('[S] 他の端末の変更を取り込みました（' + changed + ' 件）'); }catch(e){}
         toast(changed);
@@ -2183,6 +2427,11 @@
       if(typeof FP0 === 'function'){
         window.forcePullLatest = function(){
           var r;
+          /* ★ ロゴを押すのは「いま最新をください」という操作です。
+               30秒の使い回しは、ここでは使いません。
+               使い回すと、ほかの端末が直した直後に押しても
+               前の内容が出てしまいます。                          */
+          try{ fsDrop(); }catch(e){}
           try{ r = FP0.apply(this, arguments); }catch(e){ r = null; }
           try{ _lastOw = 0; setTimeout(function(){ syncOws(true); }, 1200); }catch(e){}
           try{ _lastCt = 0; setTimeout(function(){ syncCts(true); }, 1600); }catch(e){}
