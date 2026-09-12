@@ -446,14 +446,33 @@
         try{ console.warn('[D] Firestore の物件が手元より大幅に少ないため差し替えを中止 ' + n + ' < ' + localN); }catch(e){}
         return r;
       }
-      r.payload.buildings = fs.buildings;
-      r.buildingCount     = n;
+      var ad = adoptBlds(fs);
+      r.payload.buildings = ad.out;
+      r.buildingCount     = count(ad.out);
       _loaded = true;
 
-      /* 版番号・指紋の控えを、いま読んだ Firestore の中身にそろえます。
+      /* 版番号・指紋の控えを、いま決めた中身にそろえます。
          （そろえておかないと、次の保存で「全部が変わった」と誤解します） */
-      writeMap(revKey(), fs.revs);
-      writeMap(sigKey(), fs.sigs);
+      writeMap(revKey(), ad.revs);
+      writeMap(sigKey(), ad.sigs);
+
+      /* ★★ ここで、手元にも同じ中身を書きます。
+       *
+       *  これまでは、手元に書くのを呼び出し元にまかせていました。
+       *  ところが呼び出し元は3種類あり、そのうち2つは書きません。
+       *    ・画面を開いたとき（core.js）　　　→ 書きます
+       *    ・保存する前の確かめ（core.js）　　→ 書きません
+       *    ・保存する前の確かめ（uifix.js）　 → 書きません
+       *
+       *  書かないほうが走ると、控えだけがクラウドの中身になり、
+       *  手元は古いまま、という食い違いが残ります。
+       *  そのあとの保存で、古い内容が送り返されていました。
+       *  「触っていない物件が、ほかの人の直す前に戻る」のは、これです。
+       *
+       *  ad.out は、まだ送っていない手元の直しを残したうえで
+       *  決めた中身です。ここで書いておけば、
+       *  どの呼び出し元から来ても、控えと手元が必ずそろいます。      */
+      try{ if(typeof pbSaveRaw === 'function') pbSaveRaw(ad.out); }catch(e){}
       /* ★ どこまで読んだかの目印も、ここで控えます。
            これが無いと、このあとの読み直しが毎回「ぜんぶ読む」になります。
            これまでは、様子見の読み直しのときだけ控えていました。 */
@@ -477,8 +496,12 @@
               status('error', '⚠️ 契約が少なかったので取り込みを止めました');
               try{ console.warn('[E] Firestore の契約が少ないため差し替え中止 ' + cn + ' < ' + inCt); }catch(e){}
             }else{
-              r.payload.contracts = cts.map;
-              writeMap(ctRevK(), cts.revs); writeMap(ctSigK(), cts.sigs);
+              var adc = adoptCts(cts);
+              r.payload.contracts = adc.out;
+              writeMap(ctRevK(), adc.revs); writeMap(ctSigK(), adc.sigs);
+              /* ★ 物件と同じ理由で、手元にも書きます。
+                   呼び出し元が書かない道（保存前の確かめ）があるためです。 */
+              try{ localStorage.setItem(ctLS(), JSON.stringify(adc.out)); }catch(e){}
               try{ console.log('[E] 読み込み：Firestore から契約 ' + cn + ' 件'); }catch(e){}
             }
           }
@@ -542,8 +565,8 @@
       /* uifix.js の「両方を残す」合体を止めます。
          あれは消したものを足し戻すので、わざと消した区画が復活します。 */
       try{ window.__fsPrimary = true; }catch(e){}
-      writeMap(revKey(), fs.revs);
-      writeMap(sigKey(), fs.sigs);
+      writeMap(revKey(), ad.revs);
+      writeMap(sigKey(), ad.sigs);
       try{ console.log('[D] 読み込み：Firestore から物件 ' + n + ' 件'); }catch(e){}
       if(after.length) return Promise.all(after).then(function(){ return r; }).catch(function(){ return r; });
       return r;
@@ -588,6 +611,128 @@
     });
   }
 
+  /* ★ 控えの取りこみ。
+       「手元＝クラウド」のものだけ、控えを最新にそろえます。
+       食い違うものは、前の控えを残します。そうしておけば
+         ・この端末で直していないもの　→ 直していないと分かる（送りません）
+         ・この端末で直したもの　　　　→ 版番号がずれているので、ぶつかりになります
+       どちらも、黙って上書きするより安全です。                        */
+  function mergeBase(fs, mine){
+    try{
+      var revs = readMap(revKey()), sigs = readMap(sigKey()), id, mySig;
+      var has = function(o, k){ return o && Object.prototype.hasOwnProperty.call(o, k); };
+      for(id in fs.sigs){
+        if(!has(fs.sigs, id)) continue;
+        if(has(mine, id) && sigs[id] !== undefined){
+          try{ mySig = sig(toDoc(id, mine[id])); }catch(e){ continue; }
+          if(mySig !== fs.sigs[id]) continue;        /* 手元と食い違う → 前の控えを残します */
+        }
+        revs[id] = fs.revs[id];
+        sigs[id] = fs.sigs[id];
+      }
+      writeMap(revKey(), revs);
+      writeMap(sigKey(), sigs);
+    }catch(e){}
+  }
+
+  /* ★★ 読み込んだ物件の、取りこみ方
+   *
+   *  これまでは、届いたクラウドの中身で、手元をまるごと置き換えていました。
+   *  そして「クラウドにどの書類があるか」の控えも、まるごと書き替えていました。
+   *
+   *  これが事故のもとでした。
+   *
+   *    ・保存する前に、クラウドの件数を確かめる読み込みが走ります
+   *      （core.js と uifix.js の2か所から、保存のたびに走ります）
+   *    ・その読み込みが、控えだけをクラウドの中身に書き替えます
+   *    ・手元は古いままなので、ほかの人が直した物件が
+   *      「この端末が直したもの」に見えます
+   *    ・そのあとの保存で、古い内容を送り返してしまいます
+   *
+   *  結果、触っていない物件が、ほかの人の直す前の内容に戻っていました。
+   *
+   *  これからは、物件1つずつ、こう決めます。
+   *
+   *    ・手元が、前に控えた内容と同じ　→ 触っていない　→ クラウドを採る
+   *    ・手元が、前に控えた内容とちがう→ この端末で直した→ 手元を残す
+   *    ・クラウドに無い
+   *        前に控えてあった　→ ほかの端末で消された　→ 足し戻さない
+   *        一度も控えていない→ まだ送っていない新しい物件→ 残す
+   *
+   *  控えも、それに合わせて決めます。
+   *  手元を残したものは、前の控えのままにします。そうしておけば
+   *  次の保存で「この端末の直し」として、正しく送られます。          */
+  function adoptBlds(fs){
+    var mine = {};
+    try{ mine = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : {}; }catch(e){ mine = {}; }
+    if(!mine || typeof mine !== 'object') mine = {};
+    var oldR = readMap(revKey()), oldS = readMap(sigKey());
+    var out = {}, revs = {}, sigs = {}, id, mySig, kept = 0;
+    var has = function(o, k){ return o && Object.prototype.hasOwnProperty.call(o, k); };
+
+    for(id in fs.buildings){
+      if(!has(fs.buildings, id)) continue;
+      if(has(mine, id) && oldS[id] !== undefined){
+        mySig = null;
+        try{ mySig = sig(toDoc(id, mine[id])); }catch(e){ mySig = null; }
+        if(mySig !== null && mySig !== oldS[id]){
+          out[id]  = mine[id];                 /* まだ送っていない直し → 残します */
+          revs[id] = oldR[id];
+          sigs[id] = oldS[id];
+          kept++;
+          continue;
+        }
+      }
+      out[id]  = fs.buildings[id];
+      revs[id] = fs.revs[id];
+      sigs[id] = fs.sigs[id];
+    }
+    for(id in mine){
+      if(!has(mine, id) || has(out, id)) continue;
+      if(oldS[id] !== undefined) continue;     /* 前はクラウドにあった → 消されたので足しません */
+      out[id] = mine[id];                      /* 一度も送っていない、新しい物件 */
+      kept++;
+    }
+    if(kept){ try{ console.log('[D] まだ送っていない直し ' + kept + ' 件は、手元を残しました'); }catch(e){} }
+    return { out:out, revs:revs, sigs:sigs, kept:kept };
+  }
+
+  /* 契約も、物件とまったく同じ考え方で取りこみます */
+  function adoptCts(cs){
+    var mine = {};
+    try{ mine = JSON.parse(localStorage.getItem(ctLS()) || '{}') || {}; }catch(e){ mine = {}; }
+    if(!mine || typeof mine !== 'object') mine = {};
+    var oldR = readMap(ctRevK()), oldS = readMap(ctSigK());
+    var out = {}, revs = {}, sigs = {}, id, mySig, kept = 0;
+    var has = function(o, k){ return o && Object.prototype.hasOwnProperty.call(o, k); };
+
+    for(id in cs.map){
+      if(!has(cs.map, id)) continue;
+      if(has(mine, id) && oldS[id] !== undefined){
+        mySig = null;
+        try{ mySig = sig(ctDoc(id, mine[id])); }catch(e){ mySig = null; }
+        if(mySig !== null && mySig !== oldS[id]){
+          out[id]  = mine[id];
+          revs[id] = oldR[id];
+          sigs[id] = oldS[id];
+          kept++;
+          continue;
+        }
+      }
+      out[id]  = cs.map[id];
+      revs[id] = cs.revs[id];
+      sigs[id] = cs.sigs[id];
+    }
+    for(id in mine){
+      if(!has(mine, id) || has(out, id)) continue;
+      if(oldS[id] !== undefined) continue;     /* 前はクラウドにあった → 消されたので足しません */
+      out[id] = mine[id];                      /* 一度も送っていない、新しい契約 */
+      kept++;
+    }
+    if(kept){ try{ console.log('[E] まだ送っていない契約の直し ' + kept + ' 件は、手元を残しました'); }catch(e){} }
+    return { out:out, revs:revs, sigs:sigs, kept:kept };
+  }
+
   function commit(pl){
     return db().runTransaction(function(tx){
       var jobs = [], i, c, r;
@@ -610,9 +755,30 @@
             bad.push({ name:jobs[j].name, by:(snaps[j].exists ? ((snaps[j].data() || {}).updatedBy || '') : '') });
           }
         }
+        /* ★★ ぶつかった1件のせいで、ほかのぜんぶが保存できなくなっていました。
+         *
+         *   物件Aだけ版番号がずれていると、同時に直した物件Bも
+         *   いっしょに止まり、Bの入力はクラウドへ届きませんでした。
+         *   画面には「他の人が先に保存しました」と出るだけなので、
+         *   Bが保存できていないことに気づけません。
+         *
+         *   これからは、ぶつかった書類だけを止めます。
+         *   ぶつかった中身は上書きしないので、守りは変わりません。
+         *   ぶつかったことは、これまでどおりお知らせします。          */
+        var okJobs = jobs, bj;
         if(bad.length){
-          var e = new Error('conflict'); e.__conflict = bad; throw e;
+          okJobs = [];
+          for(bj = 0; bj < jobs.length; bj++){
+            cur = snaps[bj].exists ? ((snaps[bj].data() || {}).rev || 0) : 0;
+            if(cur === jobs[bj].base) okJobs.push(jobs[bj]);
+          }
+          if(!okJobs.length){
+            var e0 = new Error('conflict'); e0.__conflict = bad; throw e0;
+          }
+          try{ console.warn('[D] ぶつかった ' + bad.length + ' 件は止め、残り ' +
+                            okJobs.length + ' 件は保存します'); }catch(x){}
         }
+        jobs = okJobs;
         use('read', jobs.length, '保存のときの確かめ');
         var delN = 0;
         for(j = 0; j < jobs.length; j++){ if(jobs[j].kind === 'del') delN++; }
@@ -632,6 +798,7 @@
           tx.set(jobs[j].ref, d);
         }
         use('write', jobs.length, '物件の保存');
+        if(bad.length){ try{ jobs.__conflict = bad; }catch(x){} }
         return jobs;
       });
     });
@@ -720,8 +887,12 @@
        そこで「読み込む前に、中身が変わる保存」は一切通しません。 */
     return readAll('保存の前の確かめ').then(function(fs){
       if(!fs || count(fs.buildings) === 0) return P(url, body, t);   /* 移行前・通信不可 → 従来どおり */
-      writeMap(revKey(), fs.revs);
-      writeMap(sigKey(), fs.sigs);
+      /* ★ ここで控えをクラウドの中身で塗り替えると、
+           「ほかの端末が直したもの」まで「この端末が直したもの」に見えます。
+           手元は古いままなので、そのあとの保存で古い内容を送り返し、
+           ほかの人の直しが消えていました。
+           手元と食い違うものは、前の控えを残します。                */
+      mergeBase(fs, bl);
       var pl;
       try{ pl = plan(bl); }catch(e){ pl = { changed:[], removed:[] }; }
       if(!pl.changed.length && !pl.removed.length){
@@ -772,6 +943,9 @@
       try{
         console.log('[D] 保存：更新 ' + pl.changed.length + ' 件 / 削除 ' + pl.removed.length + ' 件');
       }catch(e){}
+      /* ★ ぶつかった書類があったときは、保存できたぶんを通したうえでお知らせします。
+           これまでは、ぶつかった1件のせいで全部が止まっていました。 */
+      try{ if(jobs && jobs.__conflict && jobs.__conflict.length) tellConflict(jobs.__conflict); }catch(e){}
       try{ writeLog(jobs); }catch(e){}
       /* ★★ 保存のあとの読み直しを、軽くします
        *
