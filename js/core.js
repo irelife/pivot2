@@ -167,9 +167,23 @@ async function doAutoPush(){
     // (別端末の空データや読込前の状態で、クラウドの正しいデータを消す事故を防ぐ)
     const localCount = all && typeof all==='object' ? Object.keys(all).length : 0;
     const localContractCount = contracts && typeof contracts==='object' ? Object.keys(contracts).length : 0;
+    // ★★ 安全確認ができないときは、送りません（fail-closed）
+    //
+    //   これまでは、下の catch で「確認に失敗しても通常の保存は続行」
+    //   としていました。通信がこけた・クラウドが読めなかった、という
+    //   ときでも、そのまま送っていました。
+    //
+    //   確認できていないまま送ると、古い内容で上書きする道が残ります。
+    //   これが最後まで残っていた穴です。
+    //
+    //   これからは送りません。
+    //   送れなかったことは画面左下の赤い札に出ます。
+    //   回線が戻れば、自動で送り直します。入力は消えません。
+    let _chkOK = false;
     try{
       const chk = await postToGas(url, { action:'load' });
       if(chk && chk.ok){
+        _chkOK = true;
         const cloudAll = (chk.payload && chk.payload.buildings) ? chk.payload.buildings : {};
         const cloudCount = Object.keys(cloudAll).length;
         // クラウドに3件以上あるのに、手元がその半分未満 → 異常とみなして送信中止
@@ -232,7 +246,18 @@ async function doAutoPush(){
           return;
         }
       }
-    }catch(e){ /* 確認に失敗しても通常の保存は続行 */ }
+    }catch(e){
+      _chkOK = false;
+      try{ console.warn('[D] 保存前の確認ができませんでした', e); }catch(x){}
+    }
+    if(!_chkOK){
+      // 確認できていないので送りません。札を出して、あとで送り直します。
+      setSyncStatus('error', '⚠️ 確認できないので保存を見送りました');
+      try{ if(window.__pvUnsent && window.__pvUnsent.mark) window.__pvUnsent.mark('net'); }catch(x){}
+      try{ console.warn('[D] 安全確認ができないため、送信を見送りました（あとで送り直します）'); }catch(x){}
+      _autoPushInFlight = false;
+      return;
+    }
     const mtime = getLocalMtime() || touchLocalMtime();
     const r = await postToGas(url, { action:'save', payload:{ buildings: all, contracts: contracts, owners: ownersData, mtime: mtime } });
     if(r && r.ok){
