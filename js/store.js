@@ -1518,7 +1518,14 @@
       readOws().then(function(ow){
         if(!ow || !Array.isArray(ow.list) || !ow.list.length) return;
         var was = readMap(owRevK());
-        if(Number(was.rev || 0) === Number(ow.rev || 0)) return;   /* 変わっていません */
+        if(Number(was.rev || 0) === Number(ow.rev || 0)){
+          /* ★ 版番号が同じでも、見くらべる土台が無ければ、ここで作ります。
+               土台が無いあいだは、どれをこの端末で直したのか分からないので、
+               直しを活かせず「クラウドを立てる」古い動きに戻ってしまいます。
+               このファイルを入れた直後の端末が、まさにその状態です。 */
+          if(!owBaseRead()) owBaseWrite(ow.list);
+          return;
+        }
         if(busy()) return;                       /* 触りはじめていたら、やめます */
         owBaseWrite(ow.list);                    /* 見くらべる土台を控えます */
         /* applyCloudOwners は、受け取った中身の目印（_addedAt）を外します。
