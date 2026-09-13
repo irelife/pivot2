@@ -273,7 +273,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 24;   /* ★ 端末の控えから返ってきた「0件」で、契約を消さないようにした版 */
+  var STORE_VER = 25;   /* ★ クラウドを確かめられないときは、ロゴを押しても置き換えない版 */
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -505,6 +505,45 @@
     return Promise.all([gas, fsTriple()]).then(function(a){
       var r = a[0], fs = a[1][0], cts = a[1][1], ows = a[1][2];
       _fsReadOk = !!(fs && count(fs.buildings) > 0);
+      /* ★ v25）「読めたか」と「中身があったか」は、別のことです。
+           　　fs === null   → クラウドへ届かなかった（守りが要ります）
+           　　fs があって0件 → 移行前。控えの表が正しい置き場です      */
+      var _fsReach = !!fs;
+
+      /* ★★ v25）クラウドへ届かなかったときは、手元を1件も置き換えません
+       *
+       *  PIVOTロゴをタップすると forcePullLatest が動きます。
+       *  あれは、届いた中身で手元をまるごと置き換えます。
+       *  core.js の、ほかの3か所には守りが入っていますが、
+       *  ロゴの1か所（core.js 824行目）だけ、素のままでした。
+       *
+       *  クラウドを確かめられていないとき、届くのは控えの表の中身です。
+       *  控えは、クラウドに保存できたあとに送っています。
+       *  途中で通信がこけると、控えだけが古いまま残ります。
+       *  その古い控えで、手元の新しい内容を置き換えていました。
+       *
+       *  減り方が半分より小さいときだけ守っていたので、
+       *  20件が12件になるような減り方は、すり抜けていました。
+       *
+       *  確かめられていないなら、置き換えません。1件でも減らしません。
+       *  届いた中身を、手元の中身にそのまま差し替えて返します。
+       *  こうすると、ロゴをタップしても何も変わりません。それが正しい。 */
+      if(!_fsReach && r && r.ok && r.payload){
+        try{
+          var kb0 = {}, kc0 = {}, ko0 = null;
+          try{ kb0 = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : {}; }catch(e){ kb0 = {}; }
+          try{ kc0 = readRaw(myCtKey(), {}) || {}; }catch(e){ kc0 = {}; }
+          try{ ko0 = readRaw(myOwKey(), null); }catch(e){ ko0 = null; }
+          if(count(kb0) > 0) r.payload.buildings = kb0;
+          if(count(kc0) > 0) r.payload.contracts = kc0;
+          if(Array.isArray(ko0) && ko0.length) r.payload.owners = ko0;
+          status('error', '⚠️ クラウドを確かめられないので、取り込みを見送りました');
+          try{ console.warn('[D] クラウドへ届かないので、手元をそのまま残しました（物件' +
+                            count(kb0) + '件 / 契約' + count(kc0) + '件）'); }catch(x){}
+          try{ if(window.__pvUnsent && window.__pvUnsent.mark) window.__pvUnsent.mark('net'); }catch(x){}
+        }catch(e){}
+        return r;                       /* このあとの取りこみも、いっさいしません */
+      }
 
       /* ★★ クラウドが読めなかったときの守り
        *
