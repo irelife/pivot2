@@ -1568,6 +1568,8 @@
         }
       }
       _fsDone = true;      /* ここまで来ていれば、クラウド（Firestore）には入っています */
+try{ if(window.__pvRealtime && typeof window.__pvRealtime.ring === 'function') window.__pvRealtime.ring(); }catch(e){}
+fsDrop();
       fsDrop();            /* ★ 中身が変わったので、読んだものの使い回しをやめます */
       return Promise.resolve(P(url, body, t)).then(function(r){
         /* ★ v23）クラウドから消えたことを確かめてから、控えの表の行を消します */
