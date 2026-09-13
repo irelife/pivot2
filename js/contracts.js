@@ -3767,8 +3767,29 @@ function deleteCardContract(event, id){
   // クラウドから契約を1件削除
 function deleteFromCloud(id){
   try{
+    if(!id) return;
+    /* ★ v23）ここから控えのスプレッドシートへ直通するのを、やめました。
+     *
+     *  これまでは、削除を押した瞬間に控えの表へ送っていました。
+     *  クラウド（Firestore）の返事を、まったく待っていません。
+     *  ですから、こうなることがありました。
+     *    ・クラウドでは、ほかの端末が先に直していて消せなかった
+     *    ・なのに控えの表の行だけは、もう消えている
+     *  このあと読み直すと契約が戻るので、
+     *  「消したのに戻る」「端末で件数が違う」に見えます。
+     *
+     *  これからは、消す番号を預けるだけにします。
+     *  クラウドから本当に消えたのを確かめてから、
+     *  store.js が控えの表の行を消します。保存とおなじ順番です。   */
+    if(window.__pvCtDel && typeof window.__pvCtDel.mark === 'function'){
+      window.__pvCtDel.mark(id);
+      return;
+    }
+    /* store.js が読み込まれていないときだけ、これまでどおりにします。
+       そのときはクラウド（Firestore）そのものを使っていないので、
+       控えの表が、ただひとつの置き場になります。                  */
     const url = (typeof getCloudUrl === 'function') ? getCloudUrl() : '';
-    if(!url || !id) return;
+    if(!url) return;
     fetch(url, { method:'POST', body: JSON.stringify({ action:'deleteContract', id: id }) });
   }catch(e){}
 }
