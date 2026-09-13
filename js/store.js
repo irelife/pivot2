@@ -313,7 +313,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 27;   /* ★ 中身が空になった物件を、送らせない版 */
+  var STORE_VER = 28;   /* ★ 物件も契約も、中身が空なら送らせない版 */
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -1307,6 +1307,7 @@
         var m = pay.contracts;
         if(!m || typeof m !== 'object') return false;
         var pc = planCts(m);
+        if(pc.hollow && pc.hollow.length) return false;     /* ★ v28）空の契約があるなら送らない */
         return !pc.changed.length && !pc.removed.length;
       }
       if(act === 'saveOwnersOnly'){
@@ -1345,6 +1346,26 @@
      *  この端末の置き場が壊れています。そのまま送ると、
      *  クラウドの中身が、項目ごとに消されていきます。
      *  黙って一部だけ送るのではなく、はっきり止めて、人に知らせます。 */
+    try{
+      var mapC = (body && body.payload && body.payload.contracts) || null;
+      var plC = (mapC && typeof mapC === 'object' && count(mapC)) ? planCts(mapC) : null;
+      if(plC && plC.hollow && plC.hollow.length){
+        status('error', '⚠️ この端末の契約が壊れています（保存しませんでした）');
+        try{ console.error('[E] 中身が空の契約が ' + plC.hollow.length + ' 件あります', plC.hollow); }catch(e){}
+        try{
+          window.alert('この端末が持っている契約のうち ' + plC.hollow.length + ' 件が、\n' +
+                       '契約者名も物件名も無い状態になっています。\n\n' +
+                       'このまま保存すると、クラウドの契約が消えます。\n' +
+                       '保存しませんでした。\n\n' +
+                       'ページを開き直してください。それでも直らないときは、\n' +
+                       'このブラウザのサイトデータを消してから、開き直してください。');
+        }catch(e){}
+        try{ if(window.__pvUnsent && window.__pvUnsent.mark) window.__pvUnsent.mark('not-loaded'); }catch(e){}
+        return Promise.resolve({ ok:false, error:'hollow-ct',
+                                 message:'この端末の契約が壊れているため、保存しませんでした' });
+      }
+    }catch(e){}
+
     try{
       var pl0 = plan(bl);
       if(pl0.hollow && pl0.hollow.length){
@@ -1889,12 +1910,46 @@
     });
   }
 
+  /* ★★ v28）契約にも、中身の守りを入れます
+   *
+   *  v27 では物件だけを守りました。契約には入れていませんでした。
+   *  2026/09/13 に、スマホが中身の無い契約を書き込み、
+   *  クラウドの契約が id と更新情報だけになりました。
+   *
+   *    updatedBy2: "たきスマホ"
+   *    contractor / property / room …すべて消滅
+   *
+   *  契約は書類まるごと入れ替える作りなので、
+   *  中身の無いものを送ると、そのまま空になります。            */
+  function ctBody(c){
+    try{
+      if(!c || typeof c !== 'object') return false;
+      var f, KEY = { id:1, rev:1, updatedAt2:1, updatedBy2:1, updatedAt:1, _addedAt:1 };
+      for(f in c){
+        if(!Object.prototype.hasOwnProperty.call(c, f)) continue;
+        if(KEY[f]) continue;
+        var v = c[f];
+        if(v === null || v === undefined) continue;
+        if(typeof v === 'string' && !v.trim()) continue;
+        if(typeof v === 'object'){
+          var k2, any = false;
+          for(k2 in v){ if(Object.prototype.hasOwnProperty.call(v, k2)){ any = true; break; } }
+          if(!any) continue;
+        }
+        return true;                    /* 中身のある欄が1つでもある */
+      }
+      return false;
+    }catch(e){ return true; }           /* 見分けられないときは、ふつうに扱います */
+  }
+
   function planCts(map){
     var revs = readMap(ctRevK()), sigs = readMap(ctSigK());
-    var changed = [], removed = [], id, d, s;
+    var changed = [], removed = [], hollow = [], id, d, s;
     for(id in map){
       if(!Object.prototype.hasOwnProperty.call(map, id)) continue;
       d = ctDoc(id, map[id]); s = sig(d);
+      /* ★ v28）中身が空になった契約は、送りません */
+      if(revs[id] !== undefined && !ctBody(map[id])){ hollow.push(id); continue; }
       if(sigs[id] !== s){
         changed.push({ id:id, doc:d, sig:s, base:(revs[id] || 0),
                        label:((map[id] && (map[id].property || '')) + ' ' + (map[id] && (map[id].room || '')) + ' ' +
@@ -1910,7 +1965,10 @@
       if(!Object.prototype.hasOwnProperty.call(revs, id)) continue;
       if(!Object.prototype.hasOwnProperty.call(map, id)) removed.push({ id:id, base:(revs[id] || 0), label:id });
     }
-    return { changed:changed, removed:removed };
+    if(hollow.length){
+      try{ console.warn('[E] 中身が空になった契約 ' + hollow.length + ' 件は送りませんでした', hollow); }catch(e){}
+    }
+    return { changed:changed, removed:removed, hollow:hollow };
   }
 
   /* 契約の変更を履歴に残します */
