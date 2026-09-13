@@ -23,7 +23,47 @@
 
   var ok = false;
   try{ ok = !!(window.firebase && firebase.firestore && firebase.auth); }catch(e){ ok = false; }
-  if(!ok){ try{ console.warn('[D] Firestore が読み込めていないので、従来どおり動きます'); }catch(e){} return; }
+  if(!ok){
+    /* ★★ v26）Firebase そのものが読み込めていないときは、保存をぜんぶ止めます
+     *
+     *  ここから下は、まるごと動きません。
+     *  つまり postToGas は包まれないまま、素通しになります。
+     *  クラウド（Firestore）を1度も見ないで、控えのスプレッドシートへ
+     *  直接書くことになります。それが、いちばん危ない状態です。
+     *
+     *  読むことはできます。メールも送れます。
+     *  書くことだけ、止めます。                                       */
+    try{ console.error('[D] Firebase が読み込めていないので、保存を止めます'); }catch(e){}
+    try{
+      var _raw0 = window.postToGas;
+      if(typeof _raw0 === 'function'){
+        window.postToGas = function(url, body, timeoutMs){
+          var act = body && body.action;
+          var NG = { save:1, saveBuildings:1, saveContractsOnly:1, saveOwnersOnly:1,
+                     deleteContract:1, uploadImage:1, deleteImage:1 };
+          if(NG[act]){
+            try{ window.alert('クラウドの安全確認ができないため、保存しませんでした。\n\n' +
+                              '通信の状態を確かめて、ページを開き直してください。'); }catch(e){}
+            return Promise.resolve({ ok:false, error:'firebase-unavailable',
+                                     message:'クラウドを確かめられないので保存しませんでした' });
+          }
+          return _raw0(url, body, timeoutMs);      /* 読み込みなどは、これまでどおり */
+        };
+      }
+    }catch(e){}
+    /* 契約の削除も、ここで止めます（contracts.js から呼ばれます） */
+    try{
+      window.__pvCtDel = {
+        mark: function(){
+          try{ window.alert('クラウドの安全確認ができないため、契約を削除しませんでした。\n\n' +
+                            'ページを開き直してから、もう一度お願いします。'); }catch(e){}
+        },
+        read: function(){ return []; },
+        flush: function(){ return Promise.resolve({ ok:false, error:'firebase-unavailable' }); }
+      };
+    }catch(e){}
+    return;
+  }
 
   /* ---------- 共通 ---------- */
   function pfx(){ return (typeof insPrefix === 'function') ? insPrefix() : 'pivot_'; }
@@ -273,7 +313,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 25;   /* ★ クラウドを確かめられないときは、ロゴを押しても置き換えない版 */
+  var STORE_VER = 26;   /* ★ Firebase が読めないときは、保存そのものを止める版 */
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -1221,28 +1261,28 @@
     var pay = (body && body.payload) || {};
     try{
       if(act === 'saveBuildings'){
-        if(count(readMap(sigKey())) === 0) return true;          /* 移行前 */
+        if(count(readMap(sigKey())) === 0) return false;         /* 見分けられない → 送りません */
         var bl = pay.buildings;
-        if(!bl || typeof bl !== 'object') return true;
+        if(!bl || typeof bl !== 'object') return false;
         var pb = plan(bl);
         return !pb.changed.length && !pb.removed.length;
       }
       if(act === 'saveContractsOnly'){
-        if(count(readMap(ctSigK())) === 0) return true;          /* 移行前 */
+        if(count(readMap(ctSigK())) === 0) return false;         /* 見分けられない → 送りません */
         var m = pay.contracts;
-        if(!m || typeof m !== 'object') return true;
+        if(!m || typeof m !== 'object') return false;
         var pc = planCts(m);
         return !pc.changed.length && !pc.removed.length;
       }
       if(act === 'saveOwnersOnly'){
         var ob = readMap(owRevK());
-        if(!ob || ob.sig === undefined) return true;             /* 移行前 */
+        if(!ob || ob.sig === undefined) return false;            /* 見分けられない → 送りません */
         var ls = pay.owners;
-        if(!Array.isArray(ls)) return true;
+        if(!Array.isArray(ls)) return false;
         return sig(ls) === ob.sig;
       }
-    }catch(e){ return true; }                                    /* 見分けられないときは、これまでどおり */
-    return true;
+    }catch(e){ return false; }                                   /* 見分けられないときは、送りません */
+    return false;
   }
 
   function onSide(P, url, body, t, act){
@@ -1255,7 +1295,7 @@
   function onSave(P, url, body, t){
     tidyAhead('保存の前');                    /* ★ ぶつかる前に片付けます */
     var bl = body && body.payload && body.payload.buildings;
-    if(!bl || typeof bl !== 'object') return P(url, body, t);   /* 形が違えば従来どおり */
+    if(!bl || typeof bl !== 'object') return noEscape('保存の中身の形が違う');   /* 素通ししません */
 
     /* ★ 契約やオーナーが半分より減る保存は、いったん止めます。
          古い内容を持った端末が上書きする事故を防ぐためです。
