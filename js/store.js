@@ -480,6 +480,8 @@
   var _fsCache = null;
   var FS_CACHE_MS = 30000;
   function fsDrop(){ _fsCache = null; }
+  try{ window.__pvFsDrop = fsDrop; }catch(e){}
+  
   function fsTriple(){
     var now = Date.now();
     if(_fsCache && (now - _fsCache.at) < FS_CACHE_MS){
