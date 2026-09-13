@@ -313,7 +313,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 26;   /* ★ Firebase が読めないときは、保存そのものを止める版 */
+  var STORE_VER = 27;   /* ★ 中身が空になった物件を、送らせない版 */
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -778,14 +778,43 @@
   /* ============================================================
    *  保存：変わった物件だけ。先を越されていたら止めます
    * ============================================================ */
+  /* ★★ v27）中身が空になった書類を、送らないようにします
+   *
+   *  区画1つずつ送る形（v22）にしてから、こういう消え方ができました。
+   *
+   *    手元の物件が「名前も住所も区画も無い」状態になる
+   *      → 送るときに「クラウドにあるものは、ぜんぶ消す」と判定される
+   *      → 書類は残るが、中身だけが消える
+   *      → 件数は減らないので、これまでの安全装置は反応しない
+   *
+   *  実際に、物件67件の中身がこうなりました（2026/09/13）。
+   *  件数を見る守りでは、ぜったいに気づけません。中身を見ます。      */
+  function bodyOf(d){
+    try{
+      if(String((d && d.name) || '').trim()) return true;
+      if(String((d && d.addr) || '').trim()) return true;
+      var k, sp = (d && d.spots) || {};
+      for(k in sp){ if(Object.prototype.hasOwnProperty.call(sp, k)) return true; }
+      return false;
+    }catch(e){ return true; }        /* 見分けられないときは、ふつうに扱います */
+  }
+
   function plan(buildings){
     var revs = readMap(revKey()), sigs = readMap(sigKey()), fprs = fprRead();
-    var changed = [], removed = [], id, d, s;
+    var changed = [], removed = [], hollow = [], id, d, s;
     for(id in buildings){
       if(!Object.prototype.hasOwnProperty.call(buildings, id)) continue;
       d = toDoc(id, buildings[id]);
       s = sig(d);
       if(sigs[id] === s) continue;                    /* 変わっていません */
+      /* ★ v27）中身が空になった物件は、送りません。
+           送ると、クラウドの名前・住所・区画がぜんぶ消えます。
+           前にクラウドで見たことがある物件だけ、守ります
+           （はじめて作った空の物件は、これまでどおり通します）。 */
+      if(revs[id] !== undefined && !bodyOf(d)){
+        hollow.push(id);
+        continue;
+      }
       /* ★ この端末が変えた部品だけを挙げます（区画1つずつ） */
       var nowF = fprOf(d);
       changed.push({ id:id, doc:d, sig:s, base:(revs[id] || 0), name:(d.name || id),
@@ -815,7 +844,10 @@
     var known = count(revs), here = count(buildings);
     var few = (known >= 3 && here < known * 0.5);
     if(few){ try{ console.warn('[D] 手元の物件が少ないので、消す前に確かめます ' + here + ' < ' + known); }catch(e){} }
-    return { changed:changed, removed:removed, few:few };
+    if(hollow.length){
+      try{ console.warn('[D] 中身が空になった物件 ' + hollow.length + ' 件は送りませんでした', hollow); }catch(e){}
+    }
+    return { changed:changed, removed:removed, few:few, hollow:hollow };
   }
 
   /* 版番号の控えが無いまま保存すると、全物件が衝突扱いになってしまいます。
@@ -1265,6 +1297,9 @@
         var bl = pay.buildings;
         if(!bl || typeof bl !== 'object') return false;
         var pb = plan(bl);
+        /* ★ v27）中身が空になった物件があるなら、控えの表へも送りません。
+             送ると、スプレッドシートまで空で上書きされます。 */
+        if(pb.hollow && pb.hollow.length) return false;
         return !pb.changed.length && !pb.removed.length;
       }
       if(act === 'saveContractsOnly'){
@@ -1304,6 +1339,31 @@
          わざとまとめて消したときに、どうやっても保存できなくなります。
          （10人のうち6人を消すと、4 < 5 なので必ず止まりました）
          わざとなら通せるように、選べる形に変えました。 */
+    /* ★★ v27）中身が空になった物件を抱えた端末は、保存させません
+     *
+     *  1件でも「名前も住所も区画も無い」物件があるなら、
+     *  この端末の置き場が壊れています。そのまま送ると、
+     *  クラウドの中身が、項目ごとに消されていきます。
+     *  黙って一部だけ送るのではなく、はっきり止めて、人に知らせます。 */
+    try{
+      var pl0 = plan(bl);
+      if(pl0.hollow && pl0.hollow.length){
+        status('error', '⚠️ この端末の内容が壊れています（保存しませんでした）');
+        try{ console.error('[D] 中身が空の物件が ' + pl0.hollow.length + ' 件あります', pl0.hollow); }catch(e){}
+        try{
+          window.alert('この端末が持っている物件のうち ' + pl0.hollow.length + ' 件が、\n' +
+                       '名前も住所も区画も無い状態になっています。\n\n' +
+                       'このまま保存すると、クラウドの中身が消えます。\n' +
+                       '保存しませんでした。\n\n' +
+                       'ページを開き直してください。それでも直らないときは、\n' +
+                       'このブラウザのサイトデータを消してから、開き直してください。');
+        }catch(e){}
+        try{ if(window.__pvUnsent && window.__pvUnsent.mark) window.__pvUnsent.mark('not-loaded'); }catch(e){}
+        return Promise.resolve({ ok:false, error:'hollow',
+                                 message:'この端末の内容が壊れているため、保存しませんでした' });
+      }
+    }catch(e){}
+
     var lost = keepsContracts(body);
     if(lost){
       var okDrop = false;
