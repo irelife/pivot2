@@ -3785,12 +3785,15 @@ function deleteFromCloud(id){
       window.__pvCtDel.mark(id);
       return;
     }
-    /* store.js が読み込まれていないときだけ、これまでどおりにします。
-       そのときはクラウド（Firestore）そのものを使っていないので、
-       控えの表が、ただひとつの置き場になります。                  */
-    const url = (typeof getCloudUrl === 'function') ? getCloudUrl() : '';
-    if(!url) return;
-    fetch(url, { method:'POST', body: JSON.stringify({ action:'deleteContract', id: id }) });
+    /* ★ v26）store.js の預かり口が無いときは、控えの表へ直接送りません。
+       クラウド（Firestore）を確かめずに消すと、
+       「消したのに戻る」「端末で件数が違う」の原因になります。
+       逃げ道を残さず、人に知らせて、やり直してもらいます。        */
+    try{
+      window.alert('クラウドの安全確認ができないため、契約を削除しませんでした。\n\n' +
+                   'ページを開き直してから、もう一度お願いします。');
+    }catch(e){}
+    return;
   }catch(e){}
 }
 function toast(m){
