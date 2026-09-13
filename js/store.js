@@ -273,7 +273,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 22;   /* ★ オーナー・契約の読み直しを入れた版 */
+  var STORE_VER = 24;   /* ★ 端末の控えから返ってきた「0件」で、契約を消さないようにした版 */
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -304,6 +304,13 @@
   /* ---------- Firestore から全物件を読む ---------- */
   function readAll(why){
     return col().get().then(function(qs){
+      /* ★ v24）クラウドへ届いていません（端末の中の控えから返ってきました）。
+           読めなかったのと同じに扱います。ここで区別しないと、
+           「0件」を「みんなが消した」と取りちがえます。 */
+      if(fromCache(qs)){
+        try{ console.warn('[D] クラウドへ届きませんでした（端末の控えから返ってきたので、使いません）'); }catch(e){}
+        return null;
+      }
       var b = {}, revs = {}, sigs = {};
       qs.forEach(function(doc){
         var d = doc.data() || {}, id = doc.id;
@@ -312,7 +319,7 @@
         sigs[id] = sig(toDoc(id, b[id]));
       });
       use('read', Math.max(qs.size || 0, 1), '物件をぜんぶ読む（' + (why || 'そのほか') + '）');
-      return { buildings:b, revs:revs, sigs:sigs, partial:false, at:newest_(b, qs) };
+      return { buildings:b, revs:revs, sigs:sigs, partial:false, at:newest_(b, qs), cached:fromCache(qs) };
     }).catch(function(e){
       try{ console.warn('[D] Firestore を読めませんでした', e); }catch(x){}
       return null;
@@ -358,6 +365,13 @@
   function readSince(since){
     if(!since) return readAll('様子見');
     return col().where('updatedAt', '>', since).get().then(function(qs){
+      /* ★ v24）クラウドへ届いていません（端末の中の控えから返ってきました）。
+           読めなかったのと同じに扱います。ここで区別しないと、
+           「0件」を「みんなが消した」と取りちがえます。 */
+      if(fromCache(qs)){
+        try{ console.warn('[D] クラウドへ届きませんでした（端末の控えから返ってきたので、使いません）'); }catch(e){}
+        return null;
+      }
       var b = {}, revs = {}, sigs = {};
       qs.forEach(function(doc){
         var d = doc.data() || {}, id = doc.id;
@@ -368,12 +382,27 @@
       /* 1件も無くても、1回ぶんは数えられます（Firestore の決まりです） */
       use('read', Math.max(qs.size || 0, 1), '直された物件だけ読む');
       var t = newest_(b, qs);
-      return { buildings:b, revs:revs, sigs:sigs, partial:true, at:(t || since) };
+      return { buildings:b, revs:revs, sigs:sigs, partial:true, at:(t || since), cached:fromCache(qs) };
     }).catch(function(e){
       try{ console.warn('[D] 差分を読めませんでした。全部を読み直します', e); }catch(x){}
       return readAll('様子見');
     });
   }
+  /* ★★ v24）「クラウドから返ってきた」のか「端末の中の控えから返ってきた」のか
+   *
+   *  Firebase は、サーバーに届かないとき、エラーにしません。
+   *  端末の中に持っている控え（キャッシュ）から、そっと返してきます。
+   *  控えが空なら「0件」が、成功として返ります。
+   *
+   *  ここを見ていなかったので、電波の悪いスマホで
+   *  「0件」を「ほかの端末で全部消された」と取りちがえていました。
+   *  9/13 に、スマホの契約が全部消えたのは、これです。
+   *
+   *  metadata.fromCache が true なら、クラウドは確かめられていません。 */
+  function fromCache(qs){
+    try{ return !!(qs && qs.metadata && qs.metadata.fromCache === true); }catch(e){ return false; }
+  }
+
   function count(o){ var n = 0, k; for(k in (o||{})) if(Object.prototype.hasOwnProperty.call(o,k)) n++; return n; }
   function status(kind, msg){ try{ if(typeof setSyncStatus === 'function') setSyncStatus(kind, msg); }catch(e){} }
 
@@ -418,7 +447,10 @@
       return Promise.resolve(_fsCache.v);
     }
     return Promise.all([readAll('画面を開いたとき'), readCts(), readOws()]).then(function(v){
-      _fsCache = { at:Date.now(), v:v };
+      /* ★ v24）読めなかったものは、使い回しません。
+           ここで控えてしまうと、電波が戻っても30秒は
+           「読めなかった」まま答えつづけます。                */
+      if(v && v[0] && v[1] && v[2]) _fsCache = { at:Date.now(), v:v };
       return v;
     });
   }
@@ -1132,6 +1164,55 @@
     return Promise.resolve({ ok:false, error:'no-verify', message:'クラウドを確かめられないので保存しませんでした' });
   }
 
+  /* ★★ v23）save 以外の「書き込み」も、確かめてから通します
+   *
+   *  saveBuildings ／ saveContractsOnly ／ saveOwnersOnly は、
+   *  控えのスプレッドシートを丸ごと作り直す用事です。
+   *  ここは、これまで素通しでした。
+   *
+   *  つまり、クラウド（Firestore）にまだ入っていない中身でも、
+   *  控えの表だけが先に書き替わります。
+   *  たとえば契約を1件消したとき、クラウドではまだ消えていないのに、
+   *  控えの表からは、もう行が消えている、ということが起こります。
+   *
+   *  この3つは、本線の保存（save）がやることの写しです。
+   *  ですから「手元とクラウドが同じ」ときだけ通します。
+   *  違うときは送りません。本線の保存が、確かめたうえで送ります。   */
+  function sideOK(act, body){
+    var pay = (body && body.payload) || {};
+    try{
+      if(act === 'saveBuildings'){
+        if(count(readMap(sigKey())) === 0) return true;          /* 移行前 */
+        var bl = pay.buildings;
+        if(!bl || typeof bl !== 'object') return true;
+        var pb = plan(bl);
+        return !pb.changed.length && !pb.removed.length;
+      }
+      if(act === 'saveContractsOnly'){
+        if(count(readMap(ctSigK())) === 0) return true;          /* 移行前 */
+        var m = pay.contracts;
+        if(!m || typeof m !== 'object') return true;
+        var pc = planCts(m);
+        return !pc.changed.length && !pc.removed.length;
+      }
+      if(act === 'saveOwnersOnly'){
+        var ob = readMap(owRevK());
+        if(!ob || ob.sig === undefined) return true;             /* 移行前 */
+        var ls = pay.owners;
+        if(!Array.isArray(ls)) return true;
+        return sig(ls) === ob.sig;
+      }
+    }catch(e){ return true; }                                    /* 見分けられないときは、これまでどおり */
+    return true;
+  }
+
+  function onSide(P, url, body, t, act){
+    if(sideOK(act, body)) return P(url, body, t);
+    try{ console.warn('[D] ' + act + ' は送りませんでした（クラウドとまだ違います。本線の保存にまかせます）'); }catch(e){}
+    return Promise.resolve({ ok:true, skipped:true,
+                             message:'控えの表への送信は、本線の保存にまかせました' });
+  }
+
   function onSave(P, url, body, t){
     tidyAhead('保存の前');                    /* ★ ぶつかる前に片付けます */
     var bl = body && body.payload && body.payload.buildings;
@@ -1326,7 +1407,11 @@
       }
       _fsDone = true;      /* ここまで来ていれば、クラウド（Firestore）には入っています */
       fsDrop();            /* ★ 中身が変わったので、読んだものの使い回しをやめます */
-      return P(url, body, t);
+      return Promise.resolve(P(url, body, t)).then(function(r){
+        /* ★ v23）クラウドから消えたことを確かめてから、控えの表の行を消します */
+        try{ flushCtDel(P, url); }catch(e){}
+        return r;
+      });
     }).catch(function(e){
       if(e && e.__cancel){
         status('idle', '');
@@ -1443,6 +1528,13 @@
   function readCts(){
     try{
     return ctCol().get().then(function(qs){
+      /* ★ v24）クラウドへ届いていません（端末の中の控えから返ってきました）。
+           読めなかったのと同じに扱います。ここで区別しないと、
+           「0件」を「みんなが消した」と取りちがえます。 */
+      if(fromCache(qs)){
+        try{ console.warn('[D] クラウドへ届きませんでした（端末の控えから返ってきたので、使いません）'); }catch(e){}
+        return null;
+      }
       var m = {}, revs = {}, sigs = {};
       qs.forEach(function(doc){
         var d = doc.data() || {}, id = doc.id;
@@ -1451,7 +1543,7 @@
         sigs[id] = sig(ctDoc(id, m[id]));
       });
       use('read', Math.max(qs.size || 0, 1), '契約をぜんぶ読む');
-      return { map:m, revs:revs, sigs:sigs, partial:false, at:ctNewest_(qs) };
+      return { map:m, revs:revs, sigs:sigs, partial:false, at:ctNewest_(qs), cached:fromCache(qs) };
     }).catch(function(){ return null; });
     }catch(e){ return Promise.resolve(null); }
   }
@@ -1471,6 +1563,13 @@
     if(!since) return readCts();
     try{
     return ctCol().where('updatedAt2', '>', since).get().then(function(qs){
+      /* ★ v24）クラウドへ届いていません（端末の中の控えから返ってきました）。
+           読めなかったのと同じに扱います。ここで区別しないと、
+           「0件」を「みんなが消した」と取りちがえます。 */
+      if(fromCache(qs)){
+        try{ console.warn('[D] クラウドへ届きませんでした（端末の控えから返ってきたので、使いません）'); }catch(e){}
+        return null;
+      }
       var m = {}, revs = {}, sigs = {};
       qs.forEach(function(doc){
         var d = doc.data() || {}, id = doc.id;
@@ -1480,7 +1579,7 @@
       });
       use('read', Math.max(qs.size || 0, 1), '直された契約だけ読む');
       var t = ctNewest_(qs);
-      return { map:m, revs:revs, sigs:sigs, partial:true, at:(t || since) };
+      return { map:m, revs:revs, sigs:sigs, partial:true, at:(t || since), cached:fromCache(qs) };
     }).catch(function(e){
       try{ console.warn('[E] 契約の差分を読めませんでした。全部を読み直します', e); }catch(x){}
       return readCts();
@@ -1492,6 +1591,7 @@
     try{
     return owRef().get().then(function(d){
       use('read', 1, 'オーナーを読む');
+      if(fromCache(d)) return null;      /* ★ v24）端末の控えから返ってきたものは、使いません */
       if(!d.exists) return { list:null, rev:0 };
       var v = d.data() || {};
       return { list:(Array.isArray(v.list) ? v.list : null), rev:(v.rev || 0) };
@@ -1532,6 +1632,83 @@
     }).catch(function(){ return false; });
   }
 
+  /* ============================================================
+   *  契約を1件消すとき（★ v23）
+   *
+   *  これまで：
+   *    画面の「削除」を押した瞬間に、contracts.js が
+   *    控えのスプレッドシート（GAS）へ直接 fetch していました。
+   *    クラウド（Firestore）の返事を、一切待っていません。
+   *
+   *    ですから、こういうことが起こりえました。
+   *      ・クラウドでは、ほかの端末が先に直していて消せなかった
+   *      ・なのに控えの表の行だけは、もう消えている
+   *    このあと読み直すと契約が戻ってくるので、
+   *    「消したのに戻る」「端末で件数が違う」に見えます。
+   *
+   *  これから：
+   *    押したときは、消す相手の番号をここに控えるだけにします。
+   *    クラウドから本当に消えたことを確かめてから、
+   *    控えの表の行を消します。順番は、保存とまったく同じです。
+   *
+   *        クラウドから消える → 確かめる → 控えの表を消す
+   *
+   *    クラウドから消せていなければ、控えの表も消しません。
+   *    どちらかだけ消える、ということが起きません。
+   * ============================================================ */
+  var _PRAW = null;                      /* 包む前の postToGas（控えの表への直通） */
+  function ctDelQK(){ return pfx() + 'fs_ct_delq'; }
+  function ctDelQ(){
+    var a = [];
+    try{ a = JSON.parse(localStorage.getItem(ctDelQK()) || '[]'); }catch(e){ a = []; }
+    return Array.isArray(a) ? a : [];
+  }
+  function ctDelQPut(a){
+    try{ localStorage.setItem(ctDelQK(), JSON.stringify(a || [])); }catch(e){}
+  }
+  function ctDelQAdd(id){
+    if(!id) return;
+    var a = ctDelQ(), i;
+    for(i = 0; i < a.length; i++) if(a[i] === id) return;
+    a.push(String(id));
+    if(a.length > 200) a = a.slice(a.length - 200);     /* たまりすぎないように */
+    ctDelQPut(a);
+  }
+
+  /* 控えの表の行を消します。クラウドから消えたものだけです。 */
+  function flushCtDel(P, url){
+    var a = ctDelQ();
+    if(!a.length) return Promise.resolve(0);
+    if(typeof P !== 'function' || !url) return Promise.resolve(0);
+    var done = 0;
+    function one(i){
+      if(i >= a.length) return Promise.resolve(done);
+      var id = a[i];
+      return ctCol().doc(id).get().then(function(sn){
+        use('read', 1, '契約が本当に消えたかの確かめ');
+        if(sn.exists){
+          /* まだクラウドにあります。控えの表は、さわりません。
+             次の保存のときに、あらためて確かめます。 */
+          try{ console.warn('[E] 契約 ' + id + ' はクラウドにまだあるので、控えの表は消しませんでした'); }catch(e){}
+          return null;
+        }
+        return Promise.resolve(P(url, { action:'deleteContract', id:id }, 20000)).then(function(r){
+          if(r && r.ok === false) return null;
+          done++;
+          var b = ctDelQ(), k, out = [];
+          for(k = 0; k < b.length; k++) if(b[k] !== id) out.push(b[k]);
+          ctDelQPut(out);
+          return null;
+        }, function(){ return null; });
+      }, function(){ return null; })
+      .then(function(){ return one(i + 1); });
+    }
+    return one(0).then(function(v){
+      try{ if(done) console.log('[E] 控えの表から、契約 ' + done + ' 件ぶんの行を消しました'); }catch(e){}
+      return v;
+    });
+  }
+
   /* 契約の書き込み（版番号で追い越しを見つけます） */
   function commitCts(pl){
     return db().runTransaction(function(tx){
@@ -1550,11 +1727,17 @@
         for(j = 0; j < jobs.length; j++){
           jobs[j].prev = snaps[j].exists ? (snaps[j].data() || null) : null;
           cur = snaps[j].exists ? ((snaps[j].data() || {}).rev || 0) : 0;
+          /* ★ 消したい契約が、もうクラウドに無いとき。
+               ほかの端末が先に消しただけです。やりたかったことは済んでいます。
+               これまでは「版番号が違う」として、ぶつかりの知らせを出していました。
+               2台で同じ契約を消すと、あとの1台が必ず止まっていました。 */
+          if(jobs[j].kind === 'del' && !snaps[j].exists){ jobs[j].skip = true; continue; }
           if(cur !== jobs[j].base) bad.push({ kind:'c', id:jobs[j].id, name:jobs[j].label,
                                               by:(jobs[j].prev && jobs[j].prev.updatedBy2) || '' });
         }
         if(bad.length){ var e = new Error('conflict'); e.__conflict = bad; throw e; }
         for(j = 0; j < jobs.length; j++){
+          if(jobs[j].skip) continue;                       /* もう消えている */
           if(jobs[j].kind === 'del'){ tx.delete(jobs[j].ref); continue; }
           d = jobs[j].doc;
           d.rev = jobs[j].base + 1;
@@ -1599,6 +1782,7 @@
     var batch = db().batch(), wrote = 0, i, j, f;
     for(i = 0; i < jobs.length && wrote < 300; i++){
       var job = jobs[i], prev = job.prev || null;
+      if(job.skip) continue;                               /* もう消えていたので、履歴には残しません */
       if(job.kind === 'del'){
         batch.set(logCol().doc(), { at:at, by:who, bld:'(契約)', name:'契約　' + (job.label || job.id),
                                     kind:'契約を削除', note:'' });
@@ -2157,12 +2341,18 @@
       var seen = '';
       try{ seen = String(localStorage.getItem(lastSeenKey()) || ''); }catch(e){ seen = ''; }
       if(!seen) full = true;
+      /* ★ v24）手元が空なら、かならず全部を読み直します（契約と同じ理由） */
+      try{
+        var mineB = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : null;
+        if(!mineB || count(mineB) === 0) full = true;
+      }catch(e){ full = true; }
 
       (full ? Promise.resolve(true) : delChanged()).then(function(needFull){
         if(needFull) full = true;
         return (full ? readAll('様子見（全部読み）') : readSince(seen));
       }).then(function(fs){
         if(!fs) return;
+        if(fs.cached) return;                    /* ★ v24）端末の控えから返ってきたものは、使いません */
         if(fs.partial !== true && count(fs.buildings) === 0) return;
         if(busy()) return;                       /* 読んでいる間に触りはじめたら、やめます */
         if(fs.partial !== true) _lastFull = Date.now();
@@ -2343,8 +2533,33 @@
       try{ seen = String(localStorage.getItem(ctSeenK()) || ''); }catch(e){ seen = ''; }
       var full = !seen || (now - _lastCtFull) > FULL_EVERY;
 
+      /* ★★ v24）手元が空のときは、かならず全部を読み直します。
+       *
+       *  差分読みは「目印より、あとで直されたもの」しか返しません。
+       *  何かの拍子に手元の契約が空になっても、目印だけは残るので、
+       *  差分読みでは1件も返ってきません。空のまま、固まります。
+       *
+       *  9/13 にスマホがこうなりました。
+       *  電波が悪くて消えたあと、開き直しても戻りませんでした。      */
+      try{
+        var mineNow = JSON.parse(localStorage.getItem(ctLS()) || '{}');
+        if(!mineNow || count(mineNow) === 0) full = true;
+      }catch(e){ full = true; }
+
       (full ? readCts() : readCtsSince(seen)).then(function(cs){
         if(!cs || !cs.map) return;
+        /* ★★ v24）ここが、9/13 にスマホの契約が全部消えた原因です。
+         *
+         *  クラウドへ届かないとき、Firebase はエラーを出さずに
+         *  端末の中の控えから「0件」を返します。
+         *  その 0件 を「ほかの端末で全部消された」と取りちがえて、
+         *  この端末の契約を、ぜんぶ消していました。
+         *
+         *  物件のほうには、前からこの守りがありました（様子見のところ）。
+         *  契約にだけ、ありませんでした。物件が無事で契約だけ消えたのは、
+         *  この1行の差です。                                            */
+        if(cs.cached) return;                                  /* クラウドを確かめられていません */
+        if(cs.partial !== true && count(cs.map) === 0) return;  /* 0件に見えるときは、さわりません */
         if(busy()) return;                       /* 触りはじめていたら、やめます */
         if(cs.partial !== true) _lastCtFull = Date.now();
         try{ if(cs.at) localStorage.setItem(ctSeenK(), cs.at); }catch(e){}
@@ -2676,6 +2891,44 @@
   try{
     var P0 = window.postToGas;
     if(typeof P0 === 'function'){
+      _PRAW = P0;
+      /* ============================================================
+       *  ★ v23）契約の「削除」を、保存と同じ順番にします
+       *
+       *  contracts.js の deleteFromCloud は、押した瞬間に
+       *  控えのスプレッドシートへ直接 fetch していました。
+       *  包んでいる postToGas も通らないので、どの守りも効きません。
+       *
+       *  ここで上書きして、直通をふさぎます。
+       *  （contracts.js より、この store.js があとに読まれます）
+       *
+       *  押したときにすることは、2つだけです。
+       *    1. 消す相手の番号を控える
+       *    2. あとは、いつもの保存にまかせる
+       *
+       *  いつもの保存が、クラウドから契約を消します。
+       *  消えたことを確かめてから、控えの表の行を消します。
+       * ============================================================ */
+      try{
+        window.deleteFromCloud = function(id){
+          if(!id) return;
+          ctDelQAdd(id);
+          try{ console.log('[E] 契約 ' + id + ' の削除を控えました（クラウドで消えたら、控えの表も消します）'); }catch(e){}
+        };
+        /* ★ contracts.js（IIFE の中）から呼ぶ入口です。
+             中の deleteFromCloud は window に出ていないので、
+             外から差し替えることができません。
+             そこで、contracts.js 側から、この mark を呼んでもらいます。 */
+        window.__pvCtDel = {
+          mark: function(id){ if(id) ctDelQAdd(id); },
+          read: function(){ return ctDelQ(); },
+          flush: function(){
+            var u = '';
+            try{ u = (typeof getCloudUrl === 'function') ? getCloudUrl() : ''; }catch(e){ u = ''; }
+            return flushCtDel(_PRAW, u);
+          }
+        };
+      }catch(e){}
       window.postToGas = function(url, body, timeoutMs){
         var act = body && body.action;
         if(_tooOld && (act === 'save' || act === 'uploadImage' || act === 'deleteImage' || act === 'deleteContract')){
@@ -2687,7 +2940,16 @@
           }catch(e){}
           return Promise.resolve({ ok:false, error:'old-version', message:'古い画面のため保存しませんでした' });
         }
-        if(act === 'load') return onLoad(P0, url, body, timeoutMs);
+        if(act === 'saveBuildings' || act === 'saveContractsOnly' || act === 'saveOwnersOnly'){
+          return onSide(P0, url, body, timeoutMs, act);
+        }
+        if(act === 'load'){
+          return Promise.resolve(onLoad(P0, url, body, timeoutMs)).then(function(r){
+            /* 前に消しそこねた契約が残っていれば、ここでも片づけます */
+            try{ flushCtDel(P0, url); }catch(e){}
+            return r;
+          });
+        }
         if(act === 'save'){
           /* ★ 保存の結果を見て、未送信の札を出したり消したりします */
           return Promise.resolve(onSave(P0, url, body, timeoutMs)).then(function(r){
