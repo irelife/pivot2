@@ -1,0 +1,12 @@
+{
+  "name": "pivot-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "PIVOT の自動検査。本物のブラウザと、にせクラウドで動かします。",
+  "scripts": {
+    "test": "node run-all.cjs .."
+  },
+  "devDependencies": {
+    "playwright": "1.47.2"
+  }
+}
