@@ -515,8 +515,42 @@
    *
    *  控えを一度も作っていない端末のときだけ、ちゃんと読みに行きます。 */
   function preCheck(){
+    /* ★ ロゴの「最新を取り込む」の最中は、この近道を使いません。
+     *
+     *  近道は、物件の中身を「件数を見るための から箱」に差し替えます。
+     *  保存前の見くらべは件数しか見ないので、それで足りていました。
+     *
+     *  ところが、ロゴの取り込み（core.js の forcePullLatest）は
+     *  送信を3秒だけ待って、終わっていなくても先へ進みます。
+     *  そこへ から箱 が届くと、あれは中身をそのまま手元へ書きます。
+     *    ・物件　… uifix.js の確認が出る（区画0／配置図0 が届きました）
+     *    ・契約　… 見張りが無いので、そのまま手元に書かれてしまう
+     *
+     *  ロゴを押すのは「いま最新をください」という操作です。
+     *  近道はせず、ちゃんと読みに行くのが正しい。                    */
+    try{ if(window.__pvInForcePull) return false; }catch(e){}
     try{ return (typeof _autoPushInFlight !== 'undefined') && !!_autoPushInFlight; }catch(e){ return false; }
   }
+  /* ★ 「件数を見るための から箱」を見分けます。
+   *
+   *  から箱は { 物件ID: 1, 物件ID: 1, … } という形です。
+   *  本物の物件は、必ず中身のある「もの」（object）です。
+   *  ひとつも「もの」が入っていなければ、それは から箱 です。
+   *
+   *  ②で作られないようにしましたが、万一どこかから届いても
+   *  手元に書かれないよう、ここでも見分けられるようにします。      */
+  function isCountBox(o){
+    if(!o || typeof o !== 'object') return false;
+    var ks = Object.keys(o);
+    if(!ks.length) return false;
+    for(var i = 0; i < ks.length; i++){
+      var v = o[ks[i]];
+      if(v && typeof v === 'object') return false;   /* 1件でも本物があれば、本物です */
+    }
+    return true;
+  }
+  try{ window.__pvIsCountBox = isCountBox; }catch(e){}
+
   function onLoadLight(P, url, body, t){
     var bs = readMap(sigKey()), cs = readMap(ctSigK());
     var nb = count(bs), nc = count(cs);
@@ -661,6 +695,21 @@
         r.buildingCount     = count(ad.out);
       }
       _loaded = true;
+      /* ★ uifix.js の「両方を残す」合体を、ここで止めます。
+       *
+       *  これまで、この旗は下のほう（契約・オーナーを済ませたあと）で
+       *  立てていました。ところがスプレッドシート（GAS）が失敗すると
+       *  その手前で引き返すので、旗が立ちません。
+       *
+       *  旗が立っていない端末では、uifix.js の古い合体が動きます。
+       *  あれは「クラウドから届いた件数」と手元を見くらべるので、
+       *  保存前の見くらべ用の「から箱」が届いたときに
+       *  「区画0／配置図0 が届きました」という確認を出してしまいます。
+       *
+       *  物件の本体は Firestore です。Firestore を取り込めたなら、
+       *  GAS の返事がどうであれ Firestore が「正」です。
+       *  _loaded と同じ場所で立てるのが正しい。                      */
+      try{ window.__fsPrimary = true; }catch(e){}
 
       /* 版番号・指紋の控えを、いま決めた中身にそろえます。
          （そろえておかないと、次の保存で「全部が変わった」と誤解します） */
@@ -780,8 +829,7 @@
         var no = Array.isArray(po) ? po.length : -1;
         if(nc >= 0 || no >= 0) writeMap(ctKey2(), { ct:nc, ow:no, at:Date.now() });
       }catch(e){}
-      /* uifix.js の「両方を残す」合体を止めます。
-         あれは消したものを足し戻すので、わざと消した区画が復活します。 */
+      /* 念のため、もう一度立てておきます（上で立てたものと同じ旗です） */
       try{ window.__fsPrimary = true; }catch(e){}
       writeMap(revKey(), ad.revs);
       writeMap(sigKey(), ad.sigs);
@@ -2863,7 +2911,13 @@
                使い回すと、ほかの端末が直した直後に押しても
                前の内容が出てしまいます。                          */
           try{ fsDrop(); }catch(e){}
-          try{ r = FP0.apply(this, arguments); }catch(e){ r = null; }
+          /* ★ この間だけ、保存前の見くらべの近道を止めます（preCheck）。
+               取り込みが終わったら、必ず戻します。               */
+          try{ window.__pvInForcePull = true; }catch(e){}
+          var done = function(){ try{ window.__pvInForcePull = false; }catch(e){} };
+          try{ setTimeout(done, 30000); }catch(e){}   /* 念のための保険 */
+          try{ r = FP0.apply(this, arguments); }catch(e){ r = null; done(); }
+          try{ Promise.resolve(r).then(done, done); }catch(e){ done(); }
           try{ _lastOw = 0; setTimeout(function(){ syncOws(true); }, 1200); }catch(e){}
           try{ _lastCt = 0; setTimeout(function(){ syncCts(true); }, 1600); }catch(e){}
           /* ★ クラウドを読めていないのに「✅ 最新です」と出ると、
