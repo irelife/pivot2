@@ -639,8 +639,15 @@
       if(!fs) return r;                                   /* Firestore が読めない → 従来どおり */
       var n = count(fs.buildings);
       if(n === 0) return r;                               /* 移行前 → 従来どおり */
-      if(!(r && r.ok && r.payload)) return r;             /* スプレッドシート側が失敗 → 触らない
-                                                             （契約・オーナーが空で返って消えるのを防ぐ） */
+      /* ★ スプレッドシート（GAS）が失敗したかどうかを、旗にして持ちます。
+           これまではここで引き返していました。すると Firestore は読めているのに
+           _loaded が false のままになり、その端末は
+           「最新を読み込む前の保存」として、いつまでも保存できなくなります。
+           物件の本体は Firestore です。Firestore が読めているなら、
+           物件の取り込みは最後まで進めてよいはずです。
+           契約・オーナーだけは、r.payload が空で返って消えるのを防ぐため、
+           これまでどおり触りません。 */
+      var gasOk = !!(r && r.ok && r.payload);
       var localN = 0;
       try{ localN = count((typeof pbLoadAll === 'function') ? pbLoadAll() : {}); }catch(e){}
       if(localN >= 3 && n < localN * 0.5){                /* 安全装置：極端に少ない → 差し替えない */
@@ -649,8 +656,10 @@
         return r;
       }
       var ad = adoptBlds(fs);
-      r.payload.buildings = ad.out;
-      r.buildingCount     = count(ad.out);
+      if(gasOk){
+        r.payload.buildings = ad.out;
+        r.buildingCount     = count(ad.out);
+      }
       _loaded = true;
 
       /* 版番号・指紋の控えを、いま決めた中身にそろえます。
@@ -680,6 +689,12 @@
            これが無いと、このあとの読み直しが毎回「ぜんぶ読む」になります。
            これまでは、様子見の読み直しのときだけ控えていました。 */
       try{ if(fs.at) localStorage.setItem(lastSeenKey(), fs.at); }catch(e){}
+
+      /* ★ ここから先は r.payload（スプレッドシートの返事）を触ります。
+           GAS が失敗しているときは、契約・オーナーが空で返っていることがあり、
+           そのまま進めると中身が消えます。物件はここまでで済んでいるので、
+           引き返します。_loaded は true のままなので、保存はできます。 */
+      if(!gasOk) return r;
 
       /* ㊸ 契約・オーナーも Firestore を正にします */
       var after = [];
