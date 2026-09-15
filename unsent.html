@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PIVOT　送れていない入力を調べる</title>
+<style>
+body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+     background:#f2f3f5;margin:0;padding:16px;color:#1a1a1a;font-size:15px}
+.box{max-width:900px;margin:0 auto;background:#fff;border-radius:12px;
+     padding:18px 18px 24px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+h1{font-size:19px;margin:0 0 6px}
+.sub{color:#777;font-size:13px;margin-bottom:14px}
+.note{border:2px solid #111;border-radius:8px;padding:12px 14px;
+      font-size:13.5px;line-height:1.9;margin-bottom:14px}
+button{font:inherit;font-weight:800;font-size:16px;padding:13px 22px;border-radius:8px;
+       border:2px solid #111;background:#111;color:#fff;cursor:pointer;margin:4px 0 10px}
+#log{background:#fafafa;border:1px solid #ddd;border-radius:8px;padding:14px;
+     font-size:13.5px;line-height:1.8;white-space:pre-wrap;word-break:break-word;
+     margin-top:10px;max-height:70vh;overflow:auto}
+.hit{background:#fff7d6;border-left:4px solid #f59e0b;padding:10px 12px;
+     border-radius:6px;margin:10px 0;line-height:1.9}
+.ok{background:#e8f7ee;border-left:4px solid #16a34a;padding:12px;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="box">
+<h1>送れていない入力を調べます</h1>
+<div class="sub" id="who"></div>
+
+<div class="note">
+<b>このページは読むだけです。</b><br>
+クラウドにも、この端末にも、<b>一切書き込みません</b>。<br>
+この端末の中身と、クラウドの中身を1件ずつ比べて、<b>違うところだけ</b>を出します。
+</div>
+
+<button id="go">調べる</button>
+<div id="log">ボタンを押してください。</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script>
+(function(){
+  var log = document.getElementById('log');
+  function out(s){ log.textContent += s + '\n'; }
+  function html(s){ log.innerHTML += s; }
+
+  /* ★ core.js は読み込みません。
+     core.js は開いた瞬間にクラウドの取り込みを始める作りで、
+     この端末の内容が上書きされてしまうためです。
+     必要なのは下の1つだけなので、ここに写します。 */
+  function insPrefix(){
+    try{
+      var seg = (location.pathname || '').split('/').filter(function(s){ return s; });
+      var name = seg.length ? seg[seg.length - 1] : '';
+      if(/\.html?$/i.test(name)) name = seg.length > 1 ? seg[seg.length - 2] : '';
+      return name ? (name + '_') : 'pivot_';
+    }catch(e){ return 'pivot_'; }
+  }
+  var PFX = insPrefix();
+  var INS = PFX.replace(/_+$/, '') || 'pivot2';
+  document.getElementById('who').textContent = '対象：' + INS.toUpperCase();
+
+  /* 区画を「番号 → 中身」の形にそろえます（手元は並び、クラウドは番号つき） */
+  function spotMap(s){
+    var m = {}, i, k;
+    if(Array.isArray(s)){
+      for(i = 0; i < s.length; i++){
+        if(s[i] && s[i].no !== undefined && s[i].no !== '') m[String(s[i].no)] = s[i];
+      }
+    }else{
+      for(k in (s || {})){
+        if(Object.prototype.hasOwnProperty.call(s, k)) m[String(k)] = s[k];
+      }
+    }
+    return m;
+  }
+
+  /* 比べる欄。_raw は取り込み用の目印なので比べません */
+  var FIELDS = [
+    ['no','番号'], ['type','種別'], ['tou','棟'], ['room','号室'],
+    ['user','使用者'], ['price','月額'], ['status','状況'],
+    ['start_date','開始日'], ['end_date','終了日'], ['note','メモ']
+  ];
+
+  function val(o, k){
+    var v = (o || {})[k];
+    if(v === undefined || v === null) return '';
+    return String(v);
+  }
+
+  document.getElementById('go').onclick = function(){
+    log.textContent = '';
+    var local;
+    try{ local = JSON.parse(localStorage.getItem(PFX + 'blds') || '{}'); }
+    catch(e){ out('この端末の内容が読めませんでした：' + e.message); return; }
+
+    var ln = Object.keys(local).length;
+    out('この端末の物件：' + ln + ' 件');
+    if(!ln){ out('\nこの端末には物件がありません。'); return; }
+
+    out('クラウドを読んでいます…\n');
+
+    try{
+      if(!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+    }catch(e){ out('Firebase の用意に失敗：' + e.message); return; }
+
+    firebase.auth().onAuthStateChanged(function(u){
+      if(!u){
+        out('ログインしていません。');
+        out('さきに PIVOT を開いてログインしてから、このページに戻ってください。');
+        return;
+      }
+      firebase.firestore().collection(INS).doc('data').collection('buildings').get()
+        .then(function(qs){
+          var cloud = {};
+          qs.forEach(function(d){ cloud[d.id] = d.data() || {}; });
+          out('クラウドの物件：' + qs.size + ' 件\n');
+          compare(local, cloud);
+        })
+        .catch(function(e){
+          out('クラウドが読めませんでした：' + (e && e.message ? e.message : e));
+        });
+    });
+  };
+
+  function compare(local, cloud){
+    var hits = 0, id, i, f;
+
+    for(id in local){
+      if(!Object.prototype.hasOwnProperty.call(local, id)) continue;
+      var L = local[id] || {}, C = cloud[id];
+
+      if(!C){
+        hits++;
+        html('<div class="hit"><b>' + esc(L.name || id) + '</b>　' +
+             '→ この物件は <b>クラウドにありません</b>（この端末だけにあります）</div>');
+        continue;
+      }
+
+      /* 物件そのものの欄 */
+      var bl = [];
+      ['name','addr'].forEach(function(k){
+        if(val(L,k) !== val(C,k)){
+          bl.push('　' + (k === 'name' ? '物件名' : '住所') +
+                  '：この端末「' + val(L,k) + '」／クラウド「' + val(C,k) + '」');
+        }
+      });
+
+      /* 区画 */
+      var ls = spotMap(L.spots), cs = spotMap(C.spots), no;
+      for(no in ls){
+        if(!Object.prototype.hasOwnProperty.call(ls, no)) continue;
+        if(!cs[no]){
+          bl.push('　区画 ' + no + '：この端末だけにあります');
+          continue;
+        }
+        var diffs = [];
+        for(i = 0; i < FIELDS.length; i++){
+          f = FIELDS[i];
+          if(val(ls[no], f[0]) !== val(cs[no], f[0])){
+            diffs.push(f[1] + '「' + val(ls[no], f[0]) + '」→ クラウドは「' +
+                       val(cs[no], f[0]) + '」');
+          }
+        }
+        if(diffs.length) bl.push('　<b>区画 ' + no + '</b>：' + diffs.join('／'));
+      }
+      for(no in cs){
+        if(!Object.prototype.hasOwnProperty.call(cs, no)) continue;
+        if(!ls[no]) bl.push('　区画 ' + no + '：クラウドだけにあります');
+      }
+
+      if(bl.length){
+        hits++;
+        html('<div class="hit"><b>' + esc(L.name || id) + '</b><br>' +
+             bl.join('<br>') + '</div>');
+      }
+    }
+
+    for(id in cloud){
+      if(!Object.prototype.hasOwnProperty.call(cloud, id)) continue;
+      if(!local[id]){
+        hits++;
+        html('<div class="hit"><b>' + esc((cloud[id] || {}).name || id) + '</b>　' +
+             '→ <b>クラウドだけにあります</b>（この端末にありません）</div>');
+      }
+    }
+
+    if(!hits){
+      html('<div class="ok"><b>違いはありませんでした。</b><br>' +
+           'この端末とクラウドは、同じ内容です。<br>' +
+           '送れていない入力は、ありません。</div>');
+    }else{
+      html('<div class="note" style="margin-top:14px">' +
+           '上の <b>' + hits + ' 件</b> が、この端末とクラウドで違うところです。<br><br>' +
+           'この内容を控えてから、PIVOT を開き直してください。<br>' +
+           '開き直すと、この端末はクラウドの内容になります。<br>' +
+           'そのあと、上の内容をもう一度入力してください。</div>');
+    }
+  }
+
+  function esc(s){
+    return String(s).replace(/[&<>"]/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];
+    });
+  }
+})();
+</script>
+</body>
+</html>
