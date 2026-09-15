@@ -313,7 +313,7 @@
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
      それより古い版で開いている端末は、赤い帯を出して保存を止めます。
      「開き直してください」という口頭のお願いを、仕組みに変えるためのものです。 */
-  var STORE_VER = 28;   /* ★ 物件も契約も、中身が空なら送らせない版 */
+  var STORE_VER = 30;   /* ★ 未送信の知らせを、目立たない小さな印にした版 */
   var _tooOld = false;
 
   function toDoc(id, b){
@@ -480,8 +480,8 @@
   var _fsCache = null;
   var FS_CACHE_MS = 30000;
   function fsDrop(){ _fsCache = null; }
+  /* ★ 呼び鈴（realtime.js）から、読んだものの使い回しを外せるようにします */
   try{ window.__pvFsDrop = fsDrop; }catch(e){}
-  
   function fsTriple(){
     var now = Date.now();
     if(_fsCache && (now - _fsCache.at) < FS_CACHE_MS){
@@ -1568,8 +1568,8 @@
         }
       }
       _fsDone = true;      /* ここまで来ていれば、クラウド（Firestore）には入っています */
-try{ if(window.__pvRealtime && typeof window.__pvRealtime.ring === 'function') window.__pvRealtime.ring(); }catch(e){}
-fsDrop();
+      /* ★ 呼び鈴を鳴らします。ほかの端末が、すぐ取りに来られるようにします */
+      try{ if(window.__pvRealtime && typeof window.__pvRealtime.ring === 'function') window.__pvRealtime.ring(); }catch(e){}
       fsDrop();            /* ★ 中身が変わったので、読んだものの使い回しをやめます */
       return Promise.resolve(P(url, body, t)).then(function(r){
         /* ★ v23）クラウドから消えたことを確かめてから、控えの表の行を消します */
@@ -2955,15 +2955,45 @@ fsDrop();
 
     /* 時間がたてば直るもの＝送り直します */
     var AUTO = { net:1, quota:1, 'not-loaded':1 };
-    /* 人が決めないと直らないもの＝札は出しますが、送り直しません */
+
+    /* ★ v29）札の言い方と色を、2段階に分けました。
+     *
+     *  これまでは、どれも 赤 で「⚠️ 保存できていません」でした。
+     *  ですが中身は2つに分かれます。
+     *
+     *    ・放っておいても直るもの（電波・回数切れ・読み込み前）
+     *        → こちらが勝手に送り直します。人は何もしなくてよい。
+     *        → 黄色で「送信待ちです」。おだやかな言い方にします。
+     *
+     *    ・人が決めないと直らないもの（ぶつかった・端末がいっぱい）
+     *        → 赤のままにします。ここは気づいていただく必要があります。
+     *
+     *  入力した内容は、どちらの場合も端末に残っています。消えません。
+     *  そのことを、札の中にも書いておきます。
+     */
     var WORD = {
-      net        : ['⚠️ 保存できていません', '通信を確かめています。押すと、いま送り直します'],
-      quota      : ['⚠️ 保存できていません', 'クラウドの1日の回数切れです。夕方4時すぎに自動で送ります'],
-      'not-loaded':['⚠️ 保存できていません', '最新を読み込んでから送ります。押すと、いま送り直します'],
-      conflict   : ['⚠️ 一部が保存できていません', 'ほかの人が先に保存しました。開き直して、入れ直してください'],
-      local      : ['⚠️ 保存できていません', 'この端末の置き場がいっぱいです。写真を減らしてください'],
-      other      : ['⚠️ 保存できていません', '押すと、いま送り直します']
+      net        : ['未送信', '電波が戻りしだい、自動で送ります。入力は残っています。\n押すと、いま送り直します。'],
+      quota      : ['未送信', 'クラウドの1日の回数を使い切りました。\n夕方4時すぎに、自動で送ります。'],
+      'not-loaded':['未送信', '最新を読み込んでから送ります。入力は残っています。\n押すと、いま送り直します。'],
+      conflict   : ['保存できませんでした', 'ほかの人が先に保存しました。\n開き直して、入れ直してください。'],
+      local      : ['保存できませんでした', 'この端末の置き場がいっぱいです。\n写真を減らしてください。'],
+      other      : ['未送信', '押すと、いま送り直します。']
     };
+    /* 放っておけば直るもの。静かに出します。それ以外はすぐ出します。 */
+    var SOFT = { net:1, quota:1, 'not-loaded':1, other:1 };
+
+    /* ★ v30）静かに出すものは、しばらく黙って様子を見ます。
+     *
+     *  電波の切り替わりや、画面を消した直後などは、
+     *  数秒で自動的に送れます。そのたびに札を出すと、
+     *  「何か壊れた」と思わせてしまいます。
+     *
+     *  ですので SOFT のものは 25秒 待ってから、はじめて札を出します。
+     *  それまではヘッダーの小さな表示（保存中…）だけにします。
+     *  人が動かないと直らないもの（ぶつかった・端末がいっぱい）は、
+     *  待たずにすぐ出します。 */
+    var QUIET_MS = 25000;
+    var _showTm = null;
 
     function readU(){
       try{ var v = JSON.parse(localStorage.getItem(UKEY()) || 'null');
@@ -2977,47 +3007,96 @@ fsDrop();
       var u = readU() || { from:Date.now() };
       u.kind = kind || 'other';
       u.at   = Date.now();
-      writeU(u); paint(); plan_();
-      try{ console.warn('[U] 送れていません（' + u.kind + '）。札を出して、送り直します'); }catch(e){}
+      writeU(u);
+      if(SOFT[u.kind]){
+        /* しばらく黙って、裏で送り直します。25秒たっても駄目なら札を出します */
+        status('saving', '⏳ 保存中…');
+        if(!_showTm) _showTm = setTimeout(function(){ _showTm = null; paint(); }, QUIET_MS);
+        var age = Date.now() - (u.from || u.at);
+        if(age >= QUIET_MS) paint();          /* もう長いこと送れていない */
+      }else{
+        paint();                               /* 人が動くものは、すぐ出します */
+      }
+      plan_();
+      try{ console.warn('[U] 送れていません（' + u.kind + '）。裏で送り直します'); }catch(e){}
     }
     function clear_(){
       if(!readU()) return;
       writeU(null); _tries = 0;
       if(_tm){ clearTimeout(_tm); _tm = null; }
+      if(_showTm){ clearTimeout(_showTm); _showTm = null; }
       paint();
+      /* ★ v30）専用の緑の札はやめました。
+         ふだんの保存と同じく、ヘッダーの小さな表示で伝えます。 */
+      status('saved', '✅ 保存しました');
       try{ console.log('[U] 送れました。札を消します'); }catch(e){}
     }
+
     function since(u){
       var m = Math.floor((Date.now() - (u.from || u.at || Date.now())) / 60000);
       if(m < 1) return '';
-      if(m < 60) return '（' + m + '分まえから）';
-      return '（' + Math.floor(m / 60) + '時間' + (m % 60) + '分まえから）';
+      if(m < 60) return ' ' + m + '分';
+      return ' ' + Math.floor(m / 60) + '時間' + (m % 60) + '分';
     }
 
+    /* ★ v30）札の見た目を、小さな丸い印（ピル）にしました。
+     *
+     *  これまでは、画面の下を横いっぱいに覆う2行の箱でした。
+     *  ＋ボタンにも重なっていて、「何か壊れた」ように見えていました。
+     *
+     *  ふつうのアプリは、こういう出来事を大きく出しません。
+     *  小さな印だけ置いて、詳しいことは押したときに出します。
+     *
+     *  ・静かに出すもの … 小さな灰色のピル「⏳ 未送信」
+     *  ・人が動くもの   … 赤いピル「保存できませんでした」
+     *  ・どちらも押すと、詳しい説明が出ます（静かなものは、その場で送り直し）
+     */
     function paint(){
       try{
         var u  = readU();
         var el = document.getElementById(BADGE);
         if(!u){ if(el && el.parentNode) el.parentNode.removeChild(el); return; }
         if(!document.body) return;
+
+        /* 静かに出すものは、しばらく黙ります（まだ待ち時間のうち） */
+        var soft = !!SOFT[u.kind];
+        var age  = Date.now() - (u.from || u.at || Date.now());
+        if(soft && age < QUIET_MS){
+          if(el && el.parentNode) el.parentNode.removeChild(el);
+          return;
+        }
+
         if(!el){
           el = document.createElement('div');
           el.id = BADGE;
-          el.style.cssText =
-            'position:fixed;left:10px;bottom:44px;z-index:99998;max-width:min(340px,86vw);' +
-            'background:#b91c1c;color:#fff;font-size:12px;line-height:1.5;font-weight:700;' +
-            'padding:9px 13px;border-radius:12px;box-shadow:0 3px 12px rgba(0,0,0,.32);' +
-            'cursor:pointer;white-space:normal;text-align:left';
-          el.onclick = function(){ _tries = 0; go(true); };
+          el.onclick = function(){
+            var uu = readU(); if(!uu) return;
+            var ww = WORD[uu.kind] || WORD.other;
+            if(SOFT[uu.kind]){
+              _tries = 0; go(true);
+              status('saving', '⏳ 送り直しています…');
+            }
+            try{ window.alert(ww[0] + '\n\n' + ww[1]); }catch(e){}
+          };
           document.body.appendChild(el);
         }
+        /* ＋ボタン（右下）に重ならないよう、左下の小さな印にします */
+        el.style.cssText =
+          'position:fixed;left:12px;bottom:14px;z-index:99998;' +
+          'display:inline-flex;align-items:center;gap:6px;' +
+          'background:' + (soft ? 'rgba(28,28,32,.86)' : '#b91c1c') + ';' +
+          'color:#fff;font-size:11.5px;line-height:1;font-weight:700;' +
+          'padding:7px 12px;border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.24);' +
+          'cursor:pointer;white-space:nowrap;letter-spacing:.02em';
         var w = WORD[u.kind] || WORD.other;
         el.innerHTML = '';
-        var a = document.createElement('div'); a.textContent = w[0] + ' ' + since(u);
-        var b = document.createElement('div');
-        b.style.cssText = 'font-weight:500;font-size:11px;opacity:.92;margin-top:3px';
-        b.textContent = w[1];
-        el.appendChild(a); el.appendChild(b);
+        var dot = document.createElement('span');
+        dot.style.cssText = 'width:7px;height:7px;border-radius:50%;flex:0 0 auto;' +
+                            'background:' + (soft ? '#fbbf24' : '#fff');
+        var a = document.createElement('span');
+        a.textContent = w[0] + since(u);
+        el.title = w[1];
+        el.appendChild(dot); el.appendChild(a);
       }catch(e){}
     }
 
@@ -3220,10 +3299,22 @@ fsDrop();
       }catch(e){}
     }
 
+    /* ★ 見張りを止められるようにします。
+       画面を見ていないあいだは、ほかの端末の合図を受け取る必要がありません。
+       受け取るだけで読み取り回数を使うので、台数が増えるほど効いてきます
+       （合図は3分ごと。n台なら1日あたり 480×n×n 回の読み取りになります）。 */
+    var _un = null;
+    function unwatch(){
+      try{ if(_un){ _un(); } }catch(e){}
+      _un = null;
+      try{ show([]); }catch(e){}
+    }
     function watch(){
       try{
         if(!firebase.auth().currentUser) return;
-        pcol().onSnapshot(function(qs){
+        if(_un) return;              /* すでに見張っています */
+        if(document.hidden) return;  /* 画面を見ていないときは見張りません */
+        _un = pcol().onSnapshot(function(qs){
           var now = Date.now(), list = [];
           qs.forEach(function(d){
             if(d.id === myId) return;
@@ -3242,12 +3333,13 @@ fsDrop();
        前の合図から3分たっているときだけにします。 */
     var _lastBeat = 0;
     try{ document.addEventListener('visibilitychange', function(){
-      if(document.hidden){ return; }
+      if(document.hidden){ unwatch(); return; }   /* 離れたら見張りをやめます */
+      watch();                                    /* 戻ってきたら見張りを戻します */
       var n = Date.now();
       if(n - _lastBeat < 180000) return;
       _lastBeat = n; beat();
     }); }catch(e){}
-    try{ window.addEventListener('pagehide', bye); }catch(e){}
+    try{ window.addEventListener('pagehide', function(){ bye(); unwatch(); }); }catch(e){}
   })();
 
   /* ============================================================

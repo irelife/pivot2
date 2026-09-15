@@ -216,7 +216,13 @@
   try{
     window.__pvRealtime = {
       stop:function(){ stopped = true; },
-      ring:function(){ return ringNow('manual-test'); },
+      /* ★ 保存のたびに鳴らす窓口。store.js から呼ばれます。
+         realtime.js 自身も postToGas のあとに ring() を呼ぶので、
+         ここを ringNow（すぐ鳴らす）にすると 1回の保存で2回鳴ってしまいます。
+         ring() を通して、0.7秒のあいだにまとめます。 */
+      ring:function(act){ return ring(act || 'save'); },
+      /* 手で試したいときは、こちらを使ってください（すぐ鳴ります） */
+      ringNow:function(act){ return ringNow(act || 'manual-test'); },
       pull:function(){ schedulePull('manual-test'); },
       fallback:fallbackCheck,
       clientId:function(){ return clientId; }
