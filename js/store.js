@@ -3010,6 +3010,28 @@
     var QUIET_MS = 25000;
     var _showTm = null;
 
+    /* ★ 長いこと送れていないときは、静かにしていてはいけません。
+     *
+     *  2026/9/14〜15 に、1台が 22時間半 送れないままになりました。
+     *  小さな灰色の印は出ていたのですが、静かすぎて気づかれませんでした。
+     *  数秒で直るものと、半日直らないものを、同じ見た目にしていたのが
+     *  間違いでした。
+     *
+     *  1時間すぎたら、赤にして、開いたときにも知らせます。 */
+    var LOUD_MS = 3600000;          /* 1時間 */
+    var _toldThisTime = false;      /* 開いてから1度だけ知らせます */
+
+    function ageOf(u){
+      if(!u) return 0;
+      return Date.now() - (u.from || u.at || Date.now());
+    }
+    function isLoud(u){ return ageOf(u) >= LOUD_MS; }
+    function hhmm(ms){
+      var m = Math.floor(ms / 60000);
+      if(m < 60) return m + '分';
+      return Math.floor(m / 60) + '時間' + (m % 60) + '分';
+    }
+
     function readU(){
       try{ var v = JSON.parse(localStorage.getItem(UKEY()) || 'null');
            return (v && typeof v === 'object') ? v : null; }catch(e){ return null; }
@@ -3073,9 +3095,11 @@
         if(!u){ if(el && el.parentNode) el.parentNode.removeChild(el); return; }
         if(!document.body) return;
 
-        /* 静かに出すものは、しばらく黙ります（まだ待ち時間のうち） */
-        var soft = !!SOFT[u.kind];
-        var age  = Date.now() - (u.from || u.at || Date.now());
+        /* 静かに出すものは、しばらく黙ります（まだ待ち時間のうち）。
+           ただし1時間すぎたら、静かなものでも赤で出します。 */
+        var loud = isLoud(u);
+        var soft = !!SOFT[u.kind] && !loud;
+        var age  = ageOf(u);
         if(soft && age < QUIET_MS){
           if(el && el.parentNode) el.parentNode.removeChild(el);
           return;
@@ -3109,7 +3133,7 @@
         dot.style.cssText = 'width:7px;height:7px;border-radius:50%;flex:0 0 auto;' +
                             'background:' + (soft ? '#fbbf24' : '#fff');
         var a = document.createElement('span');
-        a.textContent = w[0] + since(u);
+        a.textContent = (loud ? '⚠️ ' : '') + w[0] + since(u);
         el.title = w[1];
         el.appendChild(dot); el.appendChild(a);
       }catch(e){}
@@ -3167,8 +3191,26 @@
     try{ document.addEventListener('visibilitychange', function(){
       if(!document.hidden) setTimeout(function(){ go(false); }, 3000);
     }); }catch(e){}
+    /* ★ 1時間以上 送れていないときは、開いたときに1度だけ知らせます。
+     *
+     *  小さな印だけでは気づけないことが、実際にありました（22時間半）。
+     *  静かにしておいてよいのは、数分のあいだだけです。 */
+    function tellIfLong(){
+      try{
+        if(_toldThisTime) return;
+        var u = readU();
+        if(!u || !isLoud(u)) return;
+        _toldThisTime = true;
+        var w = WORD[u.kind] || WORD.other;
+        window.alert(
+          '⚠️ ' + hhmm(ageOf(u)) + ' のあいだ、クラウドへ送れていません。\n\n' +
+          w[1] + '\n\n' +
+          '左下の赤い印を押すと、いま送り直します。\n' +
+          'それでも直らないときは、担当者にこの画面を見せてください。');
+      }catch(e){}
+    }
     try{ firebase.auth().onAuthStateChanged(function(u){
-      if(u) setTimeout(function(){ paint(); go(false); }, 6000);
+      if(u) setTimeout(function(){ paint(); go(false); setTimeout(tellIfLong, 4000); }, 6000);
     }); }catch(e){}
     try{
       if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', paint);
@@ -3281,7 +3323,17 @@
       try{
         if(!firebase.auth().currentUser) return;
         if(document.hidden) return;
-        pcol().doc(myId).set({ name:(me() || '(名前なし)'), at:Date.now() }).catch(function(){});
+        /* ★ 送れていない状態も、いっしょに知らせます。
+             これで「どの端末が、いつから詰まっているか」を
+             ほかの端末や、あとからの点検で見られるようになります。 */
+        var uu = null;
+        try{ uu = JSON.parse(localStorage.getItem(pfx() + 'unsent') || 'null'); }catch(e){ uu = null; }
+        pcol().doc(myId).set({
+          name   : (me() || '(名前なし)'),
+          at     : Date.now(),
+          unsent : (uu && uu.kind) ? String(uu.kind) : '',
+          since  : (uu && (uu.from || uu.at)) ? (uu.from || uu.at) : 0
+        }).catch(function(){});
         use('write', 1, 'だれが編集中かの合図');
       }catch(e){}
     }
