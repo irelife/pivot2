@@ -32,6 +32,17 @@ FAKE = FAKE.replace('var DB = { docs:{} };', [
   "var DB = { docs: new Proxy(_raw, { set:function(t,k,v){ t[k]=v; _save(); return true; },",
   "  deleteProperty:function(t,k){ delete t[k]; _save(); return true; } }) };"].join('\n'));
 
+/* ★ 固定の待ち時間は、機械が混んでいると足りなくなります。
+      「条件が満たされるまで待つ」形にします（最長 ms まで）。 */
+const until = async (pg, fn, ms) => {
+  const end = Date.now() + (ms || 20000);
+  while(Date.now() < end){
+    try{ if(await pg.evaluate(fn)) return true; }catch(e){}
+    await pg.waitForTimeout(500);
+  }
+  return false;
+};
+
 let P=0,F=0; const ok=(n,c,x)=>{ if(c){P++;console.log('  ✅ '+n);} else {F++;console.log('  ❌ '+n+(x!==undefined?('  → '+JSON.stringify(x)):''));} };
 
 (async()=>{
@@ -130,7 +141,8 @@ let P=0,F=0; const ok=(n,c,x)=>{ if(c){P++;console.log('  ✅ '+n);} else {F++;c
  console.log('\n❺ ★ 控えのスプレッドシートが失敗しても、Firestore が「正」になる');
  GASOK=false;
  await pg.evaluate(()=>{ try{ window.__fsPrimary = false; }catch(e){} });
- await pg.reload(); await pg.waitForTimeout(4500);
+ await pg.reload();
+ await until(pg, ()=>!!window.__fsPrimary, 25000);
  ok('★★ Firestore が「正」の旗が立っている（uifix の古い合体を止める）', (await fsp())===true, await fsp());
  ok('★ 物件が20件のまま', (await nb())===20, await nb());
  ok('★ 区画が消えていない（40個）', (await nsp())===40, await nsp());
