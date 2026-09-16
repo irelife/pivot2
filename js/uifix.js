@@ -778,6 +778,15 @@
 
   window.pbSaveRaw = function(incoming){
     var mine, m;
+    /* ★ 「件数を見るための から箱」は、データではありません。
+       　 { 物件ID: 1, … } という形で、区画も配置図も入っていません。
+       　 これを手元に書くと、区画がぜんぶ消えます。書きません。     */
+    try{
+      if(window.__pvIsCountBox && window.__pvIsCountBox(incoming)){
+        try{ console.warn('[D] 件数を見るための から箱 が届いたので、書きませんでした'); }catch(e){}
+        return;
+      }
+    }catch(e){}
     /* ★ Firestore が「正」のときは、この合体をしません。
        合体は「消えたものを足し戻す」動きなので、
        わざと消した区画まで復活させてしまいます（9/5 に実際に起きました）。

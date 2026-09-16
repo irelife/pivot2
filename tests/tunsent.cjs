@@ -55,10 +55,13 @@ const NET={up:true};
        if(typeof o.where==='function') p.where=function(){ return wrap(o.where.apply(o,arguments)); };
        return p; };
      var db0=f();
-     window.firebase.firestore=function(){ var w=wrap(db0);
+     var nf=function(){ var w=wrap(db0);
        w.runTransaction=function(){ var e=new Error('unavailable'); e.code='unavailable'; return Promise.reject(e); };
        w.batch=function(){ return { set:function(){}, commit:function(){ var e=new Error('unavailable'); return Promise.reject(e); } }; };
        return w; };
+     /* ★ FieldValue などの「おまけ」も、そのまま持っていきます */
+     for(var kk in f){ if(Object.prototype.hasOwnProperty.call(f,kk)) nf[kk]=f[kk]; }
+     window.firebase.firestore=nf;
    } else if(window.__fsSaved){ window.firebase.firestore=window.__fsSaved; window.__fsSaved=null; }
  }, on);
 

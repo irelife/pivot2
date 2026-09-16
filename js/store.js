@@ -308,6 +308,9 @@
   }
 
   var _loaded = false;   /* この画面で Firestore から読み込めたか */
+  /* ★ core.js から見られるようにします（保存前の確かめで使います）。
+       いつでも「いまの値」が返るよう、関数にしておきます。          */
+  try{ window.__pvLoaded = function(){ return !!_loaded; }; }catch(e){}
 
   /* ㊹ 古い画面のまま使っている端末を見つけます。
      Firestore の config/<instance> に  minStore: 12  のように書いておくと、
@@ -515,8 +518,42 @@
    *
    *  控えを一度も作っていない端末のときだけ、ちゃんと読みに行きます。 */
   function preCheck(){
+    /* ★ ロゴの「最新を取り込む」の最中は、この近道を使いません。
+     *
+     *  近道は、物件の中身を「件数を見るための から箱」に差し替えます。
+     *  保存前の見くらべは件数しか見ないので、それで足りていました。
+     *
+     *  ところが、ロゴの取り込み（core.js の forcePullLatest）は
+     *  送信を3秒だけ待って、終わっていなくても先へ進みます。
+     *  そこへ から箱 が届くと、あれは中身をそのまま手元へ書きます。
+     *    ・物件　… uifix.js の確認が出る（区画0／配置図0 が届きました）
+     *    ・契約　… 見張りが無いので、そのまま手元に書かれてしまう
+     *
+     *  ロゴを押すのは「いま最新をください」という操作です。
+     *  近道はせず、ちゃんと読みに行くのが正しい。                    */
+    try{ if(window.__pvInForcePull) return false; }catch(e){}
     try{ return (typeof _autoPushInFlight !== 'undefined') && !!_autoPushInFlight; }catch(e){ return false; }
   }
+  /* ★ 「件数を見るための から箱」を見分けます。
+   *
+   *  から箱は { 物件ID: 1, 物件ID: 1, … } という形です。
+   *  本物の物件は、必ず中身のある「もの」（object）です。
+   *  ひとつも「もの」が入っていなければ、それは から箱 です。
+   *
+   *  ②で作られないようにしましたが、万一どこかから届いても
+   *  手元に書かれないよう、ここでも見分けられるようにします。      */
+  function isCountBox(o){
+    if(!o || typeof o !== 'object') return false;
+    var ks = Object.keys(o);
+    if(!ks.length) return false;
+    for(var i = 0; i < ks.length; i++){
+      var v = o[ks[i]];
+      if(v && typeof v === 'object') return false;   /* 1件でも本物があれば、本物です */
+    }
+    return true;
+  }
+  try{ window.__pvIsCountBox = isCountBox; }catch(e){}
+
   function onLoadLight(P, url, body, t){
     var bs = readMap(sigKey()), cs = readMap(ctSigK());
     var nb = count(bs), nc = count(cs);
@@ -582,7 +619,25 @@
           status('error', '⚠️ クラウドを確かめられないので、取り込みを見送りました');
           try{ console.warn('[D] クラウドへ届かないので、手元をそのまま残しました（物件' +
                             count(kb0) + '件 / 契約' + count(kc0) + '件）'); }catch(x){}
-          try{ if(window.__pvUnsent && window.__pvUnsent.mark) window.__pvUnsent.mark('net'); }catch(x){}
+          /* ★★ ここは「読み込み」です。保存ではありません。
+           *
+           *  これまでは、読み込めなかっただけで「未送信」の札を出していました。
+           *  けれど、送れていないものが1つも無いなら、それは嘘です。
+           *
+           *  実際にこうなります。
+           *    ・画面を開いたまま、何も触らずに置いておく
+           *    ・15分ごとの静かな読み直しが、クラウドへ届かない
+           *    ・「未送信」の札が出る（送るものは1つも無いのに）
+           *    ・送るものが無いので、保存も起きない
+           *    ・札を消すのは「保存が成功したとき」だけ
+           *    → 永久に消えません。時間だけが増えていきます。
+           *
+           *  送っていない直しが、ほんとうにあるときだけ出します。
+           *  読み込めなかったことは、上のヘッダーで伝えています。      */
+          var _dirty = false;
+          try{ _dirty = (typeof window.__pvHasUnsaved === 'function') && window.__pvHasUnsaved() === true; }catch(x){}
+          try{ if(!_dirty && window.__pvUnsent && window.__pvUnsent.read && window.__pvUnsent.read()) _dirty = true; }catch(x){}
+          try{ if(_dirty && window.__pvUnsent && window.__pvUnsent.mark) window.__pvUnsent.mark('net'); }catch(x){}
         }catch(e){}
         return r;                       /* このあとの取りこみも、いっさいしません */
       }
@@ -661,6 +716,21 @@
         r.buildingCount     = count(ad.out);
       }
       _loaded = true;
+      /* ★ uifix.js の「両方を残す」合体を、ここで止めます。
+       *
+       *  これまで、この旗は下のほう（契約・オーナーを済ませたあと）で
+       *  立てていました。ところがスプレッドシート（GAS）が失敗すると
+       *  その手前で引き返すので、旗が立ちません。
+       *
+       *  旗が立っていない端末では、uifix.js の古い合体が動きます。
+       *  あれは「クラウドから届いた件数」と手元を見くらべるので、
+       *  保存前の見くらべ用の「から箱」が届いたときに
+       *  「区画0／配置図0 が届きました」という確認を出してしまいます。
+       *
+       *  物件の本体は Firestore です。Firestore を取り込めたなら、
+       *  GAS の返事がどうであれ Firestore が「正」です。
+       *  _loaded と同じ場所で立てるのが正しい。                      */
+      try{ window.__fsPrimary = true; }catch(e){}
 
       /* 版番号・指紋の控えを、いま決めた中身にそろえます。
          （そろえておかないと、次の保存で「全部が変わった」と誤解します） */
@@ -685,6 +755,28 @@
        *  決めた中身です。ここで書いておけば、
        *  どの呼び出し元から来ても、控えと手元が必ずそろいます。      */
       try{ if(typeof pbSaveRaw === 'function') pbSaveRaw(ad.out); }catch(e){}
+
+      /* ★★ 未送信の札を、ここで消せるようにします（出口をひとつ足します）
+       *
+       *  これまで、札を消す道は「保存が成功したとき」の1本だけでした。
+       *  出す道は11本あります。入口だらけで、出口がありません。
+       *
+       *  送るものが1件も無いときは、保存そのものが起きません。
+       *  すると札を消すきっかけが、どこにも生まれません。
+       *  画面を開いたまま置いておくと、時間だけが増えていきます。
+       *  （2026/9/16 の「3時間59分、全然消えない」は、これです）
+       *
+       *  いまここは「クラウドを読み込めた」ところです。
+       *  読み込めていて、送っていない直しが1件も無いなら、
+       *  この端末に未送信のものはありません。消してよい。
+       *
+       *  確かめられないときは、消しません（fail-closed）。          */
+      try{
+        if(window.__pvUnsent && window.__pvUnsent.read && window.__pvUnsent.read() && nothingPending()){
+          window.__pvUnsent.clear();
+          try{ console.log('[U] 送るものが1件もありません。札を消します'); }catch(e){}
+        }
+      }catch(e){}
       /* ★ どこまで読んだかの目印も、ここで控えます。
            これが無いと、このあとの読み直しが毎回「ぜんぶ読む」になります。
            これまでは、様子見の読み直しのときだけ控えていました。 */
@@ -780,8 +872,7 @@
         var no = Array.isArray(po) ? po.length : -1;
         if(nc >= 0 || no >= 0) writeMap(ctKey2(), { ct:nc, ow:no, at:Date.now() });
       }catch(e){}
-      /* uifix.js の「両方を残す」合体を止めます。
-         あれは消したものを足し戻すので、わざと消した区画が復活します。 */
+      /* 念のため、もう一度立てておきます（上で立てたものと同じ旗です） */
       try{ window.__fsPrimary = true; }catch(e){}
       writeMap(revKey(), ad.revs);
       writeMap(sigKey(), ad.sigs);
@@ -814,6 +905,32 @@
       for(k in sp){ if(Object.prototype.hasOwnProperty.call(sp, k)) return true; }
       return false;
     }catch(e){ return true; }        /* 見分けられないときは、ふつうに扱います */
+  }
+
+  /* ★ この端末に「まだクラウドへ送っていないもの」が
+   *   1件も無いことを、確かめます。
+   *
+   *   物件も契約も、書類1件ずつの指紋で見ます。
+   *   保存のときに使っているのと、まったく同じ見かたです。
+   *
+   *   確かめられないとき（読めない・壊れている）は false を返します。
+   *   「分からないなら、札は消さない」ためです。                    */
+  function nothingPending(){
+    try{
+      var bl = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : {};
+      var p  = plan(bl);
+      if((p.changed && p.changed.length) || (p.removed && p.removed.length)) return false;
+      if(p.hollow && p.hollow.length) return false;      /* 壊れている → 消しません */
+    }catch(e){ return false; }
+    try{
+      var mc = JSON.parse(localStorage.getItem(ctLS()) || '{}') || {};
+      if(count(mc)){
+        var pc = planCts(mc);
+        if((pc.changed && pc.changed.length) || (pc.removed && pc.removed.length)) return false;
+        if(pc.hollow && pc.hollow.length) return false;
+      }
+    }catch(e){ return false; }
+    return true;
   }
 
   function plan(buildings){
@@ -2863,7 +2980,13 @@
                使い回すと、ほかの端末が直した直後に押しても
                前の内容が出てしまいます。                          */
           try{ fsDrop(); }catch(e){}
-          try{ r = FP0.apply(this, arguments); }catch(e){ r = null; }
+          /* ★ この間だけ、保存前の見くらべの近道を止めます（preCheck）。
+               取り込みが終わったら、必ず戻します。               */
+          try{ window.__pvInForcePull = true; }catch(e){}
+          var done = function(){ try{ window.__pvInForcePull = false; }catch(e){} };
+          try{ setTimeout(done, 30000); }catch(e){}   /* 念のための保険 */
+          try{ r = FP0.apply(this, arguments); }catch(e){ r = null; done(); }
+          try{ Promise.resolve(r).then(done, done); }catch(e){ done(); }
           try{ _lastOw = 0; setTimeout(function(){ syncOws(true); }, 1200); }catch(e){}
           try{ _lastCt = 0; setTimeout(function(){ syncCts(true); }, 1600); }catch(e){}
           /* ★ クラウドを読めていないのに「✅ 最新です」と出ると、
@@ -2994,6 +3117,22 @@
       local      : ['保存できませんでした', 'この端末の置き場がいっぱいです。\n写真を減らしてください。'],
       other      : ['未送信', '押すと、いま送り直します。']
     };
+    /* ★ 札に出す、短い理由。
+     *
+     *  これまで札は「未送信 3時間59分」としか言いませんでした。
+     *  何時間ぶん困っているかは分かっても、
+     *  「電波なのか」「回数を使い切ったのか」「読み込めていないのか」が
+     *  分かりません。押せば出ますが、押さないと分かりませんでした。
+     *
+     *  長く続いているときほど、理由が要ります。札に出します。 */
+    var WHY = {
+      net        : '通信',
+      quota      : '回数切れ',
+      'not-loaded':'未読込',
+      conflict   : 'ぶつかり',
+      local      : '置き場いっぱい',
+      other      : '原因不明'
+    };
     /* 放っておけば直るもの。静かに出します。それ以外はすぐ出します。 */
     var SOFT = { net:1, quota:1, 'not-loaded':1, other:1 };
 
@@ -3115,7 +3254,12 @@
               _tries = 0; go(true);
               status('saving', '⏳ 送り直しています…');
             }
-            try{ window.alert(ww[0] + '\n\n' + ww[1]); }catch(e){}
+            var head = ww[0];
+            if(isLoud(uu)){
+              head = '⚠️ ' + hhmm(ageOf(uu)) + ' のあいだ、送れていません' +
+                     '\n理由： ' + (WHY[uu.kind] || WHY.other) + '（' + uu.kind + '）';
+            }
+            try{ window.alert(head + '\n\n' + ww[1]); }catch(e){}
           };
           document.body.appendChild(el);
         }
@@ -3133,7 +3277,8 @@
         dot.style.cssText = 'width:7px;height:7px;border-radius:50%;flex:0 0 auto;' +
                             'background:' + (soft ? '#fbbf24' : '#fff');
         var a = document.createElement('span');
-        a.textContent = (loud ? '⚠️ ' : '') + w[0] + since(u);
+        a.textContent = (loud ? '⚠️ ' : '') + w[0] + since(u) +
+                        (loud ? ('・' + (WHY[u.kind] || WHY.other)) : '');
         el.title = w[1];
         el.appendChild(dot); el.appendChild(a);
       }catch(e){}
