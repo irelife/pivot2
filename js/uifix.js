@@ -791,7 +791,22 @@
        合体は「消えたものを足し戻す」動きなので、
        わざと消した区画まで復活させてしまいます（9/5 に実際に起きました）。
        Firestore では版番号で追い越しを見つけるので、合体は不要です。 */
-    if(window.__fsPrimary) return writeThrough(incoming);
+    /* ★ 判断の根っこを1つにします（層を1つに・2026/9/16）
+     *
+     *  これまで、ここは __fsPrimary という旗だけを見ていました。
+     *  ところが旗の立て忘れが実際に起きて（store.js が GAS の失敗で
+     *  手前から引き返していた）、この古い合体が動いてしまいました。
+     *  9/16 の「区画0／配置図0 が届きました」は、それです。
+     *
+     *  旗を1つ増やすのではなく、根っこを1つにします。
+     *  「store.js が面倒を見ているか」を、core.js・uifix.js の
+     *  すべての場所で、同じ関数に聞きます。
+     *
+     *  旗のほうも残します（どちらか一方でも立っていれば黙ります）。
+     *  安全側に倒すためです。                                        */
+    var _owns = false;
+    try{ _owns = (typeof window.pvStoreOwns === 'function') && window.pvStoreOwns(); }catch(e){}
+    if(_owns || window.__fsPrimary) return writeThrough(incoming);
     /* 取り込みでなければ、そのまま保存します */
     if(_hookedPost){
       var sig0 = null;
@@ -868,15 +883,18 @@
     var _cloud = null, _cloudAt = 0;
     _hookedPost = true;
 
-    /* もとの安全装置（js/core.js の pvMissingFromLocal）は
-       「消える物件があります」と出して送信を止めるだけでした。
-       ここでは足してから送るので、止める必要がありません。
-       止められると直せなくなるので、こちらに任せてもらいます。 */
-    try{ window.pvMissingFromLocal = function(){ return []; }; }catch(e){}
+    /* ★ ここには、core.js の pvMissingFromLocal を
+         空の関数で上書きする1行がありました。
+         あの守りを黙らせるためのものです。
+
+         2026/9/16、core.js からその守りごと撤去したので、
+         黙らせる必要もなくなりました。いっしょに片づけます。 */
 
     window.postToGas = function(url, body, timeoutMs){
       /* ★ Firestore が「正」のときは、足し合わせずにそのまま送ります */
-      if(window.__fsPrimary && body && body.action === 'save'){
+      var _owns2 = false;
+      try{ _owns2 = (typeof window.pvStoreOwns === 'function') && window.pvStoreOwns(); }catch(e){}
+      if((_owns2 || window.__fsPrimary) && body && body.action === 'save'){
         return ORIG_POST(url, body, timeoutMs);
       }
       /* 送信でなければ素通り。ただし読み込みの結果は覚えておきます */

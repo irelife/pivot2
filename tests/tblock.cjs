@@ -65,6 +65,41 @@ const ANS={v:true};
  console.log('\n❸ 黙って終わらない（必ず何か出る）');
  ok('★ 確認が出た', seen.length>0, seen.map(x=>x.split('|')[0]));
 
+ console.log('\n❹ ★ 壊れた契約が1件あっても、ほかの保存は通る');
+ /* 契約者名も物件名も無い契約を、わざと1件つくります。
+    これまでは、これがあると保存そのものが止まり
+      「ページを開き直してください」
+    と出ていました。開き直しても端末の置き場に残るので直りません。
+    保存が一切できないまま、同じ知らせが出続けます。行き止まりです。
+    （2026/9/16、実際にそうなりました）                          */
+ const CTK = pre + 'contract_kanban_v2';
+ await pg.evaluate((a)=>{
+   var m={};
+   try{ m = JSON.parse(localStorage.getItem(a[0])||'{}') || {}; }catch(e){ m={}; }
+   m['ctGOOD'] = { id:'ctGOOD', property:'物件1', room:'101', contractor:'正しい契約者' };
+   m['ctBAD']  = { id:'ctBAD',  property:'',     room:'',    contractor:'' };
+   localStorage.setItem(a[0], JSON.stringify(m));
+   /* 「前はクラウドにあった」ことにします（でないと空っぽ扱いになりません） */
+   try{
+     var rv = JSON.parse(localStorage.getItem(a[1])||'{}') || {};
+     rv['ctBAD'] = 1; localStorage.setItem(a[1], JSON.stringify(rv));
+   }catch(e){}
+ }, [CTK, pre + 'fs_ct_rev']);
+
+ seen.length = 0;
+ await pg.evaluate(()=>{ var a=pbLoadAll(); var k=Object.keys(a)[0];
+   if(k){ a[k].name='★壊れた契約があっても保存したい'; pbSaveRaw(a); }
+   if(typeof window.__pushNow==='function') window.__pushNow(); });
+ await pg.waitForTimeout(9000);
+
+ const nm = await pg.evaluate((p)=>{ var all=window.__all(), k;
+   for(k in all){ if(k.indexOf(p+'/')===0 && all[k] &&
+     all[k].name==='★壊れた契約があっても保存したい') return all[k].name; }
+   return null; }, BP);
+ ok('★★ 壊れた契約があっても、ほかの保存は通る', nm!==null, nm);
+ ok('★★ 「開き直してください」で行き止まりにしない',
+    seen.filter(x=>/開き直して/.test(x)).length===0, seen);
+
  await b.close();
  console.log('\n'+(F?'❌':'✅')+' PASS='+P+'  ❌ FAIL='+F);
  process.exit(0);

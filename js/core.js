@@ -102,24 +102,62 @@ function loadSyncIds(){
     return Array.isArray(a) ? a : null;   // null = まだ一度もそろえていない
   }catch(e){ return null; }
 }
-// クラウドにあって手元に無い物件のうち、「この端末が一度も持っていなかった物件」の名前を返す
-function pvMissingFromLocal(cloudBlds, localBlds){
-  const known = loadSyncIds();
-  const out = [];
-  const c = cloudBlds || {}, l = localBlds || {};
-  for(const id in c){
-    if(!Object.prototype.hasOwnProperty.call(c, id)) continue;
-    if(Object.prototype.hasOwnProperty.call(l, id)) continue;       // 手元にもある
-    if(known && known.indexOf(id) >= 0) continue;                   // 前は持っていた → 意図した削除
-    out.push((c[id] && c[id].name) ? String(c[id].name) : id);
-  }
-  return out;
+// ★ pvMissingFromLocal / pvMissingText は撤去しました（層を減らす 第1回）
+//   どこからも呼ばれなくなったためです。詳しくは doAutoPush の中に書きました。
+//   saveSyncIds / loadSyncIds は、まだ uifix.js が使うので残します。
+try{ window.saveSyncIds = saveSyncIds; window.loadSyncIds = loadSyncIds; }catch(e){}
+
+// ============================================================
+// ★★★ 層を1つにします（2026/9/16）
+//
+//   このアプリには、同じデータを見張る「守り」が3つの層に
+//   分かれて入っています。数えると125か所ありました。
+//
+//     js/core.js    34か所  … 2026年前半。置き場がスプレッドシートだけの頃
+//     js/uifix.js   20か所  … 9/5 の事故のあとに足した層
+//     js/store.js   71か所  … Firestore を入れたときの層
+//
+//   3つは別々の時期に、別々の事故のあとに足しました。
+//   おたがいを知りません。ここが、ずっと不具合の出どころでした。
+//
+//   9/16 の1日に出た6件は、すべて「層どうしの取り違え」です。
+//     ・store.js の内部用のものを uifix.js がデータと誤認した
+//     ・store.js が旗を立てる前に引き返し、uifix.js の古い守りが動いた
+//     ・core.js が保存を止めた。store.js のほうが厳しく見ているのに
+//     ・store.js の「読み込み」が core.js の「保存」用の札を使った
+//     ・札を出すのは2ファイル、消すのは1か所だけだった
+//     ・core.js が store.js の「25秒黙る」設計を壊した
+//
+//   計算間違いは1つもありません。全部、境目です。
+//   検査を増やしても、この種類は減りません。
+//   「思いつかなかったこと」が原因だからです。層を減らすしかありません。
+//
+//   ── どちらの網が細かいか ──
+//
+//     core.js  … 件数くらべ（「半分より減ったら止める」）＝ 粗い網
+//     store.js … 書類1件ずつの版番号と指紋　　　　　　　＝ 細かい網
+//
+//   細かい網が下にあるなら、粗い網は要りません。
+//   それどころか、9/16 に実際に起きたように、邪魔をします。
+//
+//   ── この関数が決めます ──
+//
+//   store.js が Firestore を読み込めていれば、そちらが「正」です。
+//   保存も取り込みも、store.js が最後まで面倒を見ます。
+//   そのときは、core.js の守りを黙らせます。
+//
+//   ★ 消してはいません。store.js が居ないとき
+//     （Firebase が読み込めない・社内の回線でブロックされる等）は、
+//     これまでどおり core.js の守りが働きます。
+//     層を1つ減らすために、新しい単一障害点を作っては意味がありません。
+// ============================================================
+function pvStoreOwns(){
+  try{
+    return (typeof window.__pvLoaded === 'function') && window.__pvLoaded() === true;
+  }catch(e){ return false; }
 }
-function pvMissingText(list){
-  return '　' + list.slice(0, 8).join('、') + (list.length > 8 ? ('　ほか' + (list.length - 8) + '件') : '');
-}
-try{ window.pvMissingFromLocal = pvMissingFromLocal; window.saveSyncIds = saveSyncIds; window.loadSyncIds = loadSyncIds; }catch(e){}
- 
+try{ window.pvStoreOwns = pvStoreOwns; }catch(e){}
+
 function touchLocalMtime(){
   const t = Date.now();
   try{ localStorage.setItem(MTIME_KEY, String(t)); }catch(e){}
@@ -183,9 +221,30 @@ async function doAutoPush(){
     //   これからは送りません。
     //   送れなかったことは画面左下の赤い札に出ます。
     //   回線が戻れば、自動で送り直します。入力は消えません。
+    // ★★ store.js が面倒を見ているときは、この確認をまるごと省きます。
+    //
+    //   ここは「保存の前に、控えのスプレッドシートを読んで、件数をくらべる」
+    //   ものです。置き場がスプレッドシートだけだった頃の守りです。
+    //
+    //   いま store.js の onSave は、同じことを、もっと厳しくやっています。
+    //     ・書類1件ずつ、版番号で追い越しを見つける
+    //     ・中身が空になった物件・契約は、そもそも送らない
+    //     ・確かめられないときは送らない（noEscape）
+    //   件数くらべは、その手前の粗い網でしかありません。
+    //
+    //   省くと、こうなります。
+    //     ・保存1回につき、GAS の往復が1回減ります（速くなります）
+    //     ・9/14 の 22時間半の原因が、根元から無くなります
+    //       （控えが落ちているだけで保存できなくなる、というやつです）
+    //     ・9/16 の「区画0／配置図0」の原因も無くなります
+    //       （この確認のために作る「から箱」が、そもそも作られません）
     let _chkOK = false;
+    if(pvStoreOwns()){
+      _chkOK = true;
+      try{ console.log('[D] 保存前の確認は store.js にまかせます（層を1つに）'); }catch(e){}
+    }
     try{
-      const chk = await postToGas(url, { action:'load' });
+      const chk = _chkOK ? null : await postToGas(url, { action:'load' });
       if(chk && chk.ok){
         _chkOK = true;
         const cloudAll = (chk.payload && chk.payload.buildings) ? chk.payload.buildings : {};
@@ -226,29 +285,30 @@ async function doAutoPush(){
           }catch(e){ _okC = false; }
           if(!_okC){ _autoPushInFlight = false; return; }
         }
-        // ===== 取りこぼし防止(pv-sync-guard) =====
-        // 件数が半分あっても、1件だけ消える押し戻しは今までの安全装置を素通りしていました。
-        // クラウドにあって、この端末が一度も持っていない物件があれば、送信そのものを止めます。
-        const _miss = pvMissingFromLocal(cloudAll, all);
-        if(_miss.length){
-          // ★ ここは止めたままにします。ほかの人が作った物件を消してしまうためです。
-          //    ただし、ほうっておいても直るようにしました。
-          //    画面はいま15分ごとにクラウドを見ているので、
-          //    待つか、PIVOTロゴを押せば取り込まれます。そのあと保存できます。
-          setSyncStatus('error', '⚠️ まだ取り込めていない物件があります');
-          alert('いま送るのを見合わせました。\n\n' +
-                'クラウドにあって、この端末にまだ無い物件が ' + _miss.length + '件あります。\n' +
-                pvMissingText(_miss) + '\n\n' +
-                'このまま送ると、これらが消えてしまいます。\n\n' +
-                '【どうすれば】\n' +
-                '　画面いちばん上の PIVOT ロゴを押してください。\n' +
-                '　取り込まれたあと、もう一度 保存すれば通ります。\n' +
-                '　（何もしなくても、15分以内に自動で取り込まれます）\n\n' +
-                '入力した内容は、この端末に残っています。消えていません。');
-          try{ if(typeof window.forcePullLatest === 'function') setTimeout(window.forcePullLatest, 800); }catch(e){}
-          _autoPushInFlight = false;
-          return;
-        }
+        // ===== 取りこぼし防止(pv-sync-guard) …… 撤去しました（層を減らす 第1回） =====
+        //
+        //   ここには「クラウドにあって、この端末が一度も持っていない物件が
+        //   あれば、送信そのものを止める」という守りがありました。
+        //
+        //   撤去した理由は2つです。
+        //
+        //   ① もう動いていませんでした。
+        //      js/uifix.js が window.pvMissingFromLocal を空の関数で
+        //      上書きしています。この守りは、そのときから一度も
+        //      動いていません。死んだ守りが残っていただけです。
+        //
+        //   ② 動いたとしても、要りません。
+        //      これを作った当時、保存はスプレッドシートを丸ごと
+        //      書き替える形でした。手元に無い物件は、丸ごと消えます。
+        //      だから止める必要がありました。
+        //
+        //      いまは js/store.js が、書類を1件ずつ保存します。
+        //      知らない物件は、そもそも触りません。消しようがありません。
+        //
+        //   守れているかどうかは、机上ではなく検査で確かめています。
+        //     tests/tthin.cjs
+        //       「ほかの人が作った物件を、この端末の保存で消さない」
+        //     撤去の前と後で、同じ検査が通ることを確かめました。
       }
     }catch(e){
       _chkOK = false;
@@ -351,7 +411,16 @@ async function autoPullOnStart(){
         try{ localBuildings = pbLoadAll() || {}; }catch(e){ localBuildings = {}; }
         const localBC = Object.keys(localBuildings).length;
         const cloudBC = Object.keys(buildings || {}).length;
-        if(localBC >= 3 && cloudBC < localBC * 0.5){
+        // ★ store.js が面倒を見ているときは、この件数くらべを省きます。
+        //   ここへ届く payload は、store.js の onLoad が Firestore から
+        //   組み立てたものです。しかも store.js は、そのとき手元にも
+        //   同じ中身を書き終えています（まだ送っていない直しは残したまま）。
+        //   つまり、ここでの件数くらべは「自分で書いたものを自分でくらべる」
+        //   だけになっており、守りとして働いていません。
+        //   働くとすれば、邪魔をするときだけです。
+        if(pvStoreOwns()){
+          if(buildings && typeof buildings === 'object') pbSaveRaw(buildings);
+        } else if(localBC >= 3 && cloudBC < localBC * 0.5){
           // クラウドの物件が異常に少ない → 物件は取り込まず手元を守る。
           // ★pv-sync-guard: ここで手元をクラウドへ送り返すのはやめました(古い内容の押し戻しの原因)
           setSyncStatus('error', '⚠️ 物件データを保護しました');
@@ -785,7 +854,9 @@ async function loginPull(opt){
   const _lbc = Object.keys(_lb).length;
   const _cbc = Object.keys(buildings || {}).length;
   let _guarded = false;
-  if(_lbc >= 1 && _cbc < _lbc * 0.5){
+  // ★ store.js が面倒を見ているときは、この件数くらべを省きます（上と同じ理由）。
+  const _owns = pvStoreOwns();
+  if(!_owns && _lbc >= 1 && _cbc < _lbc * 0.5){
     _guarded = true;
   } else {
     pbSaveRaw(buildings);
@@ -795,7 +866,7 @@ async function loginPull(opt){
   try{ _lc = JSON.parse(localStorage.getItem(ctKey()) || '{}'); }catch(e){ _lc = {}; }
   const _lcc = Object.keys(_lc).length;
   const _ccc = Object.keys(contracts || {}).length;
-  if(_lcc >= 1 && _ccc < _lcc * 0.5){
+  if(!_owns && _lcc >= 1 && _ccc < _lcc * 0.5){
     _guarded = true;
   } else {
     localStorage.setItem(ctKey(), JSON.stringify(contracts || {}));
