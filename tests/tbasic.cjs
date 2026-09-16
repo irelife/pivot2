@@ -72,7 +72,11 @@ const NET={up:true};
        if(typeof o.where==='function') p.where=function(){ return wrap(o.where.apply(o,arguments)); };
        if(typeof o.set==='function') p.set=function(){ var e=new Error('resource-exhausted'); e.code='resource-exhausted'; return Promise.reject(e); };
        return p; };
-     window.firebase.firestore=function(){ return wrap(f()); };
+     var nf=function(){ return wrap(f()); };
+     /* ★ FieldValue などの「おまけ」も、そのまま持っていきます。
+          落とすと realtime.js の呼び鈴が転びます（本物の SDK は持っています） */
+     for(var kk in f){ if(Object.prototype.hasOwnProperty.call(f,kk)) nf[kk]=f[kk]; }
+     window.firebase.firestore=nf;
      window.firebase.runTx=null;
    } else if(window.__fsSaved){ window.firebase.firestore=window.__fsSaved; window.__fsSaved=null; }
  }, on);

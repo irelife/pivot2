@@ -76,6 +76,10 @@ function setSyncStatus(state, text){
 // 起動時はクラウドを読み、クラウドの時刻が自分より新しいときだけ取り込む(古い物で上書きしない)。
 const MTIME_KEY = insPrefix() + 'local_mtime';
 let _hasUnsavedChanges = false;
+// ★ store.js から見られるようにします。
+//   「まだクラウドへ送っていない直しが、この端末にあるか」です。
+//   読み込みに失敗しただけのときに「未送信」と出さないために使います。
+try{ window.__pvHasUnsaved = function(){ return !!_hasUnsavedChanges; }; }catch(e){}
 
 /* ==================================================================
  * pv-sync-guard 2026-08-31
@@ -251,12 +255,37 @@ async function doAutoPush(){
       try{ console.warn('[D] 保存前の確認ができませんでした', e); }catch(x){}
     }
     if(!_chkOK){
-      // 確認できていないので送りません。札を出して、あとで送り直します。
-      setSyncStatus('error', '⚠️ 確認できないので保存を見送りました');
-      try{ if(window.__pvUnsent && window.__pvUnsent.mark) window.__pvUnsent.mark('net'); }catch(x){}
-      try{ console.warn('[D] 安全確認ができないため、送信を見送りました（あとで送り直します）'); }catch(x){}
-      _autoPushInFlight = false;
-      return;
+      // ★★ ここは、控えのスプレッドシート（GAS）が読めたかどうかを見ています。
+      //
+      //   これを作った当時は、置き場がスプレッドシートだけでした。
+      //   いまは違います。物件の本体は Firestore です。
+      //   スプレッドシートは、そのあとに送る「控え」です。
+      //
+      //   控えが落ちているというだけで保存を止めると、
+      //   Firestore がどれだけ元気でも、その端末は
+      //   永久に保存できなくなります。送り直しも毎回ここで止まります。
+      //   （2026/9/14〜15 の 22時間半、9/16 の 4時間は、これです）
+      //
+      //   Firestore を読み込めているなら、止める必要はありません。
+      //   store.js の onSave が、もっと厳しく確かめているからです。
+      //     ・書類1件ずつの版番号で、追い越しを見つける
+      //     ・中身が空になった物件・契約は、そもそも送らない
+      //     ・確かめられないときは送らない（noEscape）
+      //   スプレッドシートの件数くらべは、その手前の粗い網でしかありません。
+      //
+      //   ですので「Firestore を読み込めている」ときだけ、先へ進みます。
+      //   読み込めていないときは、これまでどおり止めます。
+      let _fsReady = false;
+      try{ _fsReady = (typeof window.__pvLoaded === 'function') && window.__pvLoaded() === true; }catch(x){ _fsReady = false; }
+      if(!_fsReady){
+        // 確認できていないので送りません。札を出して、あとで送り直します。
+        setSyncStatus('error', '⚠️ 確認できないので保存を見送りました');
+        try{ if(window.__pvUnsent && window.__pvUnsent.mark) window.__pvUnsent.mark('not-loaded'); }catch(x){}
+        try{ console.warn('[D] 安全確認ができないため、送信を見送りました（あとで送り直します）'); }catch(x){}
+        _autoPushInFlight = false;
+        return;
+      }
+      try{ console.warn('[D] 控えのスプレッドシートは読めませんでしたが、Firestore は読み込めているので保存を進めます'); }catch(x){}
     }
     const mtime = getLocalMtime() || touchLocalMtime();
     const r = await postToGas(url, { action:'save', payload:{ buildings: all, contracts: contracts, owners: ownersData, mtime: mtime } });
@@ -266,7 +295,14 @@ async function doAutoPush(){
       setSyncStatus('saved', '✅ 同期済み');
       setTimeout(() => { const e=document.getElementById('sync-status'); if(e && e.dataset.state==='saved') setSyncStatus('idle',''); }, 2000);
     } else {
-      setSyncStatus('error', '⚠️ 同期失敗');
+      // ★ 未送信の札が、もう面倒を見ています。
+      //   あれは「25秒は黙って様子を見る」ことにしてあります。
+      //   電波の切り替わりなど、数秒で直るもののたびに
+      //   「⚠️ 同期失敗」と出すと、壊れたように見えるためです。
+      //   札が出ているあいだは、ここで上書きしません。
+      let _u = null;
+      try{ _u = (window.__pvUnsent && window.__pvUnsent.read) ? window.__pvUnsent.read() : null; }catch(e){}
+      if(!_u) setSyncStatus('error', '⚠️ 同期失敗');
     }
   }catch(e){
     setSyncStatus('error', '⚠️ 同期失敗(通信)');

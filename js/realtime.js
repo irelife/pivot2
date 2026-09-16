@@ -104,12 +104,32 @@
     var token = clientId + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7);
     lastToken = token;
 
-    return bell.set({
-      token: token,
-      sender: clientId,
-      action: action || '',
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, {merge:true}).then(function(){
+    /* ★ 呼び鈴は「ほかの端末に合図する」だけのものです。
+     *
+     *  保存そのものは、もう終わっています。
+     *  ですので、ここで何が起きても、保存を巻き込んではいけません。
+     *
+     *  これまで .catch() は付けていましたが、あれは
+     *  「送ったあとに失敗したとき」しか拾えません。
+     *  送る中身を作るところで転ぶと、拾われないエラーになります。
+     *  （ここは setTimeout の中なので、呼び出し元の try でも拾えません）
+     *  まるごと包みます。                                          */
+    var payload;
+    try{
+      payload = {
+        token : token,
+        sender: clientId,
+        action: action || '',
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+    }catch(e){
+      hit('errors');
+      try{ console.warn('[RT] 呼び鈴の中身を作れませんでした。通常保存は完了しています。', e); }catch(x){}
+      return Promise.resolve(false);
+    }
+
+    try{
+    return bell.set(payload, {merge:true}).then(function(){
       hit('bellWrites');
       console.log('[RT] 呼び鈴を鳴らしました:', action || '');
       return true;
@@ -118,6 +138,11 @@
       console.warn('[RT] 呼び鈴の書込みに失敗。通常保存は完了しています。', e);
       return false;
     });
+    }catch(e){
+      hit('errors');
+      try{ console.warn('[RT] 呼び鈴を鳴らせませんでした。通常保存は完了しています。', e); }catch(x){}
+      return Promise.resolve(false);
+    }
   }
 
   function ring(action){
