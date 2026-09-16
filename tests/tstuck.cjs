@@ -65,11 +65,17 @@ let P=0,F=0; const ok=(n,c,x)=>{ if(c){P++;console.log('  ✅ '+n);} else {F++;c
  const pre=await pg.evaluate(()=>(typeof insPrefix==='function'?insPrefix():'pivot_'));
  const BP=pre.replace(/_+$/,'')+'/data/buildings';
 
+ /* ★ 種まきは「開き直したあと」にします。
+      開き直しをまたぐと、にせクラウドの中身が残らないことがあり、
+      検査がときどき落ちていました（土台の作り方の問題です）。
+      PIVOT3 側で、実際に落ちました。                               */
+ await pg.reload(); await pg.waitForTimeout(3000);
  await pg.evaluate((p)=>{ for(var i=1;i<=20;i++){ var sp={};
    sp['1']={no:'1',type:'並',tou:'',room:'',user:'',price:0,status:'空',note:''};
    window.__seed(p,'b'+i,{id:'b'+i,name:'物件'+i,addr:'住所'+i,spots:sp,
      rev:1,updatedAt:'2026-09-01T00:00:00.000Z',updatedBy:'x'}); } }, BP);
- await pg.reload(); await pg.waitForTimeout(7000);
+ await pg.evaluate(()=>{ try{ window.forcePullLatest(); }catch(e){} });
+ await pg.waitForTimeout(8000);
 
  const loaded=()=>pg.evaluate(()=>{ try{ return window.__pvLoaded(); }catch(e){ return 'ない'; } });
  const cloudName=()=>pg.evaluate((p)=>{ try{ return (window.__all()[p+'/b1']||{}).name; }catch(e){ return String(e); } }, BP);
