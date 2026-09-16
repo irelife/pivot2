@@ -17,6 +17,7 @@ let P=0,F=0; const ok=(n,c,x)=>{ if(c){P++;console.log('  ✅ '+n);} else {F++;c
  const b=await chromium.launch({executablePath: process.env.CHROMIUM_PATH || undefined});
  const pg=await b.newPage({viewport:{width:1200,height:900}});
  const dlg=[]; pg.on('dialog',d=>{ dlg.push(d.message().slice(0,60).replace(/\n/g,' ')); d.accept(); });
+ const logs=[]; pg.on('console',m=>logs.push(String(m.text()).slice(0,120)));
  const errs=[]; pg.on('pageerror',e=>errs.push(e.message.slice(0,160)));
  await pg.route('**://**', r=>{ const u=r.request().url();
    if(u.startsWith('file://')) return r.continue();
@@ -59,7 +60,15 @@ let P=0,F=0; const ok=(n,c,x)=>{ if(c){P++;console.log('  ✅ '+n);} else {F++;c
  ok('★★ 契約者名が残っている', c1.c1.contractor==='契約者1', c1.c1.contractor);
  ok('★★ 物件名も残っている', c1.c1.property==='ナディア', c1.c1.property);
  ok('★ 件数も5件のまま', Object.keys(c1).length===5, Object.keys(c1).length);
- ok('★ 人に知らせた', dlg.filter(x=>x.indexOf('契約')>=0).length>0, dlg);
+ /* ★ 2026/9/16 まで、ここはポップアップを期待していました。
+    でも「壊れた1件があると、保存を全部止めてポップアップ」は行き止まりでした。
+    開き直しても端末の置き場に残るので直らず、同じ知らせが出続けて
+    1件も保存できなくなります（実際に起きました）。
+    いまは、壊れた1件だけを送らず、ほかは保存します。
+    大事なのは「クラウドが守られること」で、そこは上の行で見ています。 */
+ ok('★ 人に知らせている（止めずに知らせる）',
+    logs.filter(x=>/中身が空の契約/.test(x)).length>0 || dlg.length>0,
+    logs.slice(-3));
 
  console.log('\n❸ 画面のエラー');
  ok('★ エラーなし', errs.length===0, errs);

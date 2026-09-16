@@ -1481,41 +1481,45 @@
      *  クラウドの中身が、項目ごとに消されていきます。
      *  黙って一部だけ送るのではなく、はっきり止めて、人に知らせます。 */
     try{
+      /* ★★ 壊れた契約があっても、保存を止めません（2026/9/16）
+       *
+       *  これまでは、中身が空になった契約が1件でもあると、
+       *  保存そのものを止めて、こう出していました。
+       *    「ページを開き直してください」
+       *
+       *  ところが、壊れた契約は端末の置き場に残ったままなので、
+       *  開き直しても直りません。次の保存でも、また同じものが出ます。
+       *  保存が一切できないまま、同じ知らせが出続けます。行き止まりです。
+       *  （2026/9/16、実際にそうなりました）
+       *
+       *  そして、止める必要がそもそもありません。
+       *  planCts() を読むと分かりますが、壊れた契約は
+       *    ・送りません（changed に入れません）
+       *    ・消したことにもしません（removed に入れません）
+       *  クラウドの正しい契約は、そのまま残ります。安全です。
+       *
+       *  これは「丸ごと書き替え」だった頃の守りが、
+       *  「書類1件ずつ」の層の上に残っていたものです。
+       *  1件の壊れで、ほかの全部を止めてはいけません。
+       *
+       *  壊れていることは、画面の上に静かに出します。
+       *  保存は、ちゃんと通します。                                  */
       var mapC = (body && body.payload && body.payload.contracts) || null;
       var plC = (mapC && typeof mapC === 'object' && count(mapC)) ? planCts(mapC) : null;
       if(plC && plC.hollow && plC.hollow.length){
-        status('error', '⚠️ この端末の契約が壊れています（保存しませんでした）');
-        try{ console.error('[E] 中身が空の契約が ' + plC.hollow.length + ' 件あります', plC.hollow); }catch(e){}
-        try{
-          window.alert('この端末が持っている契約のうち ' + plC.hollow.length + ' 件が、\n' +
-                       '契約者名も物件名も無い状態になっています。\n\n' +
-                       'このまま保存すると、クラウドの契約が消えます。\n' +
-                       '保存しませんでした。\n\n' +
-                       'ページを開き直してください。それでも直らないときは、\n' +
-                       'このブラウザのサイトデータを消してから、開き直してください。');
-        }catch(e){}
-        try{ if(window.__pvUnsent && window.__pvUnsent.mark) window.__pvUnsent.mark('not-loaded'); }catch(e){}
-        return Promise.resolve({ ok:false, error:'hollow-ct',
-                                 message:'この端末の契約が壊れているため、保存しませんでした' });
+        status('error', '⚠️ 中身が空の契約 ' + plC.hollow.length + ' 件は送りません（ほかは保存します）');
+        try{ console.warn('[E] 中身が空の契約 ' + plC.hollow.length + ' 件は送りません', plC.hollow); }catch(e){}
       }
     }catch(e){}
 
     try{
+      /* ★ 物件も、契約とまったく同じ考え方です（上の長い説明をご覧ください）。
+           plan() が、中身が空の物件を送りません。消したことにもしません。
+           1件の壊れで、ほかの全部を止めません。                       */
       var pl0 = plan(bl);
       if(pl0.hollow && pl0.hollow.length){
-        status('error', '⚠️ この端末の内容が壊れています（保存しませんでした）');
-        try{ console.error('[D] 中身が空の物件が ' + pl0.hollow.length + ' 件あります', pl0.hollow); }catch(e){}
-        try{
-          window.alert('この端末が持っている物件のうち ' + pl0.hollow.length + ' 件が、\n' +
-                       '名前も住所も区画も無い状態になっています。\n\n' +
-                       'このまま保存すると、クラウドの中身が消えます。\n' +
-                       '保存しませんでした。\n\n' +
-                       'ページを開き直してください。それでも直らないときは、\n' +
-                       'このブラウザのサイトデータを消してから、開き直してください。');
-        }catch(e){}
-        try{ if(window.__pvUnsent && window.__pvUnsent.mark) window.__pvUnsent.mark('not-loaded'); }catch(e){}
-        return Promise.resolve({ ok:false, error:'hollow',
-                                 message:'この端末の内容が壊れているため、保存しませんでした' });
+        status('error', '⚠️ 中身が空の物件 ' + pl0.hollow.length + ' 件は送りません（ほかは保存します）');
+        try{ console.warn('[D] 中身が空の物件 ' + pl0.hollow.length + ' 件は送りません', pl0.hollow); }catch(e){}
       }
     }catch(e){}
 
