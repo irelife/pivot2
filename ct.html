@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>契約のしらべ（読むだけ）</title>
+<style>
+ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+      margin:0;padding:16px;background:#f6f6f7;color:#17171a;font-size:15px;line-height:1.7}
+ h1{font-size:19px;margin:0 0 4px}
+ .note{font-size:12.5px;color:#666;margin:0 0 16px}
+ .card{background:#fff;border-radius:12px;padding:14px 16px;margin:0 0 12px;
+       box-shadow:0 1px 3px rgba(0,0,0,.08)}
+ .card h2{font-size:15px;margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid #eee}
+ table{width:100%;border-collapse:collapse;font-size:14px}
+ td{padding:5px 0;vertical-align:top}
+ td:first-child{color:#666;width:52%}
+ td:last-child{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+ .ng{color:#b91c1c}.ok{color:#15803d}
+ .msg{padding:12px 14px;border-radius:10px;font-weight:700;margin:0 0 12px}
+ .msg.ng{background:#fee2e2;color:#991b1b}
+ .msg.ok{background:#dcfce7;color:#166534}
+ .msg.wait{background:#e5e7eb;color:#374151}
+ pre{background:#f3f4f6;padding:10px;border-radius:8px;font-size:11.5px;
+     overflow:auto;white-space:pre-wrap;word-break:break-all;margin:8px 0 0}
+</style></head><body>
+
+<h1>契約のしらべ</h1>
+<p class="note">読むだけのページです。保存も削除もしません。<br>
+この端末と、クラウド（Firestore）を、そのまま見ます。</p>
+
+<div id="say" class="msg wait">読み込んでいます…</div>
+
+<div class="card"><h2>この端末</h2><table id="t-local"></table></div>
+<div class="card"><h2>クラウド（Firestore）</h2><table id="t-cloud"></table></div>
+<div class="card"><h2>中身の見本（最初の3件）</h2><pre id="sample">…</pre></div>
+<div class="card"><h2>この画面が見ているところ</h2><table id="t-where"></table></div>
+
+<script src="js/firebase-config.js"></script>
+<script>
+/* ★ core.js は読み込みません。
+     読み込むと、開いた瞬間に取り込みが走って、この端末の中身が
+     書き替わってしまいます。判断に使う関数だけ、ここに写します。 */
+function insPrefix(){
+  try{
+    var seg = (location.pathname || '').split('/').filter(function(s){ return s; });
+    var name = seg.length ? seg[seg.length - 1] : '';
+    if(/\.html?$/i.test(name)) name = seg.length > 1 ? seg[seg.length - 2] : '';
+    return name ? (name + '_') : 'pivot_';
+  }catch(e){ return 'pivot_'; }
+}
+var PFX = insPrefix();
+var INS = PFX.replace(/_+$/, '') || 'pivot';
+
+function row(t, k, v, cls){
+  var tr = document.createElement('tr');
+  var a = document.createElement('td'); a.textContent = k;
+  var b = document.createElement('td'); b.textContent = v; if(cls) b.className = cls;
+  tr.appendChild(a); tr.appendChild(b); t.appendChild(tr);
+}
+function hasBody(c){
+  if(!c || typeof c !== 'object') return false;
+  var SKIP = { id:1, rev:1, updatedAt2:1, updatedBy2:1, updatedAt:1, _addedAt:1 }, f;
+  for(f in c){
+    if(!Object.prototype.hasOwnProperty.call(c, f)) continue;
+    if(SKIP[f]) continue;
+    var v = c[f];
+    if(v === null || v === undefined) continue;
+    if(typeof v === 'string' && !v.trim()) continue;
+    return true;
+  }
+  return false;
+}
+function say(cls, t){ var e = document.getElementById('say'); e.className = 'msg ' + cls; e.textContent = t; }
+
+/* ── ① この端末 ───────────────────────── */
+var local = {}, lN = 0, lBody = 0;
+try{ local = JSON.parse(localStorage.getItem(PFX + 'contract_kanban_v2') || '{}') || {}; }catch(e){ local = {}; }
+var ids = Object.keys(local);
+lN = ids.length;
+ids.forEach(function(i){ if(hasBody(local[i])) lBody++; });
+
+var tl = document.getElementById('t-local');
+row(tl, '契約の件数', lN + ' 件');
+row(tl, '中身が入っているもの', lBody + ' 件', lBody === lN ? 'ok' : 'ng');
+row(tl, '中身が空のもの', (lN - lBody) + ' 件', (lN - lBody) ? 'ng' : 'ok');
+
+/* 中身の見本 */
+var sm = {};
+ids.slice(0, 3).forEach(function(i){ sm[i] = local[i]; });
+document.getElementById('sample').textContent = JSON.stringify(sm, null, 1).slice(0, 1200) || '（ありません）';
+
+var tw = document.getElementById('t-where');
+row(tw, 'この画面のアドレス', location.pathname);
+row(tw, '見ている置き場', PFX + 'contract_kanban_v2');
+row(tw, 'クラウドの道', INS + '/data/contracts');
+
+/* ── ② クラウド ───────────────────────── */
+var tc = document.getElementById('t-cloud');
+try{
+  firebase.initializeApp(window.firebaseConfig);
+  firebase.auth().onAuthStateChanged(function(u){
+    if(!u){ say('wait', 'ログインしていません。先に PIVOT を開いてログインしてから、このページを開いてください。'); return; }
+    firebase.firestore().collection(INS).doc('data').collection('contracts').get()
+      .then(function(qs){
+        var cN = 0, cBody = 0, onlyCloud = 0, sample = [];
+        var cloudIds = {};
+        qs.forEach(function(d){
+          cN++; cloudIds[d.id] = 1;
+          var v = d.data();
+          if(hasBody(v)) cBody++;
+          if(sample.length < 3) sample.push(d.id);
+        });
+        ids.forEach(function(i){ if(!cloudIds[i]) onlyCloud++; });
+
+        row(tc, '契約の件数', cN + ' 件');
+        row(tc, '中身が入っているもの', cBody + ' 件', cBody === cN ? 'ok' : 'ng');
+        row(tc, '中身が空のもの', (cN - cBody) + ' 件', (cN - cBody) ? 'ng' : 'ok');
+        row(tc, 'クラウドから読めたか', qs.metadata && qs.metadata.fromCache ? '⚠️ 端末の控えから' : 'クラウドから', 
+            qs.metadata && qs.metadata.fromCache ? 'ng' : 'ok');
+        row(tc, 'この端末にしか無いもの', onlyCloud + ' 件');
+
+        if(cBody >= 1 && lBody === 0){
+          say('ok', '✅ クラウドは無事です（中身つき ' + cBody + ' 件）。\n' +
+                    'この端末だけが壊れています。直せます。');
+        }else if(cBody === 0 && cN > 0){
+          say('ng', '⚠️ クラウドの契約も、中身が空になっています（' + cN + ' 件）。\n' +
+                    'すぐお知らせください。履歴から戻します。');
+        }else if(lBody === lN && cBody === cN){
+          say('ok', '✅ この端末もクラウドも、異常はありません。');
+        }else{
+          say('wait', 'この端末 中身つき ' + lBody + '/' + lN +
+                      ' ／ クラウド 中身つき ' + cBody + '/' + cN);
+        }
+      })
+      .catch(function(e){ say('ng', 'クラウドを読めませんでした： ' + (e && e.message ? e.message : e)); });
+  });
+}catch(e){ say('ng', '準備できませんでした： ' + (e && e.message ? e.message : e)); }
+</script>
+</body></html>

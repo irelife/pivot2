@@ -1055,7 +1055,7 @@
     try{ mine = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : {}; }catch(e){ mine = {}; }
     if(!mine || typeof mine !== 'object') mine = {};
     var oldR = readMap(revKey()), oldS = readMap(sigKey()), oldF = fprRead();
-    var out = {}, revs = {}, sigs = {}, fprs = {}, id, mySig, kept = 0;
+    var out = {}, revs = {}, sigs = {}, fprs = {}, id, mySig, kept = 0, broke = 0;
     var has = function(o, k){ return o && Object.prototype.hasOwnProperty.call(o, k); };
 
     for(id in fs.buildings){
@@ -1064,6 +1064,17 @@
         mySig = null;
         try{ mySig = sig(toDoc(id, mine[id])); }catch(e){ mySig = null; }
         if(mySig !== null && mySig !== oldS[id]){
+          /* ★★ 契約とまったく同じ理由です（adoptCts の長い説明をご覧ください）。
+               中身が空になった手元のものは、直しではなく壊れです。
+               クラウドに中身があるなら、クラウドを取ります。        */
+          if(!bodyOf(toDoc(id, mine[id])) && bodyOf(toDoc(id, fs.buildings[id]))){
+            out[id]  = fs.buildings[id];
+            revs[id] = fs.revs[id];
+            sigs[id] = fs.sigs[id];
+            try{ fprs[id] = fprOf(toDoc(id, fs.buildings[id])); }catch(e){}
+            broke++;
+            continue;
+          }
           out[id]  = mine[id];                 /* まだ送っていない直し → 残します */
           revs[id] = oldR[id];
           sigs[id] = oldS[id];
@@ -1084,6 +1095,10 @@
       kept++;
     }
     if(kept){ try{ console.log('[D] まだ送っていない直し ' + kept + ' 件は、手元を残しました'); }catch(e){} }
+    if(broke){
+      try{ console.warn('[D] 中身が空になっていた物件 ' + broke + ' 件は、クラウドから戻しました'); }catch(e){}
+      try{ status('saved', '✅ 中身が空になっていた物件 ' + broke + ' 件を、クラウドから戻しました'); }catch(e){}
+    }
     return { out:out, revs:revs, sigs:sigs, fprs:fprs, kept:kept };
   }
 
@@ -1093,7 +1108,7 @@
     try{ mine = JSON.parse(localStorage.getItem(ctLS()) || '{}') || {}; }catch(e){ mine = {}; }
     if(!mine || typeof mine !== 'object') mine = {};
     var oldR = readMap(ctRevK()), oldS = readMap(ctSigK());
-    var out = {}, revs = {}, sigs = {}, id, mySig, kept = 0;
+    var out = {}, revs = {}, sigs = {}, id, mySig, kept = 0, broke = 0;
     var has = function(o, k){ return o && Object.prototype.hasOwnProperty.call(o, k); };
 
     for(id in cs.map){
@@ -1102,6 +1117,27 @@
         mySig = null;
         try{ mySig = sig(ctDoc(id, mine[id])); }catch(e){ mySig = null; }
         if(mySig !== null && mySig !== oldS[id]){
+          /* ★★ 中身が空になった手元のものは、
+           *   「まだ送っていない直し」ではありません。壊れているだけです。
+           *
+           *  2026/9/16、契約215件すべてが
+           *    （物件未入力）（契約者未入力）
+           *  になりました。手元の置き場が壊れた形です。
+           *
+           *  ところが、ここが「指紋がちがう＝この端末の新しい直し」と
+           *  読んで、壊れたほうを残していました。
+           *  だから何度開き直しても、クラウドの正しい契約が戻りません。
+           *
+           *  クラウドに中身があって、手元が空なら、クラウドを取ります。
+           *  （送るほうは、もともと空のものを送らない作りです。
+           *    ですので、クラウド側は無事です）                     */
+          if(!ctBody(mine[id]) && ctBody(cs.map[id])){
+            out[id]  = cs.map[id];
+            revs[id] = cs.revs[id];
+            sigs[id] = cs.sigs[id];
+            broke++;
+            continue;
+          }
           out[id]  = mine[id];
           revs[id] = oldR[id];
           sigs[id] = oldS[id];
@@ -1120,7 +1156,11 @@
       kept++;
     }
     if(kept){ try{ console.log('[E] まだ送っていない契約の直し ' + kept + ' 件は、手元を残しました'); }catch(e){} }
-    return { out:out, revs:revs, sigs:sigs, kept:kept };
+    if(broke){
+      try{ console.warn('[E] 中身が空になっていた契約 ' + broke + ' 件は、クラウドから戻しました'); }catch(e){}
+      try{ status('saved', '✅ 中身が空になっていた契約 ' + broke + ' 件を、クラウドから戻しました'); }catch(e){}
+    }
+    return { out:out, revs:revs, sigs:sigs, kept:kept, broke:broke };
   }
 
   function commit(pl){
