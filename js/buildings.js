@@ -3973,13 +3973,7 @@ async function prefetchAllImages(){
     for(let i = 0; i < missing.length; i += BATCH){
       const chunk = missing.slice(i, i + BATCH);
       await Promise.all(chunk.map(id =>
-        postToGas(url, { action: 'getImageUrl', fileId: id }, 25000)
-          .then(r => {
-            if(r && r.ok && r.base64){
-              cacheImage(id, 'data:'+r.mimeType+';base64,'+r.base64);
-            }
-          })
-          .catch(() => { /* 先読み失敗は無視。開いたとき個別に再取得される */ })
+        fetchImagePatient(id).catch(() => null)   /* 先読みの失敗は無視。開いたとき取り直します */
       ));
     }
   } finally {
@@ -3995,10 +3989,105 @@ function renderImageSection(){
   preloadMissingImages();
 }
 
-// 未読込の画像を並列で一気に取得
+// 未読込の画像を取得
 let _preloadPromises = {};
 // 読込に失敗した画像ID(再試行用)
 let _imgFailed = {};
+// いま何回目を試しているか（画面に出して、止まって見えないようにします）
+let _imgTry = {};
+
+// ==============================================================
+// ★★ 画像を、あきらめずに取りにいく係（2026/9/17）
+//
+//  2026/9/16、iPad で間取り図が「読み込み中 → 再試行」から
+//  進まなくなりました。スマホでは見えていました。
+//
+//  なぜ差が出たか：
+//    ・スマホ … 前に取った控えが端末（IndexedDB）に残っていた
+//    ・iPad  … 控えが無いので、GAS 経由で取りに行くしかなかった
+//
+//  そこが弱いままでした。
+//
+//    ① 1回きり。失敗したら、あとは人が「再試行」を押すだけ
+//    ② 25秒で打ち切り。Apps Script は、しばらく使っていないと
+//      目を覚ますのに時間がかかります（コールドスタート）
+//    ③ 物件を開くと、配置図2枚＋写真5枚を「いっぺんに」投げる
+//      回線が細いと、7本が互いを遅くして、そろって時間切れになります
+//
+//  物件や契約は Firestore に移しましたが、画像だけは
+//  いまも Google ドライブ（GAS の向こう）にしかありません。
+//  置き場を増やすのは別の話として、まず取りかたを堅くします。
+//
+//    ・いっぺんに投げるのは 2本まで（残りは順番待ち）
+//    ・1枚につき 3回まで、間を空けて試す（2秒 → 5秒）
+//    ・待つ時間を、回ごとに伸ばす（25秒 → 40秒 → 60秒）
+//
+//  これで、目を覚ましていない Apps Script でも間に合います。
+// ==============================================================
+const IMG_TRIES   = [25000, 40000, 60000];   /* 何秒待つか（3回ぶん） */
+const IMG_BACKOFF = [2000, 5000];            /* 次に試すまで、どれだけ空けるか */
+const IMG_PARALLEL = 2;                      /* いっぺんに投げるのは2本まで */
+let _imgSlots = 0;
+const _imgQueue = [];
+
+function _imgSlotFree(){
+  _imgSlots--;
+  const next = _imgQueue.shift();
+  if(next) next();
+}
+function _imgSlotTake(){
+  return new Promise(go => {
+    if(_imgSlots < IMG_PARALLEL){ _imgSlots++; go(); }
+    else _imgQueue.push(() => { _imgSlots++; go(); });
+  });
+}
+
+/* 画像1枚を、あきらめずに取ります。
+   取れたら data:～ を返し、駄目なら null を返します。 */
+async function fetchImagePatient(id, onTry){
+  const url = (typeof getCloudUrl === 'function') ? getCloudUrl() : '';
+  if(!url || !id) return null;
+  await _imgSlotTake();
+  try{
+    for(let i = 0; i < IMG_TRIES.length; i++){
+      if(typeof onTry === 'function'){ try{ onTry(i + 1, IMG_TRIES.length); }catch(e){} }
+      let r = null;
+      try{ r = await postToGas(url, { action:'getImageUrl', fileId:id }, IMG_TRIES[i]); }
+      catch(e){ r = null; }
+      if(r && r.ok && r.base64){
+        const dataUrl = 'data:' + r.mimeType + ';base64,' + r.base64;
+        cacheImage(id, dataUrl);
+        try{
+          _currentImages.mime = _currentImages.mime || {};
+          if(r.mimeType) _currentImages.mime[id] = r.mimeType;
+        }catch(e){}
+        return dataUrl;
+      }
+      /* ★ 「この画像は存在しません」と、はっきり言われたときは、
+           何度試しても同じです。すぐやめます。                */
+      if(r && r.ok === false && /見つかりません|not found|存在しません/i.test(String(r.message || ''))){
+        _imgFailed[id] = r.message;
+        return null;
+      }
+      if(i < IMG_BACKOFF.length){
+        await new Promise(w => setTimeout(w, IMG_BACKOFF[i]));
+      }
+    }
+    _imgFailed[id] = '時間内に取れませんでした（' + IMG_TRIES.length + '回ためしました）';
+    return null;
+  } finally {
+    _imgSlotFree();
+  }
+}
+try{ window.fetchImagePatient = fetchImagePatient; }catch(e){}
+
+/* 「読込中...」に、何回目かを足します。
+   ただ待たされていると、壊れたように見えるためです。 */
+function imgLoadingText(id){
+  const t = _imgTry[id];
+  if(!t || t.n <= 1) return '読込中...';
+  return '読込中... (' + t.n + '/' + t.of + '回目)';
+}
 async function preloadMissingImages(){
   const url = getCloudUrl();
   const idsToLoad = [];
@@ -4034,24 +4123,25 @@ async function preloadMissingImages(){
         delete _preloadPromises[id];
         return;
       }
-      return postToGas(url, { action: 'getImageUrl', fileId: id }, 25000)
-        .then(r => {
-          if(r && r.ok && r.base64){
-            const dataUrl = 'data:'+r.mimeType+';base64,'+r.base64;
-            cacheImage(id, dataUrl);   // メモリ + 端末に保存
-            _currentImages.mime = _currentImages.mime || {};
-            if(r.mimeType) _currentImages.mime[id] = r.mimeType;
-            if(id === _currentImages.layout_id) _currentImages.layout_url = dataUrl;
-            if(id === _currentImages.layout2_id) _currentImages.layout2_url = dataUrl;
-            if((_currentImages.photo_ids || []).indexOf(id) >= 0) _currentImages.photo_urls[id] = dataUrl;
-          } else {
-            _imgFailed[id] = (r && r.message) ? r.message : '画像が見つかりません';
-            console.warn('画像読込失敗:', id, _imgFailed[id]);
-          }
-          delete _preloadPromises[id];
-          renderLayoutArea();
-          renderPhotosArea();
-        });
+      /* ★ あきらめずに取りにいきます（3回・待ち時間を伸ばしながら）。
+           どこまで進んだかを画面に出すので、止まって見えません。 */
+      return fetchImagePatient(id, (n, of) => {
+        _imgTry[id] = { n: n, of: of };
+        renderLayoutArea();
+        renderPhotosArea();
+      }).then(dataUrl => {
+        delete _imgTry[id];
+        if(dataUrl){
+          if(id === _currentImages.layout_id) _currentImages.layout_url = dataUrl;
+          if(id === _currentImages.layout2_id) _currentImages.layout2_url = dataUrl;
+          if((_currentImages.photo_ids || []).indexOf(id) >= 0) _currentImages.photo_urls[id] = dataUrl;
+        }else if(!_imgFailed[id]){
+          _imgFailed[id] = '画像が見つかりません';
+        }
+        delete _preloadPromises[id];
+        renderLayoutArea();
+        renderPhotosArea();
+      });
     }).catch(e => {
       _imgFailed[id] = e.message || '読込エラー';
       console.warn('画像読込失敗:', id, e.message);
@@ -4098,9 +4188,11 @@ function _layoutSlotHtml(slot){
   } else if(id.startsWith('temp_')){
     inner = '<div class="img-thumb-loading is-unsaved"><div>⚠ クラウド未保存</div><div>×で削除し<br>入れ直してください</div></div>';
   } else if(_imgFailed[id]){
-    inner = '<div class="img-thumb-loading is-error" onclick="event.stopPropagation();retryImage(\''+id+'\')"><div>⚠ 読込失敗</div><button class="img-thumb-retry-btn" onclick="event.stopPropagation();retryImage(\''+id+'\')">再試行</button></div>';
+    inner = '<div class="img-thumb-loading is-error" onclick="event.stopPropagation();retryImage(\''+id+'\')"><div>⚠ 読込失敗</div>' +
+            '<div style="font-size:10px;line-height:1.3;opacity:.8;padding:0 4px">' + escapeHtml(String(_imgFailed[id] || '')).slice(0, 40) + '</div>' +
+            '<button class="img-thumb-retry-btn" onclick="event.stopPropagation();retryImage(\''+id+'\')">再試行</button></div>';
   } else {
-    inner = '<div class="img-thumb-loading">読込中...</div>';
+    inner = '<div class="img-thumb-loading">' + imgLoadingText(id) + '</div>';
   }
   return '<div class="img-thumb" onclick="openImgZoom(this.querySelector(\'img\') ? this.querySelector(\'img\').src : \'\')">' +
     '<button class="img-thumb-remove" onclick="removeLayoutSlot(event,'+slot+')" title="削除">×</button>' +
@@ -4173,7 +4265,7 @@ function renderPhotosArea(){
         '<button class="img-thumb-retry-btn" onclick="event.stopPropagation();retryImage(\''+id+'\')">再試行</button>' +
       '</div>';
     } else {
-      inner = '<div class="img-thumb-loading">読込中...</div>';
+      inner = '<div class="img-thumb-loading">' + imgLoadingText(id) + '</div>';
     }
     html += '<div class="img-thumb" onclick="openImgZoom(this.querySelector(\'img\') ? this.querySelector(\'img\').src : \'\')">' +
       '<button class="img-thumb-remove" onclick="removePhoto(event,\''+id+'\')" title="削除">×</button>' +
@@ -4197,10 +4289,8 @@ async function loadImageFromCloud(fileId, kind){
   const url = getCloudUrl();
   if(!url || !fileId) return;
   try {
-    const r = await postToGas(url, { action: 'getImageUrl', fileId: fileId });
-    if(r.ok){
-      const dataUrl = 'data:'+r.mimeType+';base64,'+r.base64;
-      _imgCache[fileId] = dataUrl;
+    const dataUrl = await fetchImagePatient(fileId);
+    if(dataUrl){
       if(kind === 'layout'){
         _currentImages.layout_url = dataUrl;
       } else {
