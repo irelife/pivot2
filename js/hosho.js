@@ -732,12 +732,61 @@
     _log = logOf(b).map(function(h){ return Object.assign({}, h); });
     render();
   }
+  /* ★★ 月ごとの送金予定（2026/9/18）
+   *
+   *  【なぜ要るか】
+   *  画面はここで日割りしています（その月の実日数でわる）。
+   *  ところが LINE のお知らせ（GAS）は、日割りを知りません。
+   *      var yen = Math.floor(x.rent * HL.RATE);   ← 月額まるまる
+   *  同じ部屋で、画面は 13,545円・LINE は 19,500円 と食い違っていました。
+   *
+   *  【直しかた】
+   *  計算を2か所に持つと、片方だけ直したときにまた食い違います。
+   *  そこで、計算はここ1か所のままにして、
+   *  「何月にいくら送る」の一覧だけを保存にのせます。
+   *  GAS は、その月の分を引くだけです（計算しません）。
+   *
+   *  返すもの … [{ m:'2026-09', y:10400 }, …]
+   *    m … 年月
+   *    y … その月に送る金額（日割り済み・切り捨て）
+   *
+   *  期間は「保証が始まる日」から「保証が終わる日」まで。
+   *  終わる日が決まっていない（契約も満了も無い）ときは、
+   *  先の見通しとして24か月ぶんだけ作ります。
+   *  ★保存の大きさを抑えるためで、24か月で打ち切る意味ではありません。
+   *    契約か管理開始日が入れば、そちらが正になります。 */
+  var PLAN_MAX = 24;
+  function planOf(r, term){
+    var st = startDay(r);
+    if(!st || !base(r)) return [];
+    var t  = (term === undefined) ? termEnd() : term;
+    var en = endDay(r, t);
+    if(!en){
+      /* 終わりが決まっていないので、24か月先までにしておきます */
+      en = plus(mon1(plusM(st, PLAN_MAX)), -1);
+    }
+    if(en.getTime() < st.getTime()) return [];
+    var out = [];
+    splitRange(r, st, en).forEach(function(x){
+      if(!x.yen) return;                       /* 0円の月は、のせません */
+      out.push({ m: x.y + '-' + ('0' + x.mo).slice(-2), y: x.yen });
+    });
+    return out.slice(0, PLAN_MAX);
+  }
+
   function collect(){
+    var t = termEnd();
     return _rows.filter(function(r){
       return String(r.room||'').trim() || String(r.out||'').trim() || base(r);
     }).map(function(r){
+      var st = startDay(r), en = endDay(r, t);
       return { room:String(r.room||'').trim(), out:String(r.out||''),
-               rent:num(r.rent), sign:String(r.sign||'') };
+               rent:num(r.rent), sign:String(r.sign||''),
+               /* ★ ここから下は、LINE のお知らせ（GAS）が読むためのものです。
+                    画面では使いません。計算はすべてこのファイルの中でしています。 */
+               gFrom: st ? ymd(st) : '',
+               gTo:   en ? ymd(en) : '',
+               gPlan: planOf(r, t) };
     });
   }
 
