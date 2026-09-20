@@ -3576,11 +3576,16 @@ function saveBld(){
       if(sa.type !== '縦') continue;
       const roomA = String(sa.room||'').trim();
       if(!roomA) continue;  // 号室が空のものはペア判定しない
+      const touA = String(sa.tou||'').trim();
       for(let b=0; b<spots.length; b++){
         if(b===a) continue;
         const sb = spots[b];
         if(sb.type !== '縦') continue;
         if(String(sb.room||'').trim() !== roomA) continue;  // 同じ号室がペア
+        // ★棟も同じでなければペアではない。
+        //   棟を見ないと、A棟101 と B棟101 のように号室が偶然そろっただけの
+        //   別の区画どうしがペア扱いになり、片方の予約がもう片方へ写ってしまう。
+        if(String(sb.tou||'').trim() !== touA) continue;
         const aHasRes = !!(sa.res_user || sa.res_date);
         const bHasRes = !!(sb.res_user || sb.res_date);
         if(aHasRes && !bHasRes){
