@@ -39,7 +39,7 @@ const TMP = '/tmp/claude-0/_wari';
       '\n; window.__t = { planOf:planOf, splitRange:splitRange, startDay:startDay,' +
       ' endDay:endDay, termOf:termOf, monthYen:monthYen, partYen:partYen,' +
       ' span:span, ymd:ymd, day:day, mon1:mon1, plus:plus, plusM:plusM,' +
-      ' sumOf:sumOf, mEnd:mEnd };\n})();';
+      ' sumOf:sumOf, mEnd:mEnd, monthPay:monthPay, firstBill:firstBill };\n})();';
     // eslint-disable-next-line no-eval
     (0, eval)(grab);
     return !!window.__t;
@@ -51,6 +51,15 @@ const TMP = '/tmp/claude-0/_wari';
     return { plan: window.__t.planOf(r, t),
              st: window.__t.ymd(window.__t.startDay(r)),
              en: window.__t.ymd(window.__t.endDay(r, t)) };
+  }, [r, from]);
+
+  /* 月ごとの内わけ（画面に出るもの）。日割りの決まりは、ここで見ます */
+  const split = (r, from) => pg.evaluate(([r, from]) => {
+    const t  = from ? window.__t.termOf(from) : null;
+    const st = window.__t.startDay(r), en = window.__t.endDay(r, t);
+    if(!st || !en) return [];
+    return window.__t.splitRange(r, st, en)
+             .map(x => ({ m: x.y + '-' + ('0' + x.mo).slice(-2), y: x.yen }));
   }, [r, from]);
 
   console.log('\n❶ ご指定の例：9/15〜10/5、募集賃料 65,000円');
@@ -65,24 +74,38 @@ const TMP = '/tmp/claude-0/_wari';
     /* 手計算：65000×0.30 = 19500
        9月 9/15〜9/30 = 16日 ／ 30日 → 19500×16/30 = 10400
        10月 10/1〜10/5 = 5日 ／ 31日 → 19500×5/31 = 3145.16… → 3145 */
-    const m9  = g.plan.find(x => x.m === '2026-09');
-    const m10 = g.plan.find(x => x.m === '2026-10');
+    const sp  = await split(r, '');
+    const m9  = sp.find(x => x.m === '2026-09');
+    const m10 = sp.find(x => x.m === '2026-10');
     ok('★★ 9月分 10,400円', m9 && m9.y === 10400, m9);
     ok('★★ 10月分 3,145円（切り捨て）', m10 && m10.y === 3145, m10);
-    const total = g.plan.reduce((a, x) => a + x.y, 0);
+    const total = sp.reduce((a, x) => a + x.y, 0);
     ok('★★ 合計 13,545円', total === 13545, total);
-    ok('★ 月は2つだけ', g.plan.length === 2, g.plan);
+    ok('★ 月は2つだけ', sp.length === 2, sp);
+    /* ★ LINE へ渡す「送金予定」は、15日に実際に送る額です。
+         9/15から保証なので、端数は別に送らず、10月15日にまとめて送ります。 */
+    ok('★★ 送金予定は1回だけ（10月15日）', g.plan.length === 1, g.plan);
+    ok('★★ その額は 13,545円（9/15〜10/5 をまとめて）',
+       g.plan[0] && g.plan[0].m === '2026-10' && g.plan[0].y === 13545, g.plan[0]);
   }
 
   console.log('\n❷ まるまる1か月の月は、満額（日割りしない）');
   {
     /* 6/16 解約 → 9/15 から ／ 2027/1/6 契約 → 2027/1/5 まで */
     const r = { room:'102', out:'2026-06-16', rent:65000, sign:'2027-01-06' };
-    const g = await calc(r, '');
-    const m10 = g.plan.find(x => x.m === '2026-10');
-    const m11 = g.plan.find(x => x.m === '2026-11');
-    const m12 = g.plan.find(x => x.m === '2026-12');
-    console.log('     月別: ' + JSON.stringify(g.plan));
+    const g  = await calc(r, '');
+    const sp = await split(r, '');
+    const m10 = sp.find(x => x.m === '2026-10');
+    const m11 = sp.find(x => x.m === '2026-11');
+    const m12 = sp.find(x => x.m === '2026-12');
+    console.log('     月別: ' + JSON.stringify(sp));
+    console.log('     送金予定: ' + JSON.stringify(g.plan));
+    /* 送金予定の10月は、9月の端数（9/15〜9/30 の 10,400円）が足されます */
+    const p10 = g.plan.find(x => x.m === '2026-10');
+    ok('★★ 送金予定の10月は 29,900円（19,500＋9月の端数 10,400）',
+       p10 && p10.y === 29900, p10);
+    const p11 = g.plan.find(x => x.m === '2026-11');
+    ok('★★ 送金予定の11月は 19,500円（満額）', p11 && p11.y === 19500, p11);
     ok('★★ 10月（31日ぜんぶ）は満額 19,500円', m10 && m10.y === 19500, m10);
     ok('★★ 11月（30日ぜんぶ）も満額 19,500円', m11 && m11.y === 19500, m11);
     ok('★★ 12月（31日ぜんぶ）も満額 19,500円', m12 && m12.y === 19500, m12);
@@ -95,17 +118,21 @@ const TMP = '/tmp/claude-0/_wari';
     /* 9/15 から 9/15 まで（1日だけ）。65000×0.3×1/30 = 650 */
     const r = { room:'103', out:'2026-06-16', rent:65000, sign:'2026-09-16' };
     const g = await calc(r, '');
+    const sp = await split(r, '');
     ok('★★ 1日だけでも 0円にならない（両端入れ）',
-       g.plan.length === 1 && g.plan[0].y === 650, g.plan);
+       sp.length === 1 && sp[0].y === 650, sp);
+    ok('★★ 送金は翌月15日に1回（650円）',
+       g.plan.length === 1 && g.plan[0].m === '2026-10' && g.plan[0].y === 650, g.plan);
   }
 
   console.log('\n❹ 2月（28日・29日）');
   {
     /* 2027年2月は28日。11/5 解約 → +91日 = 2027/2/4 から */
     const r = { room:'201', out:'2026-11-05', rent:65000, sign:'2027-03-01' };
-    const g = await calc(r, '');
-    const m2 = g.plan.find(x => x.m === '2027-02');
-    console.log('     保証期間: ' + g.st + ' 〜 ' + g.en + ' ／ ' + JSON.stringify(g.plan));
+    const g  = await calc(r, '');
+    const sp = await split(r, '');
+    const m2 = sp.find(x => x.m === '2027-02');
+    console.log('     保証期間: ' + g.st + ' 〜 ' + g.en + ' ／ ' + JSON.stringify(sp));
     /* 2/4〜2/28 = 25日 ／ 28日 → 19500×25/28 = 17410.7… → 17410 */
     ok('★★ 2月は28日でわる（25日ぶん 17,410円）', m2 && m2.y === 17410, m2);
   }
@@ -116,8 +143,10 @@ const TMP = '/tmp/claude-0/_wari';
     const g = await calc(r, '');
     ok('★ 終わりが決まらないので、24か月ぶんまで', g.plan.length <= 24 && g.plan.length > 0,
        g.plan.length);
-    ok('★ 先頭は 2026-09（9/15から）', g.plan[0] && g.plan[0].m === '2026-09', g.plan[0]);
-    ok('★ 先頭は日割り 10,400円', g.plan[0] && g.plan[0].y === 10400, g.plan[0]);
+    ok('★ 送金の先頭は 2026-10（9/15から。端数は10月にまとめる）',
+       g.plan[0] && g.plan[0].m === '2026-10', g.plan[0]);
+    ok('★ 先頭は 29,900円（19,500＋9月の端数 10,400）',
+       g.plan[0] && g.plan[0].y === 29900, g.plan[0]);
   }
 
   console.log('\n❻ 管理開始日から2年で打ち切り');

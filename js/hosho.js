@@ -766,12 +766,30 @@
       en = plus(mon1(plusM(st, PLAN_MAX)), -1);
     }
     if(en.getTime() < st.getTime()) return [];
+
+    /* ★ 月をそのまま切った額ではなく、「15日に実際に送る額」を入れます。
+         （2026/9/21 に直しました）
+
+         保証が月のとちゅうで始まったときは、その端数を別に送らず、
+         次の月ぶんに足して、いっしょに送ります（firstBill / monthPay）。
+           例）9月30日から保証
+               ・月を切ると … 9月 520円 ／ 10月 15,600円
+               ・実際の送金 … 10月15日に 16,120円（9/30〜10/31）
+
+         月を切った額を渡すと、LINE が 15,600円 と言い、
+         実際の送金は 16,120円 になって、また食い違います。
+         さらに9月の520円は、どの月のお知らせにも出ませんでした。 */
     var out = [];
-    splitRange(r, st, en).forEach(function(x){
-      if(!x.yen) return;                       /* 0円の月は、のせません */
-      out.push({ m: x.y + '-' + ('0' + x.mo).slice(-2), y: x.yen });
-    });
-    return out.slice(0, PLAN_MAX);
+    var m = firstBill(r);
+    if(!m) return [];
+    var guard = 0;
+    while(out.length < PLAN_MAX && guard++ < PLAN_MAX + 12){
+      var p = monthPay(r, m, t);
+      if(!p) break;                            /* もう送るものがありません */
+      if(p.yen) out.push({ m: p.y + '-' + ('0' + p.mo).slice(-2), y: p.yen });
+      m = mon1(plusM(m, 1));
+    }
+    return out;
   }
 
   function collect(){
