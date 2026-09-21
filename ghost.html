@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PIVOT 幻の予約さがし</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;background:#f5f5f6;color:#17171a;padding:24px}
+.w{max-width:960px;margin:0 auto;background:#fff;border-radius:14px;padding:26px 28px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+h1{font-size:22px;margin-bottom:6px}
+.sub{font-size:14px;color:#6b6b73;margin-bottom:18px}
+.box{border:2px solid #17171a;border-radius:10px;padding:14px 16px;margin:14px 0;font-size:15px;line-height:1.7}
+.ok{border-color:#15803d;background:#f0fdf4}
+.ng{border-color:#b91c1c;background:#fef2f2}
+button{font:inherit;font-weight:800;padding:14px 22px;border-radius:10px;border:2px solid #17171a;
+       background:#17171a;color:#fff;cursor:pointer;margin-right:10px}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.sec{background:#fff;color:#17171a}
+#log{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.65;
+     background:#fafafa;border:1px solid #ddd;border-radius:8px;padding:12px;margin-top:16px;max-height:560px;overflow:auto}
+</style>
+</head>
+<body>
+<div class="w">
+  <h1>幻の予約さがし</h1>
+  <div class="sub" id="inst">インスタンスを判定中…</div>
+
+  <div class="box">
+    <b>直す前の不具合で、別の区画へ写り込んでしまった予約</b>をさがします。<br>
+    縦列ペアの判定が「号室」だけを見ていたため、<b>A棟101 と B棟101</b> のように
+    号室が偶然そろっただけの別区画へ、保存のたびに予約が写っていました。<br>
+    <b>読むだけです。台帳にも Firestore にも、一切書き込みません。</b>
+  </div>
+
+  <div id="who" class="box" style="display:none"></div>
+
+  <p>
+    <button id="btn-login" class="sec">① ログイン</button>
+    <button id="btn-run" disabled>② さがす</button>
+  </p>
+
+  <div id="log">「① ログイン」から始めてください。</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script>
+function insPrefix(){
+  try{
+    var seg = (location.pathname || '').split('/').filter(function(s){ return s; });
+    var name = seg.length ? seg[seg.length - 1] : '';
+    if(/\.html?$/i.test(name)) name = seg.length > 1 ? seg[seg.length - 2] : '';
+    return name ? (name + '_') : 'pivot_';
+  }catch(e){ return 'pivot_'; }
+}
+var INS = insPrefix().replace(/_+$/, '') || 'pivot';
+document.getElementById('inst').textContent =
+  'インスタンス： ' + INS + '　（' + (INS === 'pivot2' ? '広島・福山' : INS === 'pivot3' ? '岡山' : '不明') + '）';
+
+var logEl = document.getElementById('log');
+function log(s){ logEl.textContent += '\n' + (s === undefined ? '' : s); logEl.scrollTop = logEl.scrollHeight; }
+function clr(){ logEl.textContent = ''; }
+
+function gasUrl(){ return (localStorage.getItem(INS + '_cloud_url') || '').trim(); }
+
+async function postToGas(url, body){
+  var res = await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+                               body: JSON.stringify(body), redirect:'follow' });
+  var t = await res.text();
+  try{ return JSON.parse(t); }catch(e){ throw new Error('GASの応答が不正: ' + t.slice(0,200)); }
+}
+
+/* ---------------------------------------------------------------
+   道具
+   --------------------------------------------------------------- */
+function nrm(v){ return String(v == null ? '' : v).replace(/\s+/g, '').trim(); }
+function noOf(v){ var m = String(v == null ? '' : v).match(/\d+/); return m ? parseInt(m[0], 10) : null; }
+function pNo(n){ return 'P' + String(n).padStart(2, '0'); }
+function ymd(v){ return String(v == null ? '' : v).replace(/[\/\-]/g, '').slice(0, 8); }
+
+/* 契約の「駐車場」欄を数の一覧にします（js/buildings.js と同じ決まり）
+   ・ハイフン "8-9" → 連番(8,9)
+   ・中黒/カンマ/スペース "6・9" → その番号だけ */
+function parseNoList(v){
+  var s = String(v || '').replace(/[ＰｐP\-－―ー〜～]/g, function(m){
+    if(/[ＰｐP]/.test(m)) return ' ';
+    return '-';
+  });
+  var out = [];
+  s.split(/[・,，、\s]+/).filter(Boolean).forEach(function(g){
+    var r = g.match(/^(\d+)\s*-\s*(\d+)$/);
+    if(r){
+      var a = parseInt(r[1], 10), b = parseInt(r[2], 10);
+      if(!isNaN(a) && !isNaN(b)){
+        if(a > b){ var t = a; a = b; b = t; }
+        for(var n = a; n <= b; n++) out.push(n);
+      }
+    }else{
+      var m = g.match(/\d+/);
+      if(m) out.push(parseInt(m[0], 10));
+    }
+  });
+  return out.filter(function(n, i){ return out.indexOf(n) === i; });
+}
+
+function spotsOf(b){
+  if(!b) return [];
+  if(Array.isArray(b.spots)) return b.spots;
+  if(b.spots && typeof b.spots === 'object') return Object.keys(b.spots).map(function(k){ return b.spots[k]; });
+  return [];
+}
+function hasRes(s){ return !!(s && (s.res_user || s.res_date)); }
+
+/* ---------------------------------------------------------------
+   さがす中身（検査できるよう、画面から切り離してあります）
+     blds … 物件 { id: {name, spots:[...] } }
+     cts  … 契約 { id: {property, parking, contractor, ...} }
+   --------------------------------------------------------------- */
+function findGhosts(blds, cts){
+  var bIds = Object.keys(blds || {}), cIds = Object.keys(cts || {});
+  /* ---- 契約を引けるようにしておきます ---- */
+  var byId = cts;                       /* res_srcKey → 契約 */
+  var byName = {};                      /* 物件名＋お名前 → 契約（複数あれば配列） */
+  cIds.forEach(function(id){
+    var c = cts[id]; if(!c) return;
+    var prop = nrm(c.property);
+    [c.contractor, c.carContractor].forEach(function(nm){
+      var k = prop + '|' + nrm(nm);
+      if(!nrm(nm)) return;
+      (byName[k] = byName[k] || []).push(c);
+    });
+  });
+
+  /* この予約が、契約の上では「どの区画」なのかを調べます */
+  function wantedNos(bldName, spot){
+    var c = null;
+    if(spot.res_srcKey && byId[spot.res_srcKey]) c = byId[spot.res_srcKey];
+    if(!c){
+      var list = byName[nrm(bldName) + '|' + nrm(spot.res_user)] || [];
+      if(list.length === 1) c = list[0];
+      else if(list.length > 1){
+        /* 同じお名前の契約が複数あるときは、予約日が合うものを選びます */
+        var hit = list.filter(function(x){ return ymd(x.contractDate) === ymd(spot.res_date); });
+        if(hit.length === 1) c = hit[0];
+      }
+    }
+    if(!c) return null;
+    return { nos: parseNoList(c.parking), c: c };
+  }
+
+  var ghosts = [], unknown = [], risky = 0, checked = 0;
+
+  bIds.forEach(function(id){
+    var b = blds[id]; if(!b) return;
+    var name = String(b.name || id);
+    var spots = spotsOf(b);
+
+    /* 種別が縦列で、号室が入っているものを、号室ごとにまとめます */
+    var byRoom = {};
+    spots.forEach(function(s){
+      if(!s || s.type !== '縦') return;
+      var room = nrm(s.room); if(!room) return;
+      (byRoom[room] = byRoom[room] || []).push(s);
+    });
+
+    Object.keys(byRoom).forEach(function(room){
+      var g = byRoom[room];
+      for(var i = 0; i < g.length; i++){
+        for(var j = i + 1; j < g.length; j++){
+          var A = g[i], B = g[j];
+          if(nrm(A.tou) === nrm(B.tou)) continue;    /* 同じ棟＝本物のペア。対象外 */
+          risky++;
+          if(!hasRes(A) || !hasRes(B)) continue;      /* 片方だけなら写っていません */
+          if(nrm(A.res_user) !== nrm(B.res_user)) continue;
+          if(ymd(A.res_date) !== ymd(B.res_date)) continue;
+          checked++;
+
+          var w = wantedNos(name, A) || wantedNos(name, B);
+          var nA = noOf(A.no), nB = noOf(B.no);
+          var rec = { bld:name, room:room, user:String(A.res_user||''), date:String(A.res_date||''),
+                      a:{ no:nA, tou:String(A.tou||'') }, b:{ no:nB, tou:String(B.tou||'') } };
+
+          if(w && w.nos.length){
+            var okA = w.nos.indexOf(nA) >= 0, okB = w.nos.indexOf(nB) >= 0;
+            if(okA && !okB){ rec.real = rec.a; rec.ghost = rec.b; }
+            else if(okB && !okA){ rec.real = rec.b; rec.ghost = rec.a; }
+            rec.parking = String(w.c.parking || '');
+          }
+          if(rec.ghost) ghosts.push(rec); else unknown.push(rec);
+        }
+      }
+    });
+  });
+
+  return { risky:risky, checked:checked, ghosts:ghosts, unknown:unknown };
+}
+
+/* ---------------------------------------------------------------
+   ログイン
+   --------------------------------------------------------------- */
+document.getElementById('btn-login').onclick = async function(){
+  try{
+    clr(); log('ログインを確認します…');
+    var u = firebase.auth().currentUser;
+    if(!u){
+      var em = prompt('メールアドレス'); if(!em) return;
+      var pw = prompt('パスワード');     if(!pw) return;
+      await firebase.auth().signInWithEmailAndPassword(em, pw);
+      u = firebase.auth().currentUser;
+    }
+    document.getElementById('who').style.display = '';
+    document.getElementById('who').innerHTML = 'ログイン中： <b>' + u.email + '</b>';
+    log('ログインできました： ' + u.email);
+    document.getElementById('btn-run').disabled = false;
+  }catch(e){ log('❌ ' + e.message); }
+};
+
+/* ---------------------------------------------------------------
+   さがす
+   --------------------------------------------------------------- */
+document.getElementById('btn-run').onclick = async function(){
+  this.disabled = true;
+  try{
+    clr(); log('【幻の予約さがし】読むだけです。どこにも書き込みません。');
+    var u = gasUrl();
+    if(!u) throw new Error('この端末に GAS の URL がありません。先に PIVOT を開いてログインしてください。');
+
+    log('スプレッドシート（いまの正）を読み込み中…');
+    var r = await postToGas(u, { action:'load' });
+    if(!r || !r.ok || !r.payload) throw new Error('スプレッドシートから読めませんでした');
+    var blds = r.payload.buildings || {};
+    var cts  = r.payload.contracts || {};
+
+    var bIds = Object.keys(blds), cIds = Object.keys(cts);
+    log('');
+    log('  物件 ' + bIds.length + ' 件 ／ 契約 ' + cIds.length + ' 件');
+    log('');
+
+    var g = findGhosts(blds, cts);
+    var risky = g.risky, checked = g.checked, ghosts = g.ghosts, unknown = g.unknown;
+
+    log('  縦列で「号室が同じ・棟がちがう」組 … ' + risky + ' 組');
+    log('  そのうち、同じ予約が両方に入っている組 … ' + checked + ' 組');
+    log('');
+
+    if(!checked){
+      logEl.className = 'ok';
+      log('✅ 写り込んだ予約は見つかりませんでした。');
+      log('');
+      log('※ 直しは反映済みですので、今後あらたに写り込むことはありません。');
+      this.disabled = false; return;
+    }
+
+    logEl.className = 'ng';
+
+    if(ghosts.length){
+      log('⚠️ 消してよい「幻の予約」が ' + ghosts.length + ' 件あります：');
+      log('');
+      ghosts.forEach(function(g, i){
+        log('  ' + (i + 1) + '. 【' + g.bld + '】 ' + g.room + '号');
+        log('       予約者 ' + g.user + ' ／ 予約日 ' + g.date);
+        log('       契約の駐車場欄 ： 「' + g.parking + '」');
+        log('       ○ 本物 ： ' + pNo(g.real.no) + '（' + (g.real.tou || '棟なし') + '棟）');
+        log('       ● 幻   ： ' + pNo(g.ghost.no) + '（' + (g.ghost.tou || '棟なし') + '棟） ← これを消してください');
+        log('');
+      });
+    }
+
+    if(unknown.length){
+      log('❓ どちらが本物か決められなかった組が ' + unknown.length + ' 件あります：');
+      log('　（契約が見つからない／契約の駐車場欄に両方の番号が入っている 等）');
+      log('');
+      unknown.forEach(function(g, i){
+        log('  ' + (i + 1) + '. 【' + g.bld + '】 ' + g.room + '号');
+        log('       予約者 ' + g.user + ' ／ 予約日 ' + g.date);
+        log('       ' + pNo(g.a.no) + '（' + (g.a.tou || '棟なし') + '棟） と ' +
+                        pNo(g.b.no) + '（' + (g.b.tou || '棟なし') + '棟）');
+        log('       → 契約カードの「駐車場」欄をご覧になって、どちらが正しいかお決めください。');
+        log('');
+      });
+    }
+
+    log('──────────────────────────────');
+    log('【消しかた】');
+    log('  ① PIVOT の 物件 を開き、その物件をひらく');
+    log('  ② 上の「幻」と書かれた区画の、緑の「予約」行の × を押す');
+    log('  ③ 保存する');
+    log('');
+    log('  直しは反映済みですので、今度は消えたままになります。');
+    log('  （以前は、保存するたびにもう片方から写り戻っていました）');
+  }catch(e){ logEl.className = 'ng'; log('❌ ' + e.message); }
+  this.disabled = false;
+};
+</script>
+</body>
+</html>
