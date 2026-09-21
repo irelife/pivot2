@@ -3437,17 +3437,35 @@ function addSpots(){
     alert('合計区画数が200を超えます(現在 ' + currentCount + ' + 追加 ' + addCount + ' = ' + newCount + ')');
     return;
   }
-  // 現在の最大番号の次から連番で追加(欠番は埋めない)
-  const maxNo = currentCount > 0 ? Math.max(...currentSpots.map(s => s.no || 0)) : 0;
-  for(let i = 1; i <= addCount; i++){
-    currentSpots.push({
-      no: maxNo + i, type: '並', tou: '', room: '',
-      user: '', price: 3300, status: '空', note: ''
-    });
+  // ★ 欠番があれば、小さい番号から埋めます。
+  //    （P01 を消したあとに1つ足すと、P11 ではなく P01 に戻ります）
+  //    埋める番号が無くなったら、これまでどおり最大番号の次から続けます。
+  //    ※すでにある区画の番号は1つも動かしません。契約側の「駐車場 P○」とズレないためです。
+  const noOf = (sp) => parseInt(String(sp && sp.no != null ? sp.no : ''), 10) || 0;
+  const used = {};
+  currentSpots.forEach(sp => { used[noOf(sp)] = true; });
+  const maxNo = currentCount > 0 ? Math.max(...currentSpots.map(noOf)) : 0;
+
+  const newNos = [];
+  for(let n = 1; n <= maxNo && newNos.length < addCount; n++){
+    if(!used[n]) newNos.push(n);          // 欠番を、小さい順に
   }
+  let next = maxNo + 1;
+  while(newNos.length < addCount) newNos.push(next++);   // 足りない分は末尾から
+
+  newNos.forEach(n => {
+    const spot = { no: n, type: '並', tou: '', room: '',
+                   user: '', price: 3300, status: '空', note: '' };
+    // 番号の順に並んでいる表では、正しい位置へ差し込みます。
+    // 並べ替えてある表では、いちばん近い位置に入ります。
+    const at = currentSpots.findIndex(sp => noOf(sp) > n);
+    if(at < 0) currentSpots.push(spot); else currentSpots.splice(at, 0, spot);
+  });
+
   document.getElementById('f-count').value = newCount;
   renderSpotsTable(currentSpots);
-  showToast('✅ ' + addCount + '区画を追加しました (合計 ' + newCount + '区画)');
+  const label = newNos.map(n => 'P' + String(n).padStart(2,'0')).join('・');
+  showToast('✅ ' + label + ' を追加しました (合計 ' + newCount + '区画)');
 }
 
 // 予約取り消し
