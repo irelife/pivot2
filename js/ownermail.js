@@ -1906,5 +1906,18 @@ try{ window.RENT_CORE = {
   get owners(){ return owners; },
   save: saveOwners, render: renderOwners, flash: flashSaved, toast: toast
 }; }catch(e){}
-window.RENT = { activate, filterOwners, openOwnerSheet, closeOwnerSheet, unexcludeOwner, setEmail, showView, addOwnerRow, resetOwners, resetTmpl, expandAll, renderPreview, saveTmpl, editOwner, editProps, delOwner, togglePv, copyBody, previewOwnerPdf, downloadOwnerPdf, sendViaGmail, renderOwners, createDraftsForChecked, sendMailsForChecked, updateCheckCount, toggleCheckAll, sendOne, draftOne, unsendOne, removeFromList, renderHistory, clearHistory, checkBounces, accumulateOwnerMonth, accumulateOwnerYear, mergeYearForOwner, deleteExAccum, deleteExYear, saveSophiaGasUrl, viewExAccum, saveOwnersNow };
+/* ★2026/9/22 追加：外へ出す読み取り口を2つ増やしました。
+ *
+ *  このファイルは全体が囲い（IIFE）の中にあります。そのため、
+ *  中の detail（明細の仕分け結果）と makeOwnerPdfBase64 は、
+ *  ほかのファイルから名前で呼ぶことができません。
+ *
+ *  js/tomypage.js（オーナーマイページへ送る）が detail を読もうとして
+ *  毎回 null になり、「送るものがありません」で止まっていました。
+ *  明細シートが空だった原因はこれです。
+ *
+ *  ★読み取り口を増やしただけです。中の動きは1つも変えていません。
+ *    detail は get で返すだけなので、外から書き替えられません。 */
+window.RENT = { get detail(){ return detail; }, makeOwnerPdfBase64,
+  activate, filterOwners, openOwnerSheet, closeOwnerSheet, unexcludeOwner, setEmail, showView, addOwnerRow, resetOwners, resetTmpl, expandAll, renderPreview, saveTmpl, editOwner, editProps, delOwner, togglePv, copyBody, previewOwnerPdf, downloadOwnerPdf, sendViaGmail, renderOwners, createDraftsForChecked, sendMailsForChecked, updateCheckCount, toggleCheckAll, sendOne, draftOne, unsendOne, removeFromList, renderHistory, clearHistory, checkBounces, accumulateOwnerMonth, accumulateOwnerYear, mergeYearForOwner, deleteExAccum, deleteExYear, saveSophiaGasUrl, viewExAccum, saveOwnersNow };
 })();

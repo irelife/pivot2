@@ -8,10 +8,15 @@
  *    pivot2 は公開リポジトリのためです。
  *    はじめて押したときに聞いて、その端末の中だけに覚えます。
  *
- *  ★ 使わせてもらうもの（ownermail.js の中にあります）
- *      detail[]                … オーナー別にまとめた明細
- *      makeOwnerPdfBase64(i)   … そのオーナーのページだけ抜いたPDF
+ *  ★ 使わせてもらうもの（ownermail.js から window.RENT で出ています）
+ *      window.RENT.detail              … オーナー別にまとめた明細
+ *      window.RENT.makeOwnerPdfBase64  … そのオーナーのページだけ抜いたPDF
  *    どちらも読むだけで、書き替えません。
+ *
+ *    ★2026/9/22 まで、ここを  detail  と直接書いていました。
+ *      ownermail.js は全体が囲い（IIFE）の中にあるため外から呼べず、
+ *      押しても毎回「送るものがありません」で止まり、
+ *      通信を1回も始めていませんでした。明細シートが空だった原因です。
  *
  *  送るのは、オーナーメールが「すでに読み取っているもの」だけです。
  *  入力の手間は1つも増えません。
@@ -44,12 +49,64 @@
     return { url:(url||'').trim(), key:(key||'').trim() };
   }
 
+  /* ★2026/9/22 直し
+   *  前は r.json() をそのまま呼んでいたため、マイページ側が JSON ではない
+   *  ものを返したとき（デプロイの公開先が「全員」でない・URL が古い など）、
+   *  「Unexpected token <」という、原因の分からない字だけが出ていました。
+   *  何を確かめればよいかが分かるようにします。 */
   function post(url, body){
     return fetch(url, {
       method : 'POST',
       headers: { 'Content-Type':'text/plain;charset=utf-8' },
       body   : JSON.stringify(body)
-    }).then(function(r){ return r.json(); });
+    })
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      try{ return JSON.parse(t); }
+      catch(e){
+        throw new Error(
+          'マイページ側から、思っていない答えが返りました。\n\n' +
+          '次の3つをご確認ください。\n' +
+          '　・URL が「……/exec」で終わっているか\n' +
+          '　・デプロイの「アクセスできるユーザー」が「全員」か\n' +
+          '　・「デプロイを管理 → 鉛筆 → 新バージョン」で反映したか\n\n' +
+          '（返ってきたもの： ' +
+          String(t || '').replace(/\s+/g, ' ').slice(0, 80) + '）');
+      }
+    });
+  }
+
+  /* ── 明細の仕分け結果を受け取ります ─────────
+   *  ★ここが、明細シートが空だった原因のところです（2026/9/22 直し）。
+   *
+   *  js/ownermail.js は全体が囲い（IIFE）の中にあるため、
+   *  中の detail は、このファイルから名前では呼べません。
+   *  前は  try{ list = detail; }catch(e){ list = null; }  と書いており、
+   *  毎回 null になって「送るものがありません」で止まっていました。
+   *  通信は1回も始まっていませんでした。
+   *
+   *  ① window.RENT.detail … ownermail.js が出している読み取り口。こちらが本筋
+   *  ② localStorage       … ①が使えないときの逃げ道。
+   *                          仕分け結果はここにも保存されています。
+   *                          ただし PDF は保存されていないので、
+   *                          明細PDFは付きません（送信そのものは動きます）
+   */
+  function pickDetail(){
+    try{
+      var d = window.RENT && window.RENT.detail;
+      if(Array.isArray(d) && d.length) return { list:d, live:true };
+    }catch(e){}
+
+    try{
+      var pre = (typeof insPrefix === 'function') ? insPrefix() : 'pivot_';
+      var saved = JSON.parse(
+        localStorage.getItem(pre + 'rent_owner_send_detail_v1') || 'null');
+      if(saved && Array.isArray(saved.detail) && saved.detail.length){
+        return { list:saved.detail, live:false };
+      }
+    }catch(e){}
+
+    return { list:[], live:false };
   }
 
   /* ── 1件ぶんを、マイページの形に直します ───── */
@@ -117,9 +174,9 @@
     var cfg = conf(false);
     if(!cfg) return;
 
-    var list;
-    try{ list = detail; }catch(e){ list = null; }
-    if(!Array.isArray(list) || !list.length){
+    var got  = pickDetail();
+    var list = got.list;
+    if(!list.length){
       alert('送るものがありません。\n\n先に明細PDFを取り込んで、振り分けをご確認ください。');
       return;
     }
@@ -138,6 +195,10 @@
     var msg = 'オーナーマイページへ送ります。\n\n' +
               '　対象： ' + idx.length + ' 名\n' +
               (noMail ? ('　※ メールアドレスが無い ' + noMail + ' 名は送りません\n') : '') +
+              (got.live ? '' :
+               '\n※ 明細PDFは付きません。\n' +
+               '　 この画面で明細PDFを取り込み直してから押していただくと、\n' +
+               '　 PDFも一緒に送られます。\n') +
               '\nはじめての方には、初回パスワードのご案内メールが届きます。\n' +
               'よろしいですか？';
     if(!window.confirm(msg)) return;
@@ -146,12 +207,17 @@
     var say = function(t){ if(btn) btn.textContent = t; };
     if(btn) btn.disabled = true;
 
-    go(cfg, list, idx, say)
+    go(cfg, list, idx, say, got.live)
       .then(function(r){
         alert('送りました。\n\n' +
               '　新しく作ったアカウント： ' + (r.made || 0) + ' 件\n' +
               '　明細を入れた　　　　　： ' + (r.added || 0) + ' 件' +
-              (r.pdfNg ? ('\n　PDFを入れられなかった： ' + r.pdfNg + ' 件') : ''));
+              (r.pdfNg
+                ? ('\n　PDFを入れられなかった： ' + r.pdfNg + ' 件\n\n' +
+                   '※ 明細PDFを取り込んだそのままの画面で押していただくと、\n' +
+                   '　 PDFも付きます。同じ月のぶんは置き換えになり、増えません。\n' +
+                   '　 （画面を開き直すと、仕分け結果は残りますがPDFは残りません）')
+                : ''));
       })
       .catch(function(e){
         alert(e && e.message ? e.message : '通信できませんでした。');
@@ -162,7 +228,7 @@
   }
 
   /* ── 実際の送信 ────────────────────────────── */
-  function go(cfg, list, idx, say){
+  function go(cfg, list, idx, say, live){
     var owners = [], pdfNg = 0;
 
     /* ① オーナーごとのPDFを、1件ずつドライブへ入れます */
@@ -172,9 +238,16 @@
         say('PDFを送信中… ' + (k + 1) + '/' + idx.length);
         var o = shape(list[i]);
 
+        /* ★makeOwnerPdfBase64 も囲いの中にあります。
+         *  window.RENT から呼びます。
+         *  逃げ道（localStorage）で読んだときは、番号が合っている保証が
+         *  ないので呼びません。取り違えたPDFを送るほうが困るためです。 */
         var b64 = null;
         try{
-          if(typeof makeOwnerPdfBase64 === 'function') b64 = makeOwnerPdfBase64(i);
+          if(live && window.RENT &&
+             typeof window.RENT.makeOwnerPdfBase64 === 'function'){
+            b64 = window.RENT.makeOwnerPdfBase64(i);
+          }
         }catch(e){ b64 = null; }
 
         return Promise.resolve(b64).then(function(data){
