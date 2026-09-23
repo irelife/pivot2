@@ -262,7 +262,7 @@
     t.style.cssText = 'width:100%;border-collapse:collapse;font-size:12.5px';
     t.innerHTML =
       '<thead><tr>' +
-      ['オーナー様','アカウント','明細','明細PDF'].map(function(h){
+      ['オーナー様','アカウント','開設のご案内','明細','明細PDF'].map(function(h){
         return '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid ' +
                '#e5e5ea;font-weight:700;color:#57575c">' + h + '</th>';
       }).join('') + '</tr></thead><tbody>' +
@@ -274,6 +274,8 @@
         return '<tr>' +
           td(esc(r.name || r.email)) +
           td(r.made ? '新しく作りました' : 'もとからあります') +
+          td(r.mailTxt, r.mailOk === false ? '#d70015'
+                      : (r.mailOk === null ? '#57575c' : '')) +
           td(r.addedTxt, r.added ? '' : '#c9001a') +
           td(r.pdfTxt,   r.pdf   ? '' : '#c9001a') +
           '</tr>';
@@ -282,11 +284,15 @@
 
     var note = document.createElement('p');
     note.style.cssText = 'margin:10px 0 0;font-size:12px;color:#57575c';
-    note.textContent = ng
-      ? '明細PDFが「なし」の方は、この画面で明細PDFを取り込み直してから、' +
-        'もう一度押してください。同じ月のぶんは置き換わり、増えません。'
-      : 'オーナー様が実際にご覧になったかは、この表では分かりません。' +
-        '入ったところまでの確かめです。';
+    var mailNg = rows.filter(function(r){ return r.mailOk === false; }).length;
+    note.textContent = mailNg
+      ? '★「開設のご案内」が“出ていません”の方は、初回パスワードが届いておらず、' +
+        'マイページに入れません。マイページ側の記録をご確認のうえ、当社からお伝えください。'
+      : (ng
+        ? '明細PDFが「なし」の方は、この画面で明細PDFを取り込み直してから、' +
+          'もう一度押してください。同じ月のぶんは置き換わり、増えません。'
+        : 'オーナー様が実際にご覧になったかは、この表では分かりません。' +
+          '入ったところまでの確かめです。');
     box.appendChild(note);
 
     var host = document.getElementById('btn-to-mypage');
@@ -320,7 +326,10 @@
         var o = shape(list[i]);
         var row = { name:o.name, email:o.email,
                     made:false, added:false, pdf:false,
-                    addedTxt:'—', pdfTxt:'—' };
+                    addedTxt:'—', pdfTxt:'—',
+                    /* ★開設のご案内メール（初回パスワード）が出たか。
+                     *   null は「確かめられません」です。赤にはしません。 */
+                    mailOk:null, mailTxt:'—' };
 
         /* ① この方のPDFをドライブへ
          *  ★makeOwnerPdfBase64 は ownermail.js の囲いの中にあります。
@@ -359,6 +368,26 @@
             return;
           }
           row.made = !!r.made;
+
+          /* ★開設のご案内メール（初回パスワード）が出たか。
+           *
+           *  なぜ要るか： このメールが出ないと、オーナー様は
+           *  マイページに入れません。それでも今までは「新しく作りました」と
+           *  出るだけで、出ていないことに誰も気づけませんでした。
+           *
+           *  ★マイページ側が mailNg を返すようになったときだけ分かります。
+           *    返さないあいだは null にして、赤にはしません。
+           *    分からないものを「出ました」とも「出ていません」とも言いません。 */
+          if(!row.made){
+            row.mailOk = null; row.mailTxt = '—';
+          }else if(r.mailNg == null){
+            row.mailOk = null; row.mailTxt = '確かめられません';
+          }else if(Number(r.mailNg) > 0){
+            row.mailOk = false; row.mailTxt = '出ていません';
+          }else{
+            row.mailOk = true; row.mailTxt = 'お送りしました';
+          }
+
           if(o.ym && o.fileId){
             row.added   = (Number(r.added) > 0);
             row.addedTxt = row.added ? '入りました' : '入りませんでした';
@@ -372,7 +401,7 @@
         }).catch(function(e){
           row.addedTxt = (e && e.message) ? '通信できませんでした' : '入りませんでした';
         }).then(function(){
-          row.ok = row.added && row.pdf;
+          row.ok = row.added && row.pdf && (row.mailOk !== false);
           rows.push(row);
         });
       });
