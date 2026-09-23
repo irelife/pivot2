@@ -4,7 +4,7 @@
  *  ★ 既存のファイルには一切触りません。
  *    このファイルを足して、index.html に1行読み込むだけです。
  *
- *  ★ 合言葉（ADMIN_KEY）は、コードにも config.js にも書きません。
+ *  ★ 管理キー（ADMIN_KEY）は、コードにも config.js にも書きません。
  *    pivot2 は公開リポジトリのためです。
  *    はじめて押したときに聞いて、その端末の中だけに覚えます。
  *
@@ -34,15 +34,15 @@
 
     if(force || !url){
       url = window.prompt(
-        'マイページの Apps Script ウェブアプリURL を入れてください。\n' +
+        'マイページの Apps Script ウェブアプリURL をご入力ください。\n' +
         '（https://script.google.com/macros/s/……/exec）', url || '') || '';
       if(!url) return null;
       try{ localStorage.setItem(LS_URL, url.trim()); }catch(e){}
     }
     if(force || !key){
       key = window.prompt(
-        'マイページの合言葉（ADMIN_KEY）を入れてください。\n\n' +
-        '※ この端末の中だけに覚えます。社外に出さないでください。', '') || '';
+        'マイページの管理キー（ADMIN_KEY）をご入力ください。\n\n' +
+        '※ この端末の中だけに保存します。社外に出さないでください。', '') || '';
       if(!key) return null;
       try{ localStorage.setItem(LS_KEY, key.trim()); }catch(e){}
     }
@@ -314,7 +314,7 @@
     var chain = Promise.resolve();
     idx.forEach(function(i, k){
       chain = chain.then(function(){
-        if(authNg) return;                 /* 合言葉が違えば、続けても同じです */
+        if(authNg) return;                 /* 管理キーが違えば、続けても同じです */
         say('送信中… ' + (k + 1) + '/' + idx.length);
 
         var o = shape(list[i]);
@@ -381,7 +381,7 @@
     return chain.then(function(){
       if(authNg){
         try{ localStorage.removeItem(LS_KEY); }catch(e){}
-        throw new Error('合言葉が違うようです。\n\nもう一度押して、入れ直してください。');
+        throw new Error('管理キーが違うようです。\n\nもう一度押して、ご入力ください。');
       }
       return { rows: rows };
     });
@@ -411,7 +411,7 @@
 
     var s = document.createElement('button');
     s.type = 'button';
-    s.textContent = '接続先を変える';
+    s.textContent = '接続設定';
     s.style.cssText =
       'font:inherit;font-size:13px;padding:10px 14px;border-radius:8px;' +
       'border:1px solid #ccc;background:transparent;color:#666;cursor:pointer;min-height:44px';

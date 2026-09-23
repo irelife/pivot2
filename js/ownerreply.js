@@ -6,17 +6,17 @@
  *    タブも置き場所も、このファイルが自分で作ります。
  *
  *  ★ いままで： オーナー様からのご連絡に返すには、別の画面
- *    （マイページ側の staff.html）を開き、合言葉を入れ直していました。
+ *    （マイページ側の staff.html）を開き、管理キーを入れ直していました。
  *    これから： 「家賃明細 オーナー送信」の5つめのタブで返せます。
- *    ［マイページへ送る］と同じ URL・同じ合言葉を使うので、
+ *    ［マイページへ送る］と同じ URL・同じ管理キーを使うので、
  *    入れ直しは要りません。
  *
- *  ★ 合言葉（ADMIN_KEY）は、コードにも config.js にも書きません。
+ *  ★ 管理キー（ADMIN_KEY）は、コードにも config.js にも書きません。
  *    pivot2 は公開リポジトリのためです。
  *    tomypage.js が端末に覚えたものを借ります。無ければ聞きます。
  *
  *  ★ 使う窓口（マイページ側にもとからあるもの。GAS は足していません）
- *      stPing  … 合言葉が合っているかだけ確かめる
+ *      stPing  … 管理キーが合っているかだけ確かめる
  *      stList  … やりとりの一覧（お返事がまだのものが上）
  *      stReply … お返事を入れる（オーナー様の画面にも出ます）
  *      stArea  … その方の支社を決める
@@ -34,7 +34,7 @@
 
   var area  = '';        /* '' = すべて / '?' = 支社がまだ */
   var only  = true;      /* お返事がまだのものだけ */
-  var ready = false;     /* 合言葉が通ったか */
+  var ready = false;     /* 管理キーが通ったか */
 
   function $(id){ return document.getElementById(id); }
   function esc(s){
@@ -53,15 +53,15 @@
 
     if(force || !url){
       url = window.prompt(
-        'マイページの Apps Script ウェブアプリURL を入れてください。\n' +
+        'マイページの Apps Script ウェブアプリURL をご入力ください。\n' +
         '（https://script.google.com/macros/s/……/exec）', url || '') || '';
       if(!url) return null;
       try{ localStorage.setItem(LS_URL, url.trim()); }catch(e){}
     }
     if(force || !key){
       key = window.prompt(
-        'マイページの合言葉（ADMIN_KEY）を入れてください。\n\n' +
-        '※ この端末の中だけに覚えます。社外に出さないでください。', '') || '';
+        'マイページの管理キー（ADMIN_KEY）をご入力ください。\n\n' +
+        '※ この端末の中だけに保存します。社外に出さないでください。', '') || '';
       if(!key) return null;
       try{ localStorage.setItem(LS_KEY, key.trim()); }catch(e){}
     }
@@ -214,15 +214,15 @@
       'margin-bottom:10px"><h2 style="font-size:1rem">オーナー様とのやりとり</h2>' +
       '<span class="spacer" style="flex:1"></span>' +
       '<button type="button" class="btn btn-sm" id="orp-chk-go">' +
-      '届いたか・見たかを確かめる</button>' +
-      '<button type="button" class="btn btn-sm" id="orp-again">読み込み直す</button>' +
-      '<button type="button" class="btn btn-sm btn-warn" id="orp-key">合言葉を入れ直す</button>' +
+      '反映・閲覧状況を確認</button>' +
+      '<button type="button" class="btn btn-sm" id="orp-again">更新</button>' +
+      '<button type="button" class="btn btn-sm btn-warn" id="orp-key">接続設定</button>' +
       '</div>' +
       '<div style="font-size:.8rem;color:#57575c;margin-bottom:10px">' +
-      'お返事がまだのものを上に出します。ここから返すと、オーナー様のマイページにも出ます。</div>' +
+      '未返信のものを上に表示します。ここから返信すると、オーナー様のマイページにも表示されます。</div>' +
       '<div class="orp-bar" id="orp-tabs"></div>' +
       '<label class="orp-only"><input type="checkbox" id="orp-only" checked>' +
-      'お返事がまだのものだけ</label>' +
+      '未返信のみ表示</label>' +
       '<p class="orp-mails" id="orp-mails"></p>' +
       '<div id="orp-chk-host"></div>' +
       '<div id="orp-list"></div>';
@@ -234,7 +234,7 @@
     $('orp-again').addEventListener('click', load);
     $('orp-chk-go').addEventListener('click', check);
     $('orp-key').addEventListener('click', function(){
-      if(!window.confirm('URL と合言葉を、もう一度入れ直しますか？')) return;
+      if(!window.confirm('URL と管理キーを、もう一度ご入力いただきますか？')) return;
       if(conf(true)) load();
     });
 
@@ -285,7 +285,7 @@
     var host = $('orp-chk-host');
     if(!host) return;
     var b = $('orp-chk-go');
-    if(b){ b.disabled = true; b.textContent = '確かめています…'; }
+    if(b){ b.disabled = true; b.textContent = '確認しています…'; }
 
     call('stCheck', {})
       .then(function(r){ chkPaint(r.list || []); })
@@ -294,16 +294,16 @@
           esc(e.message).replace(/\n/g, '<br>') + '</div>';
       })
       .then(function(){
-        if(b){ b.disabled = false; b.textContent = '届いたか・見たかを確かめる'; }
+        if(b){ b.disabled = false; b.textContent = '反映・閲覧状況を確認'; }
       });
   }
 
   /* 1名ぶんの状態を決めます。★ここだけで決めます（同じ判断を2か所に書かないため） */
   function chkState(x){
-    if(!x || !x.pdf)  return { key:'ng',  mark:'✗', txt:'届いていません' };
-    if(!x.login)      return { key:'ng',  mark:'✗', txt:'一度もログインなし' };
-    if(!x.opened)     return { key:'mid', mark:'▲', txt:'入りましたが未読' };
-    return { key:'ok', mark:'●', txt:'ご覧になっています' };
+    if(!x || !x.pdf)  return { key:'ng',  mark:'✗', txt:'未反映' };
+    if(!x.login)      return { key:'ng',  mark:'✗', txt:'ログイン履歴なし' };
+    if(!x.opened)     return { key:'mid', mark:'▲', txt:'反映済み・未閲覧' };
+    return { key:'ok', mark:'●', txt:'ご確認済み' };
   }
 
   function chkPaint(list){
@@ -328,15 +328,15 @@
 
     host.innerHTML =
       '<div id="orp-chk">' +
-        '<h3>届いたか・見たか</h3>' +
+        '<h3>反映・閲覧状況</h3>' +
         '<p class="orp-cn">' +
-          'ご覧になっています ' + n.ok + ' 名　／　' +
-          '入りましたが未読 ' + n.mid + ' 名　／　' +
-          '届いていません ' + n.ng + ' 名' +
+          'ご確認済み ' + n.ok + ' 名　／　' +
+          '反映済み・未閲覧 ' + n.mid + ' 名　／　' +
+          '未反映 ' + n.ng + ' 名' +
         '</p>' +
         '<div class="orp-sc"><table>' +
         '<thead><tr><th>オーナー様</th><th>支社</th><th>対象月</th>' +
-        '<th>明細PDF</th><th>ログイン</th><th>明細を開いた</th><th>状態</th>' +
+        '<th>明細PDF</th><th>最終ログイン</th><th>明細の閲覧</th><th>状態</th>' +
         '</tr></thead><tbody>' +
         rows.map(function(x){
           var st = chkState(x);
@@ -354,8 +354,8 @@
         }).join('') +
         '</tbody></table></div>' +
         '<p class="orp-cn" style="margin:12px 0 0">' +
-          '★「中身を読んだか」は分かりません。画面を開いたかどうかまでです。<br>' +
-          'ご家族や税理士先生がご覧になった場合も、見分けられません。' +
+          '★お読みになった内容までは分かりません。画面を開かれたかどうかまでです。<br>' +
+          'ご家族や税理士事務所がご確認された場合も、区別はできません。' +
         '</p>' +
       '</div>';
   }
@@ -371,8 +371,8 @@
       .catch(function(e){
         if(e.code === 'auth'){
           try{ localStorage.removeItem(LS_KEY); }catch(x){}
-          list.innerHTML = '<div class="empty">合言葉が違うようです。' +
-            '［合言葉を入れ直す］からお願いします。</div>';
+          list.innerHTML = '<div class="empty">管理キーが違うようです。' +
+            '［接続設定］よりご入力ください。</div>';
           return;
         }
         list.innerHTML = '<div class="empty">' +
@@ -410,7 +410,7 @@
     var list = r.list || [];
     if(!list.length){
       $('orp-list').innerHTML = '<div class="empty">' +
-        (only ? 'お返事がまだのものはありません。' : 'やりとりはまだありません。') +
+        (only ? '未返信のものはありません。' : 'やりとりの履歴はありません。') +
         '</div>';
       return;
     }
@@ -433,7 +433,7 @@
         '<div class="orp-h">' +
           '<span class="orp-o">' + esc(t.owner) + '</span>' +
           '<span class="orp-c' + (t.open ? ' open' : ' done') + '">' +
-            (t.open ? 'お返事がまだ' : 'お返事済み') + '</span>' +
+            (t.open ? '未返信' : '返信済み') + '</span>' +
           '<span class="orp-c">' + esc(t.type) + '</span>' +
           '<span class="orp-c">' + esc(t.area || '支社がまだ') + '</span>' +
         '</div>' +
@@ -441,9 +441,9 @@
         '<div class="orp-talk">' + talk + '</div>' +
         '<div class="orp-r">' +
           '<textarea data-w="' + esc(t.id) + '" rows="3"' +
-            ' placeholder="お返事をお書きください。オーナー様の画面に出ます。"></textarea>' +
+            ' placeholder="返信内容をご記入ください。オーナー様の画面に表示されます。"></textarea>' +
           '<button type="button" class="btn btn-acc" data-send="' + esc(t.id) +
-            '">お返事を入れる</button>' +
+            '">返信する</button>' +
           '<span class="orp-m" data-msg="' + esc(t.id) + '"></span>' +
         '</div>' +
         '<div class="orp-ar"><span>この方の支社</span>' +
@@ -470,7 +470,7 @@
     var msg = $('orp-list').querySelector('[data-msg="' + id + '"]');
     var body = ta ? (ta.value || '').trim() : '';
     if(msg) msg.textContent = '';
-    if(!body){ if(msg) msg.textContent = '本文をお書きください。'; return; }
+    if(!body){ if(msg) msg.textContent = '本文をご入力ください。'; return; }
 
     btn.disabled = true;
     var was = btn.textContent;
