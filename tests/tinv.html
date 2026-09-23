@@ -19,13 +19,23 @@ window.RENT = { detail: [
   { owner:'山田 太郎', atena:'山田 太郎 様', email:'yamada@example.jp', props:[] },
   { owner:'鈴木 花子', atena:'鈴木 花子 様', email:'suzuki@example.jp', props:[] },
   { owner:'私（テスト）', atena:'私 様',      email:'me@example.jp',     props:[] },
-  { owner:'アドレス無し', atena:'',           email:'',                  props:[] }
+  { owner:'アドレス無し', atena:'',           email:'',                  props:[] },
+  /* ★「メール送信しないオーナー（別管理）」の方。
+       ownermail.js は detail には入れたまま、一覧には出しません
+       （チェックの箱もありません）。メールアドレスは持っています。 */
+  { owner:'森本 将行',   atena:'森本 将行 様', email:'morimoto@example.jp', props:[] }
 ], makeOwnerPdfBase64: function(){ return null; } };
+window.__EXCLUDED = 4;    /* 別管理の方の番号 */
 /* 振り分け一覧のチェック箱（本物と同じ class / value） */
-document.getElementById('rows').innerHTML = window.RENT.detail.map(function(d,i){
-  return '<label><input type="checkbox" class="rent-check" value="'+i+'"'+
-         (d.email?'':' disabled')+'> '+d.owner+'</label><br>';
-}).join('');
+document.getElementById('rows').innerHTML = window.RENT.detail
+  .map(function(d,i){
+    /* ★別管理の方は、一覧に出しません（本物と同じ作りです） */
+    if(i === window.__EXCLUDED) return '';
+    return '<label><input type="checkbox" class="rent-check" value="'+i+'"'+
+           (d.email?'':' disabled')+'> '+d.owner+'</label><br>';
+  }).join('');
+document.getElementById('rent-excluded-section').innerHTML =
+  'メール送信しないオーナー（別管理）： 森本 将行（morimoto@example.jp）';
 /* 接続設定は、はじめから入っている形にします */
 localStorage.setItem('pv_mypage_url','https://script.google.com/macros/s/TEST/exec');
 localStorage.setItem('pv_mypage_key','K'.repeat(40));

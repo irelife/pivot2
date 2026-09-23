@@ -59,7 +59,8 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   });
   console.log('    見出し:', v.head);
   v.rows.forEach(r=>console.log('    ', r.join(' | ')));
-  ok(/まだ招待していないオーナー様が 3 名/.test(v.head), '★未招待が3名と出る');
+  ok(/まだ招待していないオーナー様が 3 名/.test(v.head),
+     '★未招待が3名と出る（鈴木・私・アドレス無し。★別管理の森本様は数えない）');
   ok(v.rows[0][2]==='招待済み',     '山田様は 招待済み');
   ok(v.rows[1][2]==='未招待',       '★鈴木様は 未招待');
   ok(v.rows[2][2]==='未招待',       '★私（テスト）は 未招待');
@@ -74,6 +75,21 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   ok(/1名だけお試し/.test(dialogs[0].msg), '★1名だけ試す方法も書いてある');
   let sent = await p.evaluate(()=>window.__sent.filter(x=>x.action==='push').length);
   ok(sent===0, '★キャンセルしたので、1名も送っていない');
+
+  console.log('\n── ②-2 ★別管理（除外）の方に、招待メールが飛ばないか ──');
+  ok(v.rows.length===5, '表には別管理の方も出る（5行）');
+  ok(v.rows[4][2]==='対象外（別管理）',
+     '★別管理の方は「対象外（別管理）」と出る（「未招待」ではない）');
+  ok(!/まだ招待していないオーナー様が 4 名/.test(v.head),
+     '★別管理の方を「未招待」に数えない（招待し忘れに見えてしまうため）');
+  /* チェック0で「全員」に送るとき、別管理の方が混ざらないか */
+  dialogs=[]; p.__accept=false;
+  await p.click('#btn-to-mypage'); await p.waitForTimeout(600);
+  const zen = dialogs[0] ? dialogs[0].msg : '';
+  console.log('    「全員」の確認:', zen.split('\n').filter(x=>/名/.test(x)).join(' / '));
+  ok(/ある 3 名/.test(zen),
+     '★「全員」でも 3 名（山田・鈴木・私）。別管理の森本様とアドレス無しは入らない');
+  ok(!/森本/.test(zen), '★確認の文に森本様が出てこない');
 
   console.log('\n── ③ 私（テスト）1名だけにチェックして送る ──');
   await p.evaluate(()=>{ document.querySelector('.rent-check[value="2"]').checked = true; });

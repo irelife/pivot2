@@ -153,12 +153,21 @@
     if(old && old.parentNode) old.parentNode.removeChild(old);
     if(!list) return;
 
+    /* ★別管理の方は「対象外」と出します。
+         「未招待」と出すと、招待し忘れのように見えてしまいます。
+         当社が「メールは送らない」と決めた方なので、それでよいのです。 */
+    var sh = shown();
     var rows = list.map(function(d, i){
       var mail = String(d.email || '').trim();
       return { i:i, name:(d.owner || d.atena || mail || '（お名前なし）'),
-               mail:mail, rec:(mail ? invOf(mail) : null) };
+               mail:mail, rec:(mail ? invOf(mail) : null),
+               /* ★out は「別管理（一覧に出ていない）」だけです。
+                    アドレス未登録は out ではありません。 */
+               out:!sh[i] };
     });
-    var ng = rows.filter(function(r){ return !r.mail || !r.rec; }).length;
+    var ng = rows.filter(function(r){
+      return !r.out && (!r.mail || !r.rec);
+    }).length;
 
     var box = document.createElement('div');
     box.id = 'tmp-inv';
@@ -189,6 +198,12 @@
           return '<td style="padding:6px 8px;border-bottom:1px solid #f0f0f2' +
                  (c ? (';color:' + c + ';font-weight:700') : '') + '">' + x + '</td>';
         };
+        if(r.out){
+          return '<tr>' + td(esc(r.name)) + td(r.mail ? esc(r.mail) : '—') +
+                 td(r.rec ? '招待済み（別管理）' : '対象外（別管理）', '#57575c') +
+                 td(r.rec && r.rec.login ? esc(r.rec.login) : '—') +
+                 td('—') + td('—') + '</tr>';
+        }
         if(!r.mail){
           return '<tr>' + td(esc(r.name)) + td('—', '#c9001a') +
                  td('アドレス未登録', '#c9001a') + td('—') + td('—') + td('—') + '</tr>';
@@ -337,6 +352,53 @@
     return on;
   }
 
+  /* 上の一覧に「出ている」方の番号を拾います（＝送信の対象）。
+   *
+   *  ★2026/9/23 直し。ここも危ないところでした。
+   *
+   *  【改良前】 window.RENT.detail をそのまま全部なめて、
+   *            「メールアドレスがある方」を対象にしていました。
+   *            ところが detail には
+   *            **「メール送信しないオーナー（別管理）」の方も入っています**
+   *            （ownermail.js は、画面に出すときだけ外しています）。
+   *            当社が「メールは送らない」と決めた方に、
+   *            初回パスワードのご案内メールが飛びます。
+   *
+   *  【改良後】 一覧のチェックの箱（.rent-check）がある方だけを対象にします。
+   *            別管理の方は一覧に出ないので箱もなく、自然に外れます。
+   *            ★画面に見えているものと、送る相手が、必ず一致します。 */
+  /* 一覧に「出ている」方の番号。メールの有無は問いません。
+   *  ★別管理の方は一覧に出ないので、ここに入りません。
+   *  ★アドレスが未登録の方は、押せない箱つきで一覧に出ます。
+   *    ですのでここには入り、「アドレス未登録」として出せます。
+   *    （別管理と、アドレス未登録は、まったく別のことです。
+   *      前者は当社が「送らない」と決めた方、
+   *      後者は当社が「直さなければならない」方です。
+   *      同じ札にすると、直すべきものが埋もれます。） */
+  function shown(){
+    var set = {};
+    try{
+      var els = document.querySelectorAll('.rent-check');
+      Array.prototype.forEach.call(els, function(el){
+        var i = Number(el.value);
+        if(isFinite(i)) set[i] = 1;
+      });
+    }catch(e){}
+    return set;
+  }
+
+  function listed(list){
+    var sh = shown(), out = [];
+    Object.keys(sh).forEach(function(k){
+      var i = Number(k);
+      if(list[i] && String(list[i].email || '').trim() && out.indexOf(i) < 0){
+        out.push(i);
+      }
+    });
+    out.sort(function(a, b){ return a - b; });
+    return out;
+  }
+
   /* お名前を並べます（多いときは途中で切ります） */
   function names(list, idx){
     var max = 12;
@@ -360,13 +422,20 @@
       return;
     }
 
-    /* 送れるのは、メールアドレスがある方だけです */
-    var withMail = [];
-    for(var i = 0; i < list.length; i++){
-      if(String(list[i].email || '').trim()) withMail.push(i);
-    }
+    /* 送れるのは、上の一覧に出ていて、メールアドレスがある方だけです。
+       ★「別管理」の方は、ここに入りません。 */
+    var withMail = listed(list);
     if(!withMail.length){
-      alert('メールアドレスが登録されているオーナー様がいません。');
+      var anyMail = false;
+      for(var i = 0; i < list.length; i++){
+        if(String(list[i].email || '').trim()){ anyMail = true; break; }
+      }
+      alert(anyMail
+        ? ('上の一覧に、送信できるオーナー様が出ていません。\n\n' +
+           '「メール送信しないオーナー（別管理）」の方だけ、という状態かもしれません。\n' +
+           '別管理の方には、マイページへも送りません。\n\n' +
+           '通常の一覧に出ている方に送るには、上の枠へ明細PDFを取り込んでください。')
+        : 'メールアドレスが登録されているオーナー様がいません。');
       return;
     }
 
