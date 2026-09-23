@@ -118,6 +118,10 @@
       '#rent-view .tab .orp-n{display:inline-flex;align-items:center;justify-content:center;',
       '  min-width:18px;height:18px;margin-left:7px;padding:0 5px;border-radius:9px;',
       '  background:var(--orp-ng);color:#fff;font-size:.68rem;font-weight:800;line-height:1}',
+      /* ★hidden を付けただけでは消えません。display を自分で書いているため、
+       *   ブラウザの [hidden]{display:none} に勝ってしまいます。
+       *   0件のときに「0」が出てしまうので、ここで打ち消します。 */
+      '#rent-view .tab .orp-n[hidden]{display:none}',
       '#view-reply .orp-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}',
       '#view-reply .orp-a{font-family:inherit;font-size:.8rem;font-weight:700;padding:7px 14px;',
       '  border-radius:999px;border:1px solid var(--rt-line);background:#fff;',
