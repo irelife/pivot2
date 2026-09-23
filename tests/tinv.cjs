@@ -34,6 +34,18 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   console.log('\n── ボタンが出るか ──');
   ok(await p.isVisible('#btn-to-mypage'), '［マイページへ送る］がある');
   ok(await p.isVisible('#btn-mypage-inv'), '★［マイページの登録状況］がある');
+  /* ★置き場所。オーナー様の一覧より下だと、見つけられません。 */
+  const where = await p.evaluate(()=>{
+    const kids=[...document.getElementById('view-send').children].map(x=>x.id||x.className||'(無名)');
+    const w = document.getElementById('btn-to-mypage').parentNode;
+    return { kids:kids, idx:kids.indexOf(w.id||w.className||'(無名)'),
+             bar:kids.indexOf('bar'), rows:kids.indexOf('rows') };
+  });
+  console.log('    view-send の中身:', where.kids.join(' → '));
+  ok(where.idx === where.bar + 1,
+     '★［一斉送信］のすぐ下にある（' + (where.bar+1) + '番目）');
+  ok(where.idx < where.rows,
+     '★オーナー様の一覧より「上」にある（下だと見つけられません）');
 
   console.log('\n── ① 登録状況（招待済み・未招待）──');
   await p.click('#btn-mypage-inv');

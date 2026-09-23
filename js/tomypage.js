@@ -678,7 +678,26 @@
 
     wrap.appendChild(b); wrap.appendChild(v); wrap.appendChild(s);
     wrap.appendChild(note);
-    host.appendChild(wrap);
+
+    /* ★置く場所（2026/9/23 直し）
+     *
+     *  【改良前】 host.appendChild(wrap) で、view-send の**いちばん下**に
+     *            置いていました。オーナー様の一覧（長い）と
+     *            「メール送信しないオーナー（別管理）」より下になり、
+     *            画面を何度もスクロールしないと見つかりませんでした。
+     *
+     *  【改良後】 ［一斉送信］の並びのすぐ下に置きます。
+     *            チェックを入れる場所と同じ高さなので、目に入ります。
+     *
+     *  ★［一斉送信］が見つからないときは、今までどおりいちばん下に置きます
+     *    （ownermail.js の作りが変わっても、ボタンが消えないようにするため）。 */
+    var bar = document.getElementById('rent-btn-send');
+    bar = bar ? bar.parentNode : null;
+    if(bar && bar.parentNode){
+      bar.parentNode.insertBefore(wrap, bar.nextSibling);
+    }else{
+      host.appendChild(wrap);
+    }
   }
 
   if(document.readyState === 'loading'){

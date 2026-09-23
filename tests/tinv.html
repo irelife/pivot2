@@ -1,8 +1,16 @@
 <!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>tomypage 検査台</title></head>
 <body>
 <div id="rent-view">
-  <div id="view-send">
+  <div class="view active" id="view-send">
+    <div id="dropzone">（明細PDFのドロップ枠のつもり）</div>
+    <div id="bar">
+      <label><input type="checkbox" id="rent-check-all"> 全選択</label>
+      <button class="btn btn-sm" id="rent-btn-draft">下書きを作成</button>
+      <button class="btn btn-sm" id="rent-btn-send">一斉送信</button>
+      <span id="rent-action-status"></span>
+    </div>
     <div id="rows"></div>
+    <div id="rent-excluded-section">（メール送信しないオーナー のつもり）</div>
   </div>
 </div>
 <script>
