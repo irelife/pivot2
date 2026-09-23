@@ -160,7 +160,22 @@
       '#view-reply .orp-ar{display:flex;align-items:center;gap:8px;margin-top:10px;',
       '  padding-top:10px;border-top:1px solid var(--rt-line);font-size:.78rem}',
       '#view-reply .orp-ar select{font-family:inherit;font-size:.8rem;padding:6px 9px;',
-      '  border:1px solid var(--rt-line);border-radius:8px;background:#fff;color:var(--rt-ink)}'
+      '  border:1px solid var(--rt-line);border-radius:8px;background:#fff;color:var(--rt-ink)}',
+      /* 届いたか・見たかの表 */
+      '#orp-chk{margin:0 0 16px;padding:14px 16px;background:var(--rt-card);',
+      '  border:1px solid var(--rt-line);border-radius:12px}',
+      '#orp-chk h3{margin:0 0 4px;font-size:.95rem;font-weight:800}',
+      '#orp-chk .orp-cn{margin:0 0 12px;font-size:.78rem;color:var(--orp-sub)}',
+      '#orp-chk table{width:100%;border-collapse:collapse;font-size:12.5px}',
+      '#orp-chk th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--rt-line);',
+      '  font-weight:700;color:var(--orp-sub);white-space:nowrap}',
+      '#orp-chk td{padding:6px 8px;border-bottom:1px solid #f0f0f2;white-space:nowrap}',
+      '#orp-chk td.w{color:var(--orp-ng-t);font-weight:700}',
+      '#orp-chk .orp-s{font-weight:800}',
+      '#orp-chk .orp-s.ok{color:#0a7a3d}',
+      '#orp-chk .orp-s.mid{color:#8a5a00}',
+      '#orp-chk .orp-s.ng{color:var(--orp-ng-t)}',
+      '#orp-chk .orp-sc{overflow-x:auto;-webkit-overflow-scrolling:touch}'
     ].join('');
     document.head.appendChild(st);
   }
@@ -198,6 +213,8 @@
       '<div class="bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;' +
       'margin-bottom:10px"><h2 style="font-size:1rem">オーナー様とのやりとり</h2>' +
       '<span class="spacer" style="flex:1"></span>' +
+      '<button type="button" class="btn btn-sm" id="orp-chk-go">' +
+      '届いたか・見たかを確かめる</button>' +
       '<button type="button" class="btn btn-sm" id="orp-again">読み込み直す</button>' +
       '<button type="button" class="btn btn-sm btn-warn" id="orp-key">合言葉を入れ直す</button>' +
       '</div>' +
@@ -207,6 +224,7 @@
       '<label class="orp-only"><input type="checkbox" id="orp-only" checked>' +
       'お返事がまだのものだけ</label>' +
       '<p class="orp-mails" id="orp-mails"></p>' +
+      '<div id="orp-chk-host"></div>' +
       '<div id="orp-list"></div>';
     hist.parentNode.insertBefore(v, hist.nextSibling);
 
@@ -214,6 +232,7 @@
       only = $('orp-only').checked; load();
     });
     $('orp-again').addEventListener('click', load);
+    $('orp-chk-go').addEventListener('click', check);
     $('orp-key').addEventListener('click', function(){
       if(!window.confirm('URL と合言葉を、もう一度入れ直しますか？')) return;
       if(conf(true)) load();
@@ -244,6 +263,101 @@
     if(!el) return;
     el.textContent = n > 99 ? '99+' : String(n);
     el.hidden = !n;
+  }
+
+  /* ══════════════════════════════════════════════
+   *  届いたか・見たかを確かめる（stCheck）
+   *
+   *  ★なぜ必要か
+   *    メールなら、届かなければ返ってきました。マイページでは
+   *    返ってくるものがありません。そのかわり「本当にご覧になったか」が
+   *    分かります。
+   *
+   *  ★3つに分けて出します。
+   *    ● ご覧になっています … ログインして、その月の明細も開いた
+   *    ▲ 入りましたが未読 … 明細は入ったが、まだ開いていない
+   *    ✗ 届いていません   … 明細が入っていない、または一度もログインなし
+   *
+   *  ★「中身を読んだか」は分かりません。画面を開いただけかもしれません。
+   *    表の下にもそう書いてあります。
+   * ══════════════════════════════════════════════ */
+  function check(){
+    var host = $('orp-chk-host');
+    if(!host) return;
+    var b = $('orp-chk-go');
+    if(b){ b.disabled = true; b.textContent = '確かめています…'; }
+
+    call('stCheck', {})
+      .then(function(r){ chkPaint(r.list || []); })
+      .catch(function(e){
+        host.innerHTML = '<div class="empty">' +
+          esc(e.message).replace(/\n/g, '<br>') + '</div>';
+      })
+      .then(function(){
+        if(b){ b.disabled = false; b.textContent = '届いたか・見たかを確かめる'; }
+      });
+  }
+
+  /* 1名ぶんの状態を決めます。★ここだけで決めます（同じ判断を2か所に書かないため） */
+  function chkState(x){
+    if(!x || !x.pdf)  return { key:'ng',  mark:'✗', txt:'届いていません' };
+    if(!x.login)      return { key:'ng',  mark:'✗', txt:'一度もログインなし' };
+    if(!x.opened)     return { key:'mid', mark:'▲', txt:'入りましたが未読' };
+    return { key:'ok', mark:'●', txt:'ご覧になっています' };
+  }
+
+  function chkPaint(list){
+    var host = $('orp-chk-host');
+    if(!list.length){
+      host.innerHTML = '<div class="empty">オーナー様がまだ登録されていません。</div>';
+      return;
+    }
+
+    /* 未読・未着を上に、そのなかはお名前の順 */
+    var rank = { ng:0, mid:1, ok:2 };
+    var rows = list.slice().sort(function(a, b){
+      var d = rank[chkState(a).key] - rank[chkState(b).key];
+      if(d) return d;
+      return String(a.name || a.mail).localeCompare(String(b.name || b.mail), 'ja');
+    });
+
+    var n = { ok:0, mid:0, ng:0 };
+    list.forEach(function(x){ n[chkState(x).key]++; });
+
+    var dash = function(v){ return v ? esc(v) : '—'; };
+
+    host.innerHTML =
+      '<div id="orp-chk">' +
+        '<h3>届いたか・見たか</h3>' +
+        '<p class="orp-cn">' +
+          'ご覧になっています ' + n.ok + ' 名　／　' +
+          '入りましたが未読 ' + n.mid + ' 名　／　' +
+          '届いていません ' + n.ng + ' 名' +
+        '</p>' +
+        '<div class="orp-sc"><table>' +
+        '<thead><tr><th>オーナー様</th><th>支社</th><th>対象月</th>' +
+        '<th>明細PDF</th><th>ログイン</th><th>明細を開いた</th><th>状態</th>' +
+        '</tr></thead><tbody>' +
+        rows.map(function(x){
+          var st = chkState(x);
+          return '<tr>' +
+            '<td>' + esc(x.name || x.mail) + '</td>' +
+            '<td>' + dash(x.area) + '</td>' +
+            '<td>' + dash(x.ym) + '</td>' +
+            '<td' + (x.pdf ? '' : ' class="w"') + '>' +
+              (x.pdf ? 'あり' : 'なし') + '</td>' +
+            '<td' + (x.login ? '' : ' class="w"') + '>' + dash(x.login) + '</td>' +
+            '<td' + (x.opened ? '' : ' class="w"') + '>' + dash(x.seen) + '</td>' +
+            '<td><span class="orp-s ' + st.key + '">' +
+              st.mark + ' ' + esc(st.txt) + '</span></td>' +
+          '</tr>';
+        }).join('') +
+        '</tbody></table></div>' +
+        '<p class="orp-cn" style="margin:12px 0 0">' +
+          '★「中身を読んだか」は分かりません。画面を開いたかどうかまでです。<br>' +
+          'ご家族や税理士先生がご覧になった場合も、見分けられません。' +
+        '</p>' +
+      '</div>';
   }
 
   /* ── 一覧 ── */
