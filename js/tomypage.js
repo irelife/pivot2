@@ -616,6 +616,59 @@
     });
   }
 
+  /* ── PDFの文字列を、送れる形にそろえます ──────────
+   *
+   *  ★2026/9/23、本番で実際に起きた不具合の直しです。
+   *
+   *  【改良前】
+   *      b64 = window.RENT.makeOwnerPdfBase64(i);
+   *
+   *    ところが ownermail.js の makeOwnerPdfBase64 は **async** です。
+   *    返ってくるのは PDF の文字列ではなく「**約束（Promise）**」でした。
+   *    約束は空でない値なので if(!b64) を通り抜け、そのまま送られます。
+   *    JSON にすると中身が消えて {} になり、マイページ側では
+   *      「文字列をデコードできませんでした。」
+   *    になります。しかも画面には「入りませんでした」とだけ出ていました。
+   *
+   *  【改良後】 必ず待ってから、形も確かめてから送ります。
+   *    形が違えば **送りません**。送ってしまうと、
+   *    マイページ側で失敗するだけで、原因が分からなくなります。 */
+  function cleanB64(v){
+    if(typeof v !== 'string') return null;              /* 約束・数・null など */
+    var t = v.replace(/^data:[^,]*,/i, '').replace(/\s+/g, '');
+    if(!t) return null;
+    if(!/^[A-Za-z0-9+/]+={0,2}$/.test(t)) return null;  /* base64 の字だけか */
+    if(t.length < 100) return null;                     /* PDFには短すぎます */
+    return t;
+  }
+
+  /* その方のPDFを作って、送れる形で返します。
+   *  返すもの： { b64:文字列 または null, why:出す字 } */
+  function pdfOf(i, live){
+    if(!live){
+      return Promise.resolve({ b64:null, why:'なし（取り込み直しが必要）' });
+    }
+    var v;
+    try{
+      if(!(window.RENT && typeof window.RENT.makeOwnerPdfBase64 === 'function')){
+        return Promise.resolve({ b64:null, why:'作れませんでした' });
+      }
+      v = window.RENT.makeOwnerPdfBase64(i);
+    }catch(e){
+      return Promise.resolve({ b64:null, why:'作れませんでした' });
+    }
+    /* ★約束でも、ふつうの値でも、同じように待てます */
+    return Promise.resolve(v).then(function(raw){
+      if(raw == null || raw === '') return { b64:null, why:'作れませんでした' };
+      var ok = cleanB64(raw);
+      if(ok) return { b64:ok, why:'' };
+      /* 作れてはいるのに、形がおかしいとき。当社の不具合です。 */
+      return { b64:null, why:'PDFの文字列が正しくありません（当社の不具合です）' };
+    }, function(){
+      return { b64:null, why:'作れませんでした' };
+    });
+  }
+
   /* ── 実際の送信 ──────────────────────────────
    *  ★2026/9/23 まで、PDFは1名ずつ送り、登録（push）だけ
    *    まとめて1回でした。まとめると答えが「何名ぶん入った」しか
@@ -646,24 +699,13 @@
 
         /* ① この方のPDFをドライブへ
          *  ★makeOwnerPdfBase64 は ownermail.js の囲いの中にあります。
-         *    window.RENT から呼びます。
+         *    window.RENT から呼びます。**async なので、必ず待ちます。**
          *    逃げ道（localStorage）で読んだときは、番号が合っている保証が
          *    ないので呼びません。取り違えたPDFを送るほうが困るためです。 */
-        var b64 = null;
-        try{
-          if(live && window.RENT &&
-             typeof window.RENT.makeOwnerPdfBase64 === 'function'){
-            b64 = window.RENT.makeOwnerPdfBase64(i);
-          }
-        }catch(e){ b64 = null; }
-
-        var step1;
-        if(!b64){
-          row.pdfTxt = live ? '作れませんでした' : 'なし（取り込み直しが必要）';
-          step1 = Promise.resolve();
-        }else{
+        var step1 = pdfOf(i, live).then(function(g){
+          if(!g.b64){ row.pdfTxt = g.why; return; }
           var nm = (o.name + '_明細_' + o.ym + '.pdf').replace(/\s/g, '');
-          step1 = post(cfg.url, { action:'putPdf', key:cfg.key, name:nm, b64:b64 })
+          return post(cfg.url, { action:'putPdf', key:cfg.key, name:nm, b64:g.b64 })
             .then(function(r){
               if(r && r.ok && r.id){ o.fileId = r.id; row.pdf = true; row.pdfTxt = '入りました'; }
               else{
@@ -675,7 +717,7 @@
               }
             })
             .catch(function(){ row.pdfTxt = '通信できませんでした'; });
-        }
+        });
 
         /* ② この方を登録（1名だけ送るので、added は 0 か 1 になります） */
         return step1.then(function(){
