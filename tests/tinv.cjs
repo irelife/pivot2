@@ -181,15 +181,21 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
                          document.querySelector('.rent-check[value="2"]').checked = false; });
   await p.click('#btn-to-mypage');
   await p.waitForTimeout(2000);
+  /* ★列の番号ではなく「列の名前」で見ます。
+       列を足すたびに検査が壊れるのを防ぐためです。 */
   const why = await p.evaluate(()=>{
     const t=document.querySelector('#tmp-board table');
-    return t ? [...t.querySelectorAll('tbody tr')].map(tr=>
-      [...tr.querySelectorAll('td')].map(td=>td.textContent.trim())) : null;
+    if(!t) return null;
+    const h=[...t.querySelectorAll('thead th')].map(x=>x.textContent.trim());
+    const tds=[...t.querySelectorAll('tbody tr')].map(tr=>
+      [...tr.querySelectorAll('td')].map(td=>td.textContent.trim()));
+    return { head:h, rows:tds, at:function(){ return 0; } };
   });
-  console.log('    表:', why ? why[0].join(' | ') : '(なし)');
-  ok(why && /DRIVE_ID/.test(why[0][4]),
+  const col = (r, name) => r.rows[0][r.head.indexOf(name)];
+  console.log('    表:', why ? why.rows[0].join(' | ') : '(なし)');
+  ok(why && /DRIVE_ID/.test(col(why, '明細PDF')),
      '★マイページ側が返した理由（DRIVE_ID…）を、そのまま表に出す');
-  ok(why && why[0][4] !== '入りませんでした',
+  ok(why && col(why, '明細PDF') !== '入りませんでした',
      '★「入りませんでした」だけで済ませない（原因さがしが始められないため）');
   await p.evaluate(()=>{ window.__pdfng = false;
     window.RENT.makeOwnerPdfBase64 = async function(){ return null; }; });
@@ -211,15 +217,17 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   const ng = await p.evaluate(()=>{
     const t=document.querySelector('#tmp-board table');
     if(!t) return null;
-    return { rows:[...t.querySelectorAll('tbody tr')].map(tr=>
+    return { head:[...t.querySelectorAll('thead th')].map(x=>x.textContent.trim()),
+             rows:[...t.querySelectorAll('tbody tr')].map(tr=>
                [...tr.querySelectorAll('td')].map(td=>td.textContent.trim())),
              note: [...document.querySelectorAll('#tmp-board p')].pop().textContent.trim() };
   });
   console.log('    表:', ng ? ng.rows.map(r=>r.join(' | ')).join(' / ') : '(なし)');
   ok(!!ng, '結果の表は出る');
-  ok(ng && ng.rows[0][1] === '分かりません',
+  ok(ng && ng.rows[0][ng.head.indexOf('アカウント')] === '分かりません',
      '★アカウントの欄は「分かりません」（「もとからあります」と嘘をつかない）');
-  ok(ng && /通信できませんでした/.test(ng.rows[0][3]), '明細は「通信できませんでした」');
+  ok(ng && /通信できませんでした/.test(ng.rows[0][ng.head.indexOf('明細')]),
+     '明細は「通信できませんでした」');
   ok(ng && /つながっていない/.test(ng.note),
      '★下の一言で「1回もつながっていない」と伝える');
   ok(ng && /メールも出ていません/.test(ng.note),
@@ -232,6 +240,46 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
      (ng && /つながっていない/.test(ng.note)),
      '★何を確かめればよいかを日本語で出す');
   await p.evaluate(()=>{ window.__netng = false; });
+
+  console.log('\n── ③-4 ★「明細が入りました」のお知らせ ──');
+  await p.evaluate(()=>{
+    window.__pdfng = false; window.__noteoff = false; window.__notengai = false;
+    window.RENT.makeOwnerPdfBase64 = async function(){ return window.__B64; };
+    window.__sent.length = 0;
+  });
+  const noteCol = async (val, label) => {
+    dialogs=[]; p.__accept=true;
+    await p.evaluate((v)=>{
+      document.querySelector('.rent-check[value="'+v+'"]').checked = true;
+      [0,1,2].filter(x=>x!==v).forEach(x=>{
+        document.querySelector('.rent-check[value="'+x+'"]').checked = false; });
+    }, val);
+    await p.click('#btn-to-mypage');
+    await p.waitForTimeout(2200);
+    const r = await p.evaluate(()=>{
+      const t=document.querySelector('#tmp-board table');
+      return { cols:[...t.querySelectorAll('thead th')].map(x=>x.textContent.trim()),
+               row:[...t.querySelectorAll('tbody tr td')].map(x=>x.textContent.trim()) };
+    });
+    console.log('    ' + label + ': ' + r.row.join(' | '));
+    return r;
+  };
+  /* 山田様＝すでに登録済み → お知らせが出る */
+  let r1 = await noteCol(0, 'すでに登録済み');
+  ok(r1.cols.indexOf('明細のお知らせ') === 3, '★「明細のお知らせ」の列がある（4列目）');
+  ok(r1.row[3] === 'お送りしました', '★すでに登録済みの方には お送りしました');
+  /* 出せなかったとき */
+  await p.evaluate(()=>{ window.__notengai = true; });
+  let r2 = await noteCol(0, '出せなかったとき');
+  ok(r2.row[3] === '出ていません', '★出せなかったら「出ていません」（赤）');
+  const nt = await p.evaluate(()=>[...document.querySelectorAll('#tmp-board p')].pop().textContent.trim());
+  ok(/入ったことをご存じありません/.test(nt),
+     '★下の一言で「明細は入っているが、ご存じない」と伝える');
+  /* マイページ側が、まだ知らせてこないとき */
+  await p.evaluate(()=>{ window.__notengai = false; window.__noteoff = true; });
+  let r3 = await noteCol(0, 'まだ知らせてこないとき');
+  ok(r3.row[3] === '確かめられません', '★知らせてこないあいだは「確かめられません」（灰色）');
+  await p.evaluate(()=>{ window.__noteoff = false; });
 
   console.log('\n── ④ もう一度［登録状況］を押すと、招待済みに変わるか ──');
   await p.click('#btn-mypage-inv');
