@@ -27,6 +27,13 @@
   var LS_URL = 'pv_mypage_url';
   var LS_KEY = 'pv_mypage_key';
 
+  /* 一度に送る人数の目安。これを超えたら、押す前にお伝えします。
+   *  20名なら 通信40回、1〜2分。結果の表も一目で読めます。 */
+  var MANY = 20;
+  /* Gmail の1日の送信上限（無料アカウント。2026/9/23 実測で残り98通）。
+   *  ★上限そのものは Google が決めます。ここは「お伝えする目安」です。 */
+  var MAIL_DAY = 80;
+
   /* ── 設定（はじめの1回だけ聞きます） ───────── */
   function conf(force){
     var url = '', key = '';
@@ -488,6 +495,33 @@
           });
         }
 
+        /* ★一度に多すぎるときの止め金（2026/9/23）
+         *
+         *  オーナー様は112名います。全員にチェックを入れて押すと
+         *    ・1名につき2回やりとりするので 224回。8〜12分かかります
+         *    ・その間、この画面を閉じられません
+         *    ・ご案内メールは1日100通まで。超えたぶんは黙って届きません
+         *      （再設定・お返事のお知らせも、同じ100通枠を使います）
+         *  押す前に、はっきりお伝えします。止めはしません。
+         *  ★数はこちらで決めつけず、実際の人数から出しています。 */
+        var warn = '';
+        if(idx.length > MANY){
+          warn += '\n★ 一度に ' + idx.length + ' 名です。\n' +
+                  '　 1名につき2回やりとりするため、およそ ' +
+                  Math.ceil(idx.length * 2 * 2 / 60) + '〜' +
+                  Math.ceil(idx.length * 2 * 3 / 60) + ' 分かかり、\n' +
+                  '　 その間この画面を閉じられません。\n' +
+                  '　 ' + MANY + ' 名ずつに分けると、結果の表も読みやすく、\n' +
+                  '　 途中で失敗したときの押し直しも楽になります。\n';
+        }
+        if(!unknown && neu > MAIL_DAY){
+          warn += '\n★ はじめての方が ' + neu + ' 名です。\n' +
+                  '　 ご案内メールは1日 ' + MAIL_DAY + ' 通ほどまでで、\n' +
+                  '　 再設定・お返事のお知らせも同じ枠を使います。\n' +
+                  '　 超えたぶんは届きません（台帳の「つまずき記録」に残ります）。\n' +
+                  '　 日を分けてお送りください。\n';
+        }
+
         var msg = 'オーナーマイページへ送ります。\n\n' +
           '　対象： ' + idx.length + ' 名\n' +
           names(list, idx) + '\n\n' +
@@ -499,6 +533,7 @@
            '\n※ 明細PDFは付きません。\n' +
            '　 この画面で明細PDFを取り込み直してから押していただくと、\n' +
            '　 PDFも一緒に送られます。\n') +
+          warn +
           '\nよろしいですか？';
         if(!window.confirm(msg)) return;
 
@@ -564,7 +599,8 @@
     t.style.cssText = 'width:100%;border-collapse:collapse;font-size:12.5px';
     t.innerHTML =
       '<thead><tr>' +
-      ['オーナー様','アカウント','開設のご案内','明細','明細PDF'].map(function(h){
+      ['オーナー様','アカウント','開設のご案内','明細のお知らせ','明細','明細PDF']
+        .map(function(h){
         return '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid ' +
                '#e5e5ea;font-weight:700;color:#57575c">' + h + '</th>';
       }).join('') + '</tr></thead><tbody>' +
@@ -578,6 +614,8 @@
           td(r.acct || '分かりません', r.acct === '分かりません' ? '#c9001a' : '') +
           td(r.mailTxt, r.mailOk === false ? '#d70015'
                       : (r.mailOk === null ? '#57575c' : '')) +
+          td(r.noteTxt, r.noteOk === false ? '#d70015'
+                      : (r.noteOk === null ? '#57575c' : '')) +
           td(r.addedTxt, r.added ? '' : '#c9001a') +
           td(r.pdfTxt,   r.pdf   ? '' : '#c9001a') +
           '</tr>';
@@ -588,6 +626,7 @@
     note.style.cssText = 'margin:10px 0 0;font-size:12px;color:#57575c';
     var netNg = rows.filter(function(r){ return r.acct === '分かりません'; }).length;
     var mailNg = rows.filter(function(r){ return r.mailOk === false; }).length;
+    var noteNg = rows.filter(function(r){ return r.noteOk === false; }).length;
     note.textContent = netNg
       ? '★「分かりません」「通信できませんでした」は、マイページ側に1回も' +
         'つながっていない状態です。アカウントも作られておらず、' +
@@ -596,6 +635,10 @@
       : mailNg
       ? '★「開設のご案内」が“出ていません”の方は、初回パスワードが届いておらず、' +
         'マイページに入れません。マイページ側の記録をご確認のうえ、当社からお伝えください。'
+      : noteNg
+      ? '★「明細のお知らせ」が“出ていません”の方は、明細は入っていますが、' +
+        '入ったことをご存じありません。1日の送信上限に達している可能性があります。' +
+        '台帳の「つまずき記録」をご確認ください。'
       : (ng
         ? '明細PDFが「なし」の方は、この画面で明細PDFを取り込み直してから、' +
           'もう一度押してください。同じ月のぶんは置き換わり、増えません。'
@@ -693,6 +736,9 @@
                          「もとからあります」と言い切ってはいけません。 */
                     acct:'分かりません',
                     addedTxt:'—', pdfTxt:'—',
+                    /* ★「明細が入りました」のお知らせメール。
+                     *   noteOk は 3つの状態： true / false / null（確かめられません） */
+                    noteOk:null, noteTxt:'—',
                     /* ★開設のご案内メール（初回パスワード）が出たか。
                      *   null は「確かめられません」です。赤にはしません。 */
                     mailOk:null, mailTxt:'—' };
@@ -750,6 +796,30 @@
             row.mailOk = true; row.mailTxt = 'お送りしました';
           }
 
+          /* ★「明細が入りました」のお知らせメール。
+           *
+           *  なぜ要るか： 2回目以降の送信では、マイページ側はメールを
+           *  1通も出しません。オーナー様は、自分で開きにいかないと
+           *  新しい明細に気づけません。
+           *
+           *  ★マイページ側が noted / noteNg を返すようになったときだけ
+           *    分かります。返さないあいだは null（確かめられません）にし、
+           *    赤にはしません。分からないものを「出た」とも言いません。
+           *
+           *  ★はじめての方には出ません（開設のご案内に書いてあるため）。
+           *    同じ月に2通目も出ません（押し直しても増えません）。 */
+          if(r.noted == null && r.noteNg == null){
+            row.noteOk = null; row.noteTxt = '確かめられません';
+          }else if(Number(r.noteNg) > 0){
+            row.noteOk = false; row.noteTxt = '出ていません';
+          }else if(Number(r.noted) > 0){
+            row.noteOk = true;  row.noteTxt = 'お送りしました';
+          }else if(row.made){
+            row.noteOk = null;  row.noteTxt = '—（開設のご案内に記載）';
+          }else{
+            row.noteOk = null;  row.noteTxt = '—（すでにお知らせ済み）';
+          }
+
           if(o.ym && o.fileId){
             row.added   = (Number(r.added) > 0);
             row.addedTxt = row.added ? '入りました' : '入りませんでした';
@@ -763,7 +833,8 @@
         }).catch(function(e){
           row.addedTxt = (e && e.message) ? '通信できませんでした' : '入りませんでした';
         }).then(function(){
-          row.ok = row.added && row.pdf && (row.mailOk !== false);
+          row.ok = row.added && row.pdf &&
+                   (row.mailOk !== false) && (row.noteOk !== false);
           rows.push(row);
         });
       });

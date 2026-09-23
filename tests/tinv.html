@@ -62,6 +62,14 @@ window.fetch = function(url, o){
     var neu = window.__reg.indexOf(mail) < 0;
     if(neu) window.__reg.push(mail);
     r.made = neu ? 1 : 0; r.added = one.fileId ? 1 : 0; r.mailNg = 0;
+    /* ★「明細が入りました」のお知らせ。
+         はじめての方には出さず、すでに登録済みの方にだけ出します。
+         window.__notengai = true で「出せなかった」を作れます。 */
+    if(!window.__noteoff){
+      if(neu || !one.fileId){ r.noted = 0; r.noteNg = 0; }
+      else if(window.__notengai){ r.noted = 0; r.noteNg = 1; }
+      else { r.noted = 1; r.noteNg = 0; }
+    }
   }else if(b.action === 'putPdf'){
     /* ★入れられなかったときは、理由を message で返します（本物と同じ形） */
     if(window.__pdfng) r = { ok:false, error:'ng',
