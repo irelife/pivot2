@@ -24,7 +24,12 @@ window.RENT = { detail: [
        ownermail.js は detail には入れたまま、一覧には出しません
        （チェックの箱もありません）。メールアドレスは持っています。 */
   { owner:'森本 将行',   atena:'森本 将行 様', email:'morimoto@example.jp', props:[] }
-], makeOwnerPdfBase64: function(){ return null; } };
+],
+  /* ★本物（ownermail.js）と同じ async にします。
+       約束を返すので、呼ぶ側が待たなければ中身が取れません。 */
+  makeOwnerPdfBase64: async function(){ return null; } };
+/* まっとうな base64（100字以上） */
+window.__B64 = 'JVBERi0xLjQK' + 'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5'.repeat(4);
 window.__EXCLUDED = 4;    /* 別管理の方の番号 */
 /* 振り分け一覧のチェック箱（本物と同じ class / value） */
 document.getElementById('rows').innerHTML = window.RENT.detail
@@ -57,7 +62,12 @@ window.fetch = function(url, o){
     var neu = window.__reg.indexOf(mail) < 0;
     if(neu) window.__reg.push(mail);
     r.made = neu ? 1 : 0; r.added = one.fileId ? 1 : 0; r.mailNg = 0;
-  }else if(b.action === 'putPdf'){ r.id = 'FID'; }
+  }else if(b.action === 'putPdf'){
+    /* ★入れられなかったときは、理由を message で返します（本物と同じ形） */
+    if(window.__pdfng) r = { ok:false, error:'ng',
+      message:'ドライブへ入れられませんでした。DRIVE_ID をご確認ください。' };
+    else r.id = 'FID';
+  }
   return Promise.resolve({ text: function(){ return Promise.resolve(JSON.stringify(r)); } });
 };
 </script>

@@ -121,6 +121,114 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   ok(bd.cols.indexOf('開設のご案内')>=0, '「開設のご案内」の列がある');
   ok(bd.rows[0][2]==='お送りしました', '★案内メールを送った、と出る');
 
+  console.log('\n── ③-0 ★async のPDFを、待ってから送れているか ──');
+  await p.evaluate(()=>{
+    /* 本物と同じ async。少し時間もかかる形にします */
+    window.RENT.makeOwnerPdfBase64 = async function(){
+      await new Promise(r=>setTimeout(r,120));
+      return window.__B64;
+    };
+    window.__sent.length = 0;
+  });
+  dialogs=[]; p.__accept=true;
+  await p.evaluate(()=>{ document.querySelector('.rent-check[value="0"]').checked = true;
+                         document.querySelector('.rent-check[value="1"]').checked = false;
+                         document.querySelector('.rent-check[value="2"]').checked = false; });
+  await p.click('#btn-to-mypage');
+  await p.waitForSelector('#tmp-board', { timeout:8000 });
+  await p.waitForTimeout(400);
+  const put = await p.evaluate(()=>{
+    const x = window.__sent.filter(v=>v.action==='putPdf')[0] || null;
+    const t = document.querySelector('#tmp-board table');
+    return { sent:x ? { type:typeof x.b64, len:(x.b64||'').length,
+                        head:String(x.b64||'').slice(0,12) } : null,
+             pdfTxt: t ? [...t.querySelectorAll('tbody tr td')].pop().textContent.trim() : '' };
+  });
+  console.log('    putPdf に送った b64:', JSON.stringify(put.sent));
+  console.log('    表の「明細PDF」欄  :', put.pdfTxt);
+  ok(put.sent && put.sent.type === 'string',
+     '★b64 が「文字列」で送られている（約束のままではない）');
+  ok(put.sent && put.sent.len > 100, '★中身がある（' + (put.sent?put.sent.len:0) + '字）');
+  ok(put.sent && put.sent.head === 'JVBERi0xLjQK', '★PDFの先頭の字が合っている');
+  ok(put.pdfTxt === '入りました', '★表は「入りました」');
+
+  console.log('\n── ③-0b ★形がおかしい文字列は、送らないか ──');
+  await p.evaluate(()=>{
+    window.RENT.makeOwnerPdfBase64 = async function(){ return { なにか:'約束の中身ではない' }; };
+    window.__sent.length = 0;
+  });
+  dialogs=[]; p.__accept=true;
+  await p.click('#btn-to-mypage');
+  await p.waitForTimeout(2000);
+  const bad = await p.evaluate(()=>{
+    const t = document.querySelector('#tmp-board table');
+    return { put: window.__sent.filter(v=>v.action==='putPdf').length,
+             pdfTxt: t ? [...t.querySelectorAll('tbody tr td')].pop().textContent.trim() : '' };
+  });
+  console.log('    putPdf を送った回数:', bad.put, '／表:', bad.pdfTxt);
+  ok(bad.put === 0, '★形がおかしいものは、そもそも送らない');
+  ok(/正しくありません/.test(bad.pdfTxt), '★「当社の不具合です」と正直に出す');
+
+  console.log('\n── ③-1 ★PDFが入らなかったとき、理由を捨てないか ──');
+  await p.evaluate(()=>{ window.__pdfng = true;
+    window.RENT.makeOwnerPdfBase64 = async function(){ return window.__B64; }; });
+  dialogs=[]; p.__accept=true;
+  await p.evaluate(()=>{ document.querySelector('.rent-check[value="0"]').checked = true;
+                         document.querySelector('.rent-check[value="2"]').checked = false; });
+  await p.click('#btn-to-mypage');
+  await p.waitForTimeout(2000);
+  const why = await p.evaluate(()=>{
+    const t=document.querySelector('#tmp-board table');
+    return t ? [...t.querySelectorAll('tbody tr')].map(tr=>
+      [...tr.querySelectorAll('td')].map(td=>td.textContent.trim())) : null;
+  });
+  console.log('    表:', why ? why[0].join(' | ') : '(なし)');
+  ok(why && /DRIVE_ID/.test(why[0][4]),
+     '★マイページ側が返した理由（DRIVE_ID…）を、そのまま表に出す');
+  ok(why && why[0][4] !== '入りませんでした',
+     '★「入りませんでした」だけで済ませない（原因さがしが始められないため）');
+  await p.evaluate(()=>{ window.__pdfng = false;
+    window.RENT.makeOwnerPdfBase64 = async function(){ return null; }; });
+
+  console.log('\n── ③-2 ★通信できなかったとき、嘘をつかないか ──');
+  await p.evaluate(()=>{
+    window.__netng = true;
+    const f = window.fetch;
+    window.fetch = function(u, o){
+      if(window.__netng) return Promise.reject(new TypeError('Failed to fetch'));
+      return f(u, o);
+    };
+  });
+  dialogs=[]; p.__accept=true;
+  await p.evaluate(()=>{ document.querySelector('.rent-check[value="1"]').checked = true;
+                         document.querySelector('.rent-check[value="2"]').checked = false; });
+  await p.click('#btn-to-mypage');
+  await p.waitForTimeout(2500);
+  const ng = await p.evaluate(()=>{
+    const t=document.querySelector('#tmp-board table');
+    if(!t) return null;
+    return { rows:[...t.querySelectorAll('tbody tr')].map(tr=>
+               [...tr.querySelectorAll('td')].map(td=>td.textContent.trim())),
+             note: [...document.querySelectorAll('#tmp-board p')].pop().textContent.trim() };
+  });
+  console.log('    表:', ng ? ng.rows.map(r=>r.join(' | ')).join(' / ') : '(なし)');
+  ok(!!ng, '結果の表は出る');
+  ok(ng && ng.rows[0][1] === '分かりません',
+     '★アカウントの欄は「分かりません」（「もとからあります」と嘘をつかない）');
+  ok(ng && /通信できませんでした/.test(ng.rows[0][3]), '明細は「通信できませんでした」');
+  ok(ng && /つながっていない/.test(ng.note),
+     '★下の一言で「1回もつながっていない」と伝える');
+  ok(ng && /メールも出ていません/.test(ng.note),
+     '★「ご案内メールも出ていません」と、はっきり伝える');
+  /* ★英語のまま出さないか */
+  const alerts = dialogs.filter(d=>d.type==='alert').map(d=>d.msg);
+  ok(!alerts.some(m=>/Failed to fetch/.test(m)),
+     '★「Failed to fetch」をそのまま出さない');
+  ok(alerts.some(m=>/アクセスできるユーザー/.test(m)) ||
+     (ng && /つながっていない/.test(ng.note)),
+     '★何を確かめればよいかを日本語で出す');
+  await p.evaluate(()=>{ window.__netng = false; });
+
   console.log('\n── ④ もう一度［登録状況］を押すと、招待済みに変わるか ──');
   await p.click('#btn-mypage-inv');
   await p.waitForTimeout(800);
