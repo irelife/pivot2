@@ -206,20 +206,12 @@
     var btn = document.getElementById('btn-to-mypage');
     var say = function(t){ if(btn) btn.textContent = t; };
     if(btn) btn.disabled = true;
+    board(null);
 
     go(cfg, list, idx, say, got.live)
-      .then(function(r){
-        alert('送りました。\n\n' +
-              '　新しく作ったアカウント： ' + (r.made || 0) + ' 件\n' +
-              '　明細を入れた　　　　　： ' + (r.added || 0) + ' 件' +
-              (r.pdfNg
-                ? ('\n　PDFを入れられなかった： ' + r.pdfNg + ' 件\n\n' +
-                   '※ 明細PDFを取り込んだそのままの画面で押していただくと、\n' +
-                   '　 PDFも付きます。同じ月のぶんは置き換えになり、増えません。\n' +
-                   '　 （画面を開き直すと、仕分け結果は残りますがPDFは残りません）')
-                : ''));
-      })
+      .then(function(r){ board(r.rows); })
       .catch(function(e){
+        board(null);
         alert(e && e.message ? e.message : '通信できませんでした。');
       })
       .then(function(){
@@ -227,21 +219,114 @@
       });
   }
 
-  /* ── 実際の送信 ────────────────────────────── */
-  function go(cfg, list, idx, say, live){
-    var owners = [], pdfNg = 0;
+  /* ══════════════════════════════════════════════
+   *  送った結果を、オーナー様1名ずつ出します
+   *
+   *  ★なぜ必要か
+   *    メールでお送りしていたころは、届かなければ返ってきたので
+   *    「送れなかった」がすぐ分かりました。マイページに入れる形では、
+   *    返ってくるものがありません。
+   *    そこで、1名ずつ送って1名ずつ答えを受け取り、この表に出します。
+   *
+   *  ★どうやって1名ずつ確かめているか
+   *    push 窓口は added（明細を入れた数）を返します。
+   *    1名だけ送れば、added は 0 か 1 です。つまり
+   *    「この方の明細が入ったか」が、そのまま分かります。
+   *    ★Apps Script は1行も触っていません。
+   *
+   *  ★1名ずつにすると通信の回数は増えますが、PDFはもともと
+   *    1名ずつ送っているので、2倍になるだけです。
+   * ══════════════════════════════════════════════ */
+  function board(rows){
+    var old = document.getElementById('tmp-board');
+    if(old && old.parentNode) old.parentNode.removeChild(old);
+    if(!rows) return;
 
-    /* ① オーナーごとのPDFを、1件ずつドライブへ入れます */
+    var ng = rows.filter(function(r){ return !r.ok; }).length;
+    var box = document.createElement('div');
+    box.id = 'tmp-board';
+    box.style.cssText =
+      'margin:14px 0;padding:14px 16px;border-radius:12px;background:#fff;' +
+      'border:1px solid ' + (ng ? '#d70015' : '#d2d2d7') + ';font-size:13px;' +
+      'color:#1d1d1f;line-height:1.7';
+
+    var head = document.createElement('p');
+    head.style.cssText = 'margin:0 0 10px;font-weight:800;font-size:14px;' +
+      (ng ? 'color:#c9001a' : 'color:#1d1d1f');
+    head.textContent = ng
+      ? ('マイページに入らなかった方が ' + ng + ' 名います。下をご確認ください。')
+      : ('マイページに ' + rows.length + ' 名ぶん、すべて入りました。');
+    box.appendChild(head);
+
+    var t = document.createElement('table');
+    t.style.cssText = 'width:100%;border-collapse:collapse;font-size:12.5px';
+    t.innerHTML =
+      '<thead><tr>' +
+      ['オーナー様','アカウント','明細','明細PDF'].map(function(h){
+        return '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid ' +
+               '#e5e5ea;font-weight:700;color:#57575c">' + h + '</th>';
+      }).join('') + '</tr></thead><tbody>' +
+      rows.map(function(r){
+        var td = function(x, c){
+          return '<td style="padding:6px 8px;border-bottom:1px solid #f0f0f2' +
+                 (c ? (';color:' + c + ';font-weight:700') : '') + '">' + x + '</td>';
+        };
+        return '<tr>' +
+          td(esc(r.name || r.email)) +
+          td(r.made ? '新しく作りました' : 'もとからあります') +
+          td(r.addedTxt, r.added ? '' : '#c9001a') +
+          td(r.pdfTxt,   r.pdf   ? '' : '#c9001a') +
+          '</tr>';
+      }).join('') + '</tbody>';
+    box.appendChild(t);
+
+    var note = document.createElement('p');
+    note.style.cssText = 'margin:10px 0 0;font-size:12px;color:#57575c';
+    note.textContent = ng
+      ? '明細PDFが「なし」の方は、この画面で明細PDFを取り込み直してから、' +
+        'もう一度押してください。同じ月のぶんは置き換わり、増えません。'
+      : 'オーナー様が実際にご覧になったかは、この表では分かりません。' +
+        '入ったところまでの確かめです。';
+    box.appendChild(note);
+
+    var host = document.getElementById('btn-to-mypage');
+    host = host ? host.parentNode : document.getElementById('view-send');
+    if(host && host.parentNode) host.parentNode.insertBefore(box, host.nextSibling);
+    else if(host) host.appendChild(box);
+    try{ box.scrollIntoView({ block:'nearest' }); }catch(e){}
+  }
+
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"]/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];
+    });
+  }
+
+  /* ── 実際の送信 ──────────────────────────────
+   *  ★2026/9/23 まで、PDFは1名ずつ送り、登録（push）だけ
+   *    まとめて1回でした。まとめると答えが「何名ぶん入った」しか
+   *    返らず、**誰が入らなかったのか分かりません**。
+   *    メールなら届かなければ返ってきたのに、それが無くなっていました。
+   *    そこで、登録も1名ずつにします。 */
+  function go(cfg, list, idx, say, live){
+    var rows = [], authNg = false;
+
     var chain = Promise.resolve();
     idx.forEach(function(i, k){
       chain = chain.then(function(){
-        say('PDFを送信中… ' + (k + 1) + '/' + idx.length);
-        var o = shape(list[i]);
+        if(authNg) return;                 /* 合言葉が違えば、続けても同じです */
+        say('送信中… ' + (k + 1) + '/' + idx.length);
 
-        /* ★makeOwnerPdfBase64 も囲いの中にあります。
-         *  window.RENT から呼びます。
-         *  逃げ道（localStorage）で読んだときは、番号が合っている保証が
-         *  ないので呼びません。取り違えたPDFを送るほうが困るためです。 */
+        var o = shape(list[i]);
+        var row = { name:o.name, email:o.email,
+                    made:false, added:false, pdf:false,
+                    addedTxt:'—', pdfTxt:'—' };
+
+        /* ① この方のPDFをドライブへ
+         *  ★makeOwnerPdfBase64 は ownermail.js の囲いの中にあります。
+         *    window.RENT から呼びます。
+         *    逃げ道（localStorage）で読んだときは、番号が合っている保証が
+         *    ないので呼びません。取り違えたPDFを送るほうが困るためです。 */
         var b64 = null;
         try{
           if(live && window.RENT &&
@@ -250,31 +335,55 @@
           }
         }catch(e){ b64 = null; }
 
-        return Promise.resolve(b64).then(function(data){
-          if(!data){ pdfNg++; owners.push(o); return; }
-          var name = (o.name + '_明細_' + o.ym + '.pdf').replace(/\s/g, '');
-          return post(cfg.url, { action:'putPdf', key:cfg.key, name:name, b64:data })
+        var step1;
+        if(!b64){
+          row.pdfTxt = live ? '作れませんでした' : 'なし（取り込み直しが必要）';
+          step1 = Promise.resolve();
+        }else{
+          var nm = (o.name + '_明細_' + o.ym + '.pdf').replace(/\s/g, '');
+          step1 = post(cfg.url, { action:'putPdf', key:cfg.key, name:nm, b64:b64 })
             .then(function(r){
-              if(r && r.ok && r.id) o.fileId = r.id;
-              else pdfNg++;
-              owners.push(o);
+              if(r && r.ok && r.id){ o.fileId = r.id; row.pdf = true; row.pdfTxt = '入りました'; }
+              else{ row.pdfTxt = '入りませんでした'; }
             })
-            .catch(function(){ pdfNg++; owners.push(o); });
+            .catch(function(){ row.pdfTxt = '通信できませんでした'; });
+        }
+
+        /* ② この方を登録（1名だけ送るので、added は 0 か 1 になります） */
+        return step1.then(function(){
+          return post(cfg.url, { action:'push', key:cfg.key, owners:[o] });
+        }).then(function(r){
+          if(r && r.error === 'auth'){ authNg = true; return; }
+          if(!r || !r.ok){
+            row.addedTxt = (r && r.message) ? String(r.message) : '入りませんでした';
+            return;
+          }
+          row.made = !!r.made;
+          if(o.ym && o.fileId){
+            row.added   = (Number(r.added) > 0);
+            row.addedTxt = row.added ? '入りました' : '入りませんでした';
+          }else if(o.ym){
+            /* PDFが無いときは、明細の行そのものを作りません（push の作り） */
+            row.added   = false;
+            row.addedTxt = 'PDFが無いため入りません';
+          }else{
+            row.addedTxt = '対象月が読めません';
+          }
+        }).catch(function(e){
+          row.addedTxt = (e && e.message) ? '通信できませんでした' : '入りませんでした';
+        }).then(function(){
+          row.ok = row.added && row.pdf;
+          rows.push(row);
         });
       });
     });
 
-    /* ② まとめて登録します */
     return chain.then(function(){
-      say('登録中…');
-      return post(cfg.url, { action:'push', key:cfg.key, owners:owners });
-    }).then(function(r){
-      if(r && r.ok) return { made:r.made, added:r.added, pdfNg:pdfNg };
-      if(r && r.error === 'auth'){
+      if(authNg){
         try{ localStorage.removeItem(LS_KEY); }catch(e){}
         throw new Error('合言葉が違うようです。\n\nもう一度押して、入れ直してください。');
       }
-      throw new Error((r && r.message) || 'うまくいきませんでした。');
+      return { rows: rows };
     });
   }
 
