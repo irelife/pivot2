@@ -121,6 +121,27 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   ok(bd.cols.indexOf('開設のご案内')>=0, '「開設のご案内」の列がある');
   ok(bd.rows[0][2]==='お送りしました', '★案内メールを送った、と出る');
 
+  console.log('\n── ③-1 ★PDFが入らなかったとき、理由を捨てないか ──');
+  await p.evaluate(()=>{ window.__pdfng = true;
+    window.RENT.makeOwnerPdfBase64 = function(){ return 'JVBERi0x'; }; });
+  dialogs=[]; p.__accept=true;
+  await p.evaluate(()=>{ document.querySelector('.rent-check[value="0"]').checked = true;
+                         document.querySelector('.rent-check[value="2"]').checked = false; });
+  await p.click('#btn-to-mypage');
+  await p.waitForTimeout(2000);
+  const why = await p.evaluate(()=>{
+    const t=document.querySelector('#tmp-board table');
+    return t ? [...t.querySelectorAll('tbody tr')].map(tr=>
+      [...tr.querySelectorAll('td')].map(td=>td.textContent.trim())) : null;
+  });
+  console.log('    表:', why ? why[0].join(' | ') : '(なし)');
+  ok(why && /DRIVE_ID/.test(why[0][4]),
+     '★マイページ側が返した理由（DRIVE_ID…）を、そのまま表に出す');
+  ok(why && why[0][4] !== '入りませんでした',
+     '★「入りませんでした」だけで済ませない（原因さがしが始められないため）');
+  await p.evaluate(()=>{ window.__pdfng = false;
+    window.RENT.makeOwnerPdfBase64 = function(){ return null; }; });
+
   console.log('\n── ③-2 ★通信できなかったとき、嘘をつかないか ──');
   await p.evaluate(()=>{
     window.__netng = true;

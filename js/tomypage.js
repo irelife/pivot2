@@ -666,7 +666,13 @@
           step1 = post(cfg.url, { action:'putPdf', key:cfg.key, name:nm, b64:b64 })
             .then(function(r){
               if(r && r.ok && r.id){ o.fileId = r.id; row.pdf = true; row.pdfTxt = '入りました'; }
-              else{ row.pdfTxt = '入りませんでした'; }
+              else{
+                /* ★マイページ側は、なぜ入らなかったかを message で返してきます
+                 *   （例「ドライブへ入れられませんでした。DRIVE_ID をご確認ください。」）。
+                 *   改良前は、それを捨てて「入りませんでした」とだけ出していました。
+                 *   直す場所が分からず、原因さがしが始められませんでした。 */
+                row.pdfTxt = (r && r.message) ? String(r.message) : '入りませんでした';
+              }
             })
             .catch(function(){ row.pdfTxt = '通信できませんでした'; });
         }

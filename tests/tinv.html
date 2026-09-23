@@ -57,7 +57,12 @@ window.fetch = function(url, o){
     var neu = window.__reg.indexOf(mail) < 0;
     if(neu) window.__reg.push(mail);
     r.made = neu ? 1 : 0; r.added = one.fileId ? 1 : 0; r.mailNg = 0;
-  }else if(b.action === 'putPdf'){ r.id = 'FID'; }
+  }else if(b.action === 'putPdf'){
+    /* ★入れられなかったときは、理由を message で返します（本物と同じ形） */
+    if(window.__pdfng) r = { ok:false, error:'ng',
+      message:'ドライブへ入れられませんでした。DRIVE_ID をご確認ください。' };
+    else r.id = 'FID';
+  }
   return Promise.resolve({ text: function(){ return Promise.resolve(JSON.stringify(r)); } });
 };
 </script>
