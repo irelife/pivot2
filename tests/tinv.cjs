@@ -24,7 +24,11 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   const errs=[]; p.on('pageerror',e=>errs.push(e.message));
   let dialogs=[];
   p.on('dialog', async d => { dialogs.push({type:d.type(), msg:d.message()});
-    if (d.type()==='confirm') { await (p.__accept ? d.accept() : d.dismiss()); }
+    if (d.type()==='confirm') {
+      /* ★確認が2段のとき（全員に送りますか → 対象○名）を分けて答えます */
+      if (p.__cancelMain && /対象：/.test(d.message())) await d.dismiss();
+      else await (p.__accept ? d.accept() : d.dismiss());
+    }
     else await d.accept(); });
   await p.goto('file://'+D+'tinv.html');
   /* ★tomypage.js は 1200ms 待ってからボタンを置きます（画面の切り替えに備えて）。
@@ -237,6 +241,41 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   console.log('    私（テスト）:', v[2].join(' | '));
   ok(v[2][2]==='招待済み', '★私（テスト）が「招待済み」に変わった');
   ok(v[1][2]==='未招待',   '鈴木様は、まだ未招待のまま');
+
+  console.log('\n── ⑤ ★112名を一度に押したとき、止め金が出るか ──');
+  await p.evaluate(()=>{
+    /* 112名に増やします（本番と同じ人数） */
+    window.RENT.detail.length = 0;
+    for(let i=0;i<112;i++){
+      window.RENT.detail.push({ owner:'オーナー'+(i+1), atena:'オーナー'+(i+1)+' 様',
+                                email:'o'+(i+1)+'@example.jp', props:[] });
+    }
+    document.getElementById('rows').innerHTML = window.RENT.detail.map((d,i)=>
+      '<label><input type="checkbox" class="rent-check" value="'+i+'"> '+d.owner+'</label>').join('');
+    window.__reg.length = 0;          /* 全員 未招待 にします */
+    window.__sent.length = 0;
+    window.__netng = false;
+  });
+  /* 1つ目（全員に送りますか）は OK、2つ目（対象112名）で取り消します */
+  dialogs=[]; p.__accept=true; p.__cancelMain=true;
+  await p.click('#btn-to-mypage'); await p.waitForTimeout(2500);
+  const big = dialogs.map(d=>d.msg).join('\n----\n');
+  console.log('    出た窓の数:', dialogs.length);
+  const m2 = dialogs.filter(d=>/対象/.test(d.msg))[0];
+  if(m2) console.log('    ' + m2.msg.split('\n').filter(x=>/★|対象|名/.test(x))
+                       .slice(0,10).map(x=>'  '+x).join('\n    '));
+  ok(/全員/.test(dialogs[0] ? dialogs[0].msg : ''),
+     'まずチェック0の確認（全員に送りますか）');
+  ok(m2 && /対象： 112 名/.test(m2.msg), '★対象が112名と出る');
+  ok(m2 && /一度に 112 名です/.test(m2.msg), '★「一度に112名です」と伝える');
+  ok(m2 && /分かかり/.test(m2.msg), '★かかる時間を伝える');
+  ok(m2 && /20 名ずつに分ける/.test(m2.msg), '★20名ずつを勧める');
+  ok(m2 && /はじめての方が 112 名です/.test(m2.msg), '★はじめての方の人数を伝える');
+  ok(m2 && /日を分けて/.test(m2.msg), '★1日の上限があることを伝える');
+  ok(m2 && /つまずき記録/.test(m2.msg), '★超えたぶんの行き先も伝える');
+  const pushed = await p.evaluate(()=>window.__sent.filter(x=>x.action==='push').length);
+  ok(pushed === 0, '★取り消したので、1名も送っていない');
+  p.__cancelMain = false;
 
   console.log('\nJS の不具合:', errs.length ? errs : 'なし');
   ok(errs.length===0, 'JS の不具合なし');
