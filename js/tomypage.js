@@ -109,6 +109,143 @@
     return { list:[], live:false };
   }
 
+  /* ══════════════════════════════════════════════
+   *  マイページの登録状況（＝招待済みかどうか）
+   *
+   *  ★PIVOT2 に「送ったつもり」を覚えさせません。
+   *    マイページの台帳（stCheck）に、そのつど聞きます。
+   *    ・別の端末から招待しても、こちらに出ます
+   *    ・この端末の記憶を消しても、正しく出ます
+   *    ・オーナー様の反応（ログイン）を待つ必要はありません。
+   *      台帳に行があれば「招待済み」です
+   * ══════════════════════════════════════════════ */
+  var invMap = null;      /* アドレス（小文字）→ 台帳の1行。null は「まだ聞いていない」 */
+
+  function invLoad(cfg){
+    return post(cfg.url, { action:'stCheck', key:cfg.key })
+      .then(function(r){
+        if(r && r.error === 'auth'){
+          throw new Error('管理キーが違います。［接続設定］でご確認ください。');
+        }
+        if(!r || !r.ok || !Array.isArray(r.list)){
+          throw new Error((r && r.message) ? r.message :
+            'マイページの登録状況を読めませんでした。\n\n' +
+            'マイページ側の窓口（stCheck）が、まだ入っていないかもしれません。');
+        }
+        var m = {};
+        r.list.forEach(function(x){
+          var k = String(x.mail || '').trim().toLowerCase();
+          if(k) m[k] = x;
+        });
+        invMap = m;
+        return m;
+      });
+  }
+
+  function invOf(mail){
+    var k = String(mail == null ? '' : mail).trim().toLowerCase();
+    return (invMap && k) ? (invMap[k] || null) : null;
+  }
+
+  /* ── 登録状況の表 ───────────────────────────── */
+  function invBoard(list){
+    var old = document.getElementById('tmp-inv');
+    if(old && old.parentNode) old.parentNode.removeChild(old);
+    if(!list) return;
+
+    var rows = list.map(function(d, i){
+      var mail = String(d.email || '').trim();
+      return { i:i, name:(d.owner || d.atena || mail || '（お名前なし）'),
+               mail:mail, rec:(mail ? invOf(mail) : null) };
+    });
+    var ng = rows.filter(function(r){ return !r.mail || !r.rec; }).length;
+
+    var box = document.createElement('div');
+    box.id = 'tmp-inv';
+    box.style.cssText =
+      'margin:14px 0;padding:14px 16px;border-radius:12px;background:#fff;' +
+      'border:1px solid ' + (ng ? '#d70015' : '#d2d2d7') + ';font-size:13px;' +
+      'color:#1d1d1f;line-height:1.7';
+
+    var head = document.createElement('p');
+    head.style.cssText = 'margin:0 0 10px;font-weight:800;font-size:14px;' +
+      (ng ? 'color:#c9001a' : 'color:#1d1d1f');
+    head.textContent = ng
+      ? ('マイページに、まだ招待していないオーナー様が ' + ng + ' 名います。')
+      : ('この一覧の ' + rows.length + ' 名は、全員マイページに招待済みです。');
+    box.appendChild(head);
+
+    var t = document.createElement('table');
+    t.style.cssText = 'width:100%;border-collapse:collapse;font-size:12.5px';
+    t.innerHTML =
+      '<thead><tr>' +
+      ['オーナー様','アドレス','マイページ','最終ログイン','入っている月','明細を開いたか']
+        .map(function(h){
+          return '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid ' +
+                 '#e5e5ea;font-weight:700;color:#57575c">' + h + '</th>';
+        }).join('') + '</tr></thead><tbody>' +
+      rows.map(function(r){
+        var td = function(x, c){
+          return '<td style="padding:6px 8px;border-bottom:1px solid #f0f0f2' +
+                 (c ? (';color:' + c + ';font-weight:700') : '') + '">' + x + '</td>';
+        };
+        if(!r.mail){
+          return '<tr>' + td(esc(r.name)) + td('—', '#c9001a') +
+                 td('アドレス未登録', '#c9001a') + td('—') + td('—') + td('—') + '</tr>';
+        }
+        if(!r.rec){
+          return '<tr>' + td(esc(r.name)) + td(esc(r.mail)) +
+                 td('未招待', '#d70015') + td('—') + td('—') + td('—') + '</tr>';
+        }
+        var x = r.rec;
+        return '<tr>' +
+          td(esc(r.name)) +
+          td(esc(r.mail)) +
+          td('招待済み') +
+          td(x.login ? esc(x.login) : 'まだ', x.login ? '' : '#57575c') +
+          td(x.months ? (x.months + 'か月' + (x.ym ? ('（最新 ' + esc(x.ym) + '）') : '')) : '0か月',
+             x.months ? '' : '#c9001a') +
+          td(x.pdf ? (x.opened ? '開かれました' : 'まだ') : '明細書PDFなし',
+             x.pdf ? (x.opened ? '' : '#57575c') : '#c9001a') +
+          '</tr>';
+      }).join('') + '</tbody>';
+    box.appendChild(t);
+
+    var note = document.createElement('p');
+    note.style.cssText = 'margin:10px 0 0;font-size:12px;color:#57575c';
+    note.textContent = ng
+      ? '「未招待」の方にチェックを入れて［マイページへ送る］を押すと、' +
+        'その方だけに初回パスワードのご案内メールが届きます。'
+      : '「最終ログイン」が「まだ」の方は、ご案内メールにお気づきでない' +
+        'おそれがあります。お電話でお声がけいただくのが確実です。';
+    box.appendChild(note);
+
+    var host = document.getElementById('btn-to-mypage');
+    host = host ? host.parentNode : document.getElementById('view-send');
+    if(host && host.parentNode) host.parentNode.insertBefore(box, host.nextSibling);
+    else if(host) host.appendChild(box);
+    try{ box.scrollIntoView({ block:'nearest' }); }catch(e){}
+  }
+
+  /* ［マイページの登録状況］を押したとき */
+  function invRun(){
+    var cfg = conf(false);
+    if(!cfg) return;
+    var got = pickDetail();
+    if(!got.list.length){
+      alert('オーナー様の一覧がありません。\n\n先に明細PDFを取り込んで、振り分けをご確認ください。');
+      return;
+    }
+    var btn = document.getElementById('btn-mypage-inv');
+    var was = btn ? btn.textContent : '';
+    if(btn){ btn.disabled = true; btn.textContent = '確認しています…'; }
+    invBoard(null);
+    invLoad(cfg)
+      .then(function(){ invBoard(got.list); })
+      .catch(function(e){ alert(e && e.message ? e.message : '確認できませんでした。'); })
+      .then(function(){ if(btn){ btn.disabled = false; btn.textContent = was; } });
+  }
+
   /* ── 1件ぶんを、マイページの形に直します ───── */
   function shape(d){
     var total = 0, got = false;
@@ -169,6 +306,48 @@
     };
   }
 
+  /* ── 上の一覧で、チェックが入っている方を拾います ──
+   *
+   *  ★2026/9/23 直し。ここが、いちばん危ないところでした。
+   *
+   *  【改良前】 チェックをいっさい見ず、
+   *            「メールアドレスがある方 全員」に送っていました。
+   *            ご自身1名で試そうと思って押すと、
+   *            **その場で全員に初回パスワードのメールが飛びます。**
+   *            取り消せません。
+   *
+   *  【改良後】 チェックが入っている方だけに送ります。
+   *            1つも入っていないときは、「全員に送りますか」と
+   *            はっきりお尋ねしてから送ります（月々の一括はこちら）。
+   *
+   *  ★チェックの箱は、オーナーメールの振り分け一覧にもともとある
+   *    ものです（.rent-check。value にその方の番号が入っています）。
+   *    新しく足していません。 */
+  function picked(list){
+    var on = [];
+    try{
+      var els = document.querySelectorAll('.rent-check:checked');
+      Array.prototype.forEach.call(els, function(el){
+        var i = Number(el.value);
+        if(isFinite(i) && list[i] && String(list[i].email || '').trim() &&
+           on.indexOf(i) < 0) on.push(i);
+      });
+    }catch(e){}
+    on.sort(function(a, b){ return a - b; });
+    return on;
+  }
+
+  /* お名前を並べます（多いときは途中で切ります） */
+  function names(list, idx){
+    var max = 12;
+    var a = idx.slice(0, max).map(function(i){
+      var d = list[i];
+      return '　・' + (d.owner || d.atena || d.email || '（お名前なし）');
+    });
+    if(idx.length > max) a.push('　ほか ' + (idx.length - max) + ' 名');
+    return a.join('\n');
+  }
+
   /* ── 押されたとき ──────────────────────────── */
   function run(){
     var cfg = conf(false);
@@ -181,41 +360,77 @@
       return;
     }
 
-    /* 送るのは、メールアドレスがある方だけです */
-    var idx = [];
+    /* 送れるのは、メールアドレスがある方だけです */
+    var withMail = [];
     for(var i = 0; i < list.length; i++){
-      if(String(list[i].email || '').trim()) idx.push(i);
+      if(String(list[i].email || '').trim()) withMail.push(i);
     }
-    var noMail = list.length - idx.length;
-    if(!idx.length){
+    if(!withMail.length){
       alert('メールアドレスが登録されているオーナー様がいません。');
       return;
     }
 
-    var msg = 'オーナーマイページへ送ります。\n\n' +
-              '　対象： ' + idx.length + ' 名\n' +
-              (noMail ? ('　※ メールアドレスが無い ' + noMail + ' 名は送りません\n') : '') +
-              (got.live ? '' :
-               '\n※ 明細PDFは付きません。\n' +
-               '　 この画面で明細PDFを取り込み直してから押していただくと、\n' +
-               '　 PDFも一緒に送られます。\n') +
-              '\nはじめての方には、初回パスワードのご案内メールが届きます。\n' +
-              'よろしいですか？';
-    if(!window.confirm(msg)) return;
+    var idx = picked(list);
+    if(!idx.length){
+      if(!window.confirm(
+        '上の一覧に、チェックが1つも入っていません。\n\n' +
+        'メールアドレスのある ' + withMail.length + ' 名 **全員** に送りますか？\n\n' +
+        '★はじめての方には、初回パスワードのご案内メールが届きます。\n' +
+        '　送ったメールは、取り消せません。\n\n' +
+        '1名だけお試しになるときは、［キャンセル］を押して、\n' +
+        '上の一覧でその方にチェックを入れてから、もう一度押してください。')) return;
+      idx = withMail;
+    }
 
     var btn = document.getElementById('btn-to-mypage');
     var say = function(t){ if(btn) btn.textContent = t; };
-    if(btn) btn.disabled = true;
-    board(null);
+    if(btn){ btn.disabled = true; btn.textContent = '確認しています…'; }
 
-    go(cfg, list, idx, say, got.live)
-      .then(function(r){ board(r.rows); })
-      .catch(function(e){
-        board(null);
-        alert(e && e.message ? e.message : '通信できませんでした。');
-      })
+    /* ★送る前に、台帳に「もう招待済みか」を聞きます。
+         「はじめての方が何名か」を、押す前にお見せするためです。
+         読めなくても送れます（そのときは人数を出しません）。 */
+    invLoad(cfg)
+      .catch(function(){ invMap = null; })
       .then(function(){
         if(btn){ btn.disabled = false; btn.textContent = 'マイページへ送る'; }
+
+        var neu = 0, old = 0, unknown = (invMap === null);
+        if(!unknown){
+          idx.forEach(function(i){
+            if(invOf(list[i].email)) old++; else neu++;
+          });
+        }
+
+        var msg = 'オーナーマイページへ送ります。\n\n' +
+          '　対象： ' + idx.length + ' 名\n' +
+          names(list, idx) + '\n\n' +
+          (unknown
+            ? '※ 登録状況を読めなかったため、はじめての方の人数は分かりません。\n'
+            : ('　はじめての方　 ' + neu + ' 名 ← 初回パスワードのご案内メールが届きます\n' +
+               '　すでに登録済み ' + old + ' 名 ← メールは届きません。明細だけ増えます\n')) +
+          (got.live ? '' :
+           '\n※ 明細PDFは付きません。\n' +
+           '　 この画面で明細PDFを取り込み直してから押していただくと、\n' +
+           '　 PDFも一緒に送られます。\n') +
+          '\nよろしいですか？';
+        if(!window.confirm(msg)) return;
+
+        if(btn) btn.disabled = true;
+        board(null);
+        invBoard(null);
+
+        return go(cfg, list, idx, say, got.live)
+          .then(function(r){
+            board(r.rows);
+            invMap = null;          /* 台帳が変わったので、次は読み直します */
+          })
+          .catch(function(e){
+            board(null);
+            alert(e && e.message ? e.message : '通信できませんでした。');
+          })
+          .then(function(){
+            if(btn){ btn.disabled = false; btn.textContent = 'マイページへ送る'; }
+          });
       });
   }
 
@@ -438,6 +653,17 @@
       'color:#fff;cursor:pointer;min-height:46px';
     b.addEventListener('click', run);
 
+    /* ★招待済みかどうかを、いつでも確かめられるようにします */
+    var v = document.createElement('button');
+    v.id = 'btn-mypage-inv';
+    v.type = 'button';
+    v.textContent = 'マイページの登録状況';
+    v.style.cssText =
+      'font:inherit;font-weight:700;font-size:14px;padding:11px 18px;' +
+      'border-radius:9px;border:2px solid #C9184A;background:transparent;' +
+      'color:#C9184A;cursor:pointer;min-height:46px';
+    v.addEventListener('click', invRun);
+
     var s = document.createElement('button');
     s.type = 'button';
     s.textContent = '接続設定';
@@ -447,10 +673,11 @@
     s.addEventListener('click', function(){ conf(true); });
 
     var note = document.createElement('span');
-    note.textContent = 'メール送信のあとに押してください';
+    note.textContent = 'チェックを入れた方だけに送ります（無ければ全員に確認します）';
     note.style.cssText = 'font-size:12.5px;color:#888';
 
-    wrap.appendChild(b); wrap.appendChild(s); wrap.appendChild(note);
+    wrap.appendChild(b); wrap.appendChild(v); wrap.appendChild(s);
+    wrap.appendChild(note);
     host.appendChild(wrap);
   }
 

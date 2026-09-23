@@ -1,0 +1,47 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>tomypage 検査台</title></head>
+<body>
+<div id="rent-view">
+  <div id="view-send">
+    <div id="rows"></div>
+  </div>
+</div>
+<script>
+/* ownermail.js のふりをします（読み取り口だけ） */
+window.RENT = { detail: [
+  { owner:'山田 太郎', atena:'山田 太郎 様', email:'yamada@example.jp', props:[] },
+  { owner:'鈴木 花子', atena:'鈴木 花子 様', email:'suzuki@example.jp', props:[] },
+  { owner:'私（テスト）', atena:'私 様',      email:'me@example.jp',     props:[] },
+  { owner:'アドレス無し', atena:'',           email:'',                  props:[] }
+], makeOwnerPdfBase64: function(){ return null; } };
+/* 振り分け一覧のチェック箱（本物と同じ class / value） */
+document.getElementById('rows').innerHTML = window.RENT.detail.map(function(d,i){
+  return '<label><input type="checkbox" class="rent-check" value="'+i+'"'+
+         (d.email?'':' disabled')+'> '+d.owner+'</label><br>';
+}).join('');
+/* 接続設定は、はじめから入っている形にします */
+localStorage.setItem('pv_mypage_url','https://script.google.com/macros/s/TEST/exec');
+localStorage.setItem('pv_mypage_key','K'.repeat(40));
+/* 通信のふり */
+window.__sent = [];
+window.__reg  = ['yamada@example.jp'];     /* 台帳に載っている＝招待済み */
+window.fetch = function(url, o){
+  var b = JSON.parse(o.body);
+  window.__sent.push(b);
+  var r = { ok:true };
+  if(b.action === 'stCheck'){
+    r.list = window.__reg.map(function(m){
+      return { mail:m, name:'—', area:'', months:2, ym:'2026年9月',
+               pdf:true, opened:false, login:'2026/9/20', seen:'' };
+    });
+  }else if(b.action === 'push'){
+    var one = (b.owners||[])[0] || {};
+    var mail = String(one.email||'').toLowerCase();
+    var neu = window.__reg.indexOf(mail) < 0;
+    if(neu) window.__reg.push(mail);
+    r.made = neu ? 1 : 0; r.added = one.fileId ? 1 : 0; r.mailNg = 0;
+  }else if(b.action === 'putPdf'){ r.id = 'FID'; }
+  return Promise.resolve({ text: function(){ return Promise.resolve(JSON.stringify(r)); } });
+};
+</script>
+<script src="../js/tomypage.js"></script>
+</body></html>
