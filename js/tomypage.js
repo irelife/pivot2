@@ -60,6 +60,24 @@
       headers: { 'Content-Type':'text/plain;charset=utf-8' },
       body   : JSON.stringify(body)
     })
+    .catch(function(){
+      /* ★ここは「返事が返る前に失敗した」ときです。
+           ブラウザは理由を教えてくれず「Failed to fetch」とだけ言います。
+           そのまま出すと、何を確かめればよいか分かりません。 */
+      throw new Error(
+        'マイページ側につながりませんでした。\n\n' +
+        '次の3つを、順にご確認ください。\n\n' +
+        '① ［接続設定］の URL\n' +
+        '　 マイページの Apps Script の URL ですか？\n' +
+        '　 （「共用Drive連携URL」とは別のものです）\n' +
+        '　 その URL をブラウザのアドレス欄に貼って開くと、\n' +
+        '　 「オーナーマイページは こちら です。」と出るのが正常です。\n\n' +
+        '② デプロイの「アクセスできるユーザー」\n' +
+        '　 「全員」になっていますか？\n' +
+        '　 「自分のみ」だと、ここでつながりません。\n\n' +
+        '③ ブラウザの右上に「本人確認を行ってください」が出ていませんか？\n' +
+        '　 出ていれば、先にそちらを済ませてください。');
+    })
     .then(function(r){ return r.text(); })
     .then(function(t){
       try{ return JSON.parse(t); }
@@ -557,7 +575,7 @@
         };
         return '<tr>' +
           td(esc(r.name || r.email)) +
-          td(r.made ? '新しく作りました' : 'もとからあります') +
+          td(r.acct || '分かりません', r.acct === '分かりません' ? '#c9001a' : '') +
           td(r.mailTxt, r.mailOk === false ? '#d70015'
                       : (r.mailOk === null ? '#57575c' : '')) +
           td(r.addedTxt, r.added ? '' : '#c9001a') +
@@ -568,8 +586,14 @@
 
     var note = document.createElement('p');
     note.style.cssText = 'margin:10px 0 0;font-size:12px;color:#57575c';
+    var netNg = rows.filter(function(r){ return r.acct === '分かりません'; }).length;
     var mailNg = rows.filter(function(r){ return r.mailOk === false; }).length;
-    note.textContent = mailNg
+    note.textContent = netNg
+      ? '★「分かりません」「通信できませんでした」は、マイページ側に1回も' +
+        'つながっていない状態です。アカウントも作られておらず、' +
+        'ご案内メールも出ていません。［接続設定］の URL と、デプロイの' +
+        '「アクセスできるユーザー＝全員」をご確認のうえ、もう一度お試しください。'
+      : mailNg
       ? '★「開設のご案内」が“出ていません”の方は、初回パスワードが届いておらず、' +
         'マイページに入れません。マイページ側の記録をご確認のうえ、当社からお伝えください。'
       : (ng
@@ -610,6 +634,11 @@
         var o = shape(list[i]);
         var row = { name:o.name, email:o.email,
                     made:false, added:false, pdf:false,
+                    /* ★acct は3つの状態があります。
+                         '新しく作りました' ／ 'もとからあります' ／ '分かりません'
+                         通信が失敗したときは made が分からないので、
+                         「もとからあります」と言い切ってはいけません。 */
+                    acct:'分かりません',
                     addedTxt:'—', pdfTxt:'—',
                     /* ★開設のご案内メール（初回パスワード）が出たか。
                      *   null は「確かめられません」です。赤にはしません。 */
@@ -652,6 +681,7 @@
             return;
           }
           row.made = !!r.made;
+          row.acct = row.made ? '新しく作りました' : 'もとからあります';
 
           /* ★開設のご案内メール（初回パスワード）が出たか。
            *

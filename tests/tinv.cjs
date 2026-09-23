@@ -121,6 +121,45 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   ok(bd.cols.indexOf('開設のご案内')>=0, '「開設のご案内」の列がある');
   ok(bd.rows[0][2]==='お送りしました', '★案内メールを送った、と出る');
 
+  console.log('\n── ③-2 ★通信できなかったとき、嘘をつかないか ──');
+  await p.evaluate(()=>{
+    window.__netng = true;
+    const f = window.fetch;
+    window.fetch = function(u, o){
+      if(window.__netng) return Promise.reject(new TypeError('Failed to fetch'));
+      return f(u, o);
+    };
+  });
+  dialogs=[]; p.__accept=true;
+  await p.evaluate(()=>{ document.querySelector('.rent-check[value="1"]').checked = true;
+                         document.querySelector('.rent-check[value="2"]').checked = false; });
+  await p.click('#btn-to-mypage');
+  await p.waitForTimeout(2500);
+  const ng = await p.evaluate(()=>{
+    const t=document.querySelector('#tmp-board table');
+    if(!t) return null;
+    return { rows:[...t.querySelectorAll('tbody tr')].map(tr=>
+               [...tr.querySelectorAll('td')].map(td=>td.textContent.trim())),
+             note: [...document.querySelectorAll('#tmp-board p')].pop().textContent.trim() };
+  });
+  console.log('    表:', ng ? ng.rows.map(r=>r.join(' | ')).join(' / ') : '(なし)');
+  ok(!!ng, '結果の表は出る');
+  ok(ng && ng.rows[0][1] === '分かりません',
+     '★アカウントの欄は「分かりません」（「もとからあります」と嘘をつかない）');
+  ok(ng && /通信できませんでした/.test(ng.rows[0][3]), '明細は「通信できませんでした」');
+  ok(ng && /つながっていない/.test(ng.note),
+     '★下の一言で「1回もつながっていない」と伝える');
+  ok(ng && /メールも出ていません/.test(ng.note),
+     '★「ご案内メールも出ていません」と、はっきり伝える');
+  /* ★英語のまま出さないか */
+  const alerts = dialogs.filter(d=>d.type==='alert').map(d=>d.msg);
+  ok(!alerts.some(m=>/Failed to fetch/.test(m)),
+     '★「Failed to fetch」をそのまま出さない');
+  ok(alerts.some(m=>/アクセスできるユーザー/.test(m)) ||
+     (ng && /つながっていない/.test(ng.note)),
+     '★何を確かめればよいかを日本語で出す');
+  await p.evaluate(()=>{ window.__netng = false; });
+
   console.log('\n── ④ もう一度［登録状況］を押すと、招待済みに変わるか ──');
   await p.click('#btn-mypage-inv');
   await p.waitForTimeout(800);
