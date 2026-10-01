@@ -211,12 +211,28 @@
     var know = (invMap !== null);
 
     if(know && rec){
+      /* ★再送付のときは、メールアドレスを入れ直せるようにします（2026/10/1）。
+       *
+       *  ご指示： 「再送付時にはメールアドレス入力できるようにしてほしい」
+       *           入れ直したアドレスは、登録アドレスとして置き換わります（①＝1）。
+       *
+       *  ★ログインIDが変わります。ですので
+       *      ・はじめは「いまの登録アドレス」を入れておきます
+       *      ・印を入れるまで、欄は押せません（うっかり直すのを防ぐため）
+       *      ・押す前の確認で、変更前 → 変更後 をお見せします
+       *    打ち間違えたまま送ると、オーナー様はログインできなくなり、
+       *    明細もよその方に届きます。いちばん気をつけるところです。 */
       wrap.innerHTML =
         '<span class="inv-done" style="color:#2c6ea1;font-weight:800">招待済み</span>' +
         '<label style="display:inline-flex;align-items:center;gap:4px;' +
         'cursor:pointer;color:#666">' +
         '<input type="checkbox" class="inv-check" data-re="1" value="' + i + '"' +
-        ' style="width:16px;height:16px;cursor:pointer">再送付</label>';
+        ' style="width:16px;height:16px;cursor:pointer">再送付</label>' +
+        '<input type="email" class="inv-mail" data-for="' + i + '"' +
+        ' value="' + mail.replace(/"/g, '&quot;') + '" disabled' +
+        ' title="再送付するときだけ、ここでアドレスを直せます"' +
+        ' style="font:inherit;font-size:12px;padding:3px 6px;border-radius:5px;' +
+        'border:1px solid #d9c9a8;background:#f4f4f5;color:#999;width:170px">';
     }else{
       wrap.innerHTML =
         '<label style="display:inline-flex;align-items:center;gap:4px;' +
@@ -228,7 +244,23 @@
 
     /* カードを開いてしまわないようにします */
     var box = wrap.querySelector('.inv-check');
-    if(box) box.addEventListener('click', function(ev){ ev.stopPropagation(); });
+    var inp = wrap.querySelector('.inv-mail');
+    if(box){
+      box.addEventListener('click', function(ev){ ev.stopPropagation(); });
+      if(inp){
+        var sync = function(){
+          inp.disabled = !box.checked;
+          inp.style.background = box.checked ? '#fff' : '#f4f4f5';
+          inp.style.color      = box.checked ? '#17171a' : '#999';
+        };
+        box.addEventListener('change', sync);
+        sync();
+      }
+    }
+    if(inp){
+      inp.addEventListener('click', function(ev){ ev.stopPropagation(); });
+      inp.addEventListener('keydown', function(ev){ ev.stopPropagation(); });
+    }
     var lab = wrap.querySelector('label');
     if(lab) lab.addEventListener('click', function(ev){ ev.stopPropagation(); });
     return wrap;
@@ -257,18 +289,31 @@
       var old = head.querySelector('.inv-wrap');
       /* ★印（チェック）は残します。登録状況を読み込んだだけで
            入れた印が消えると、入れ直しになります。 */
-      var was = false, wasRe = false;
+      var was = false, wasRe = false, wasMail = '';
       if(old){
         var b = old.querySelector('.inv-check');
+        var m0 = old.querySelector('.inv-mail');
         was = !!(b && b.checked);
         wasRe = !!(b && b.getAttribute('data-re'));
+        if(m0 && b && b.checked) wasMail = String(m0.value || '').trim();
         if(old.parentNode) old.parentNode.removeChild(old);
       }
       var cell = invCell(i, list[i]);
       var nb = cell.querySelector('.inv-check');
       /* ★「招待」で入れた印を、作り直しで「再送付」に化けさせません。
            意味がちがうので、種類が変わったら印は引き継ぎません。 */
-      if(nb && was && wasRe === !!nb.getAttribute('data-re')) nb.checked = true;
+      if(nb && was && wasRe === !!nb.getAttribute('data-re')){
+        nb.checked = true;
+        /* ★入れかけのアドレスも残します。描き直しで消えると、
+             打ち直しになり、打ち間違いのもとになります。 */
+        var ni = cell.querySelector('.inv-mail');
+        if(ni && wasMail){
+          ni.value = wasMail;
+          ni.disabled = false;
+          ni.style.background = '#fff';
+          ni.style.color = '#17171a';
+        }
+      }
       head.insertBefore(cell, el.nextSibling);
     });
   }
@@ -513,17 +558,34 @@
     return on;
   }
 
-  /* 「再送付」として印が入っている方（招待済みの方の箱） */
+  /* メールアドレスの形を、かんたんに確かめます。
+     ★ここで弾くのは「明らかにおかしいもの」だけです。
+       実在するかどうかは分かりません。 */
+  function mailOk(v){
+    var t = String(v == null ? '' : v).trim();
+    if(!t || t.length > 254) return false;
+    if(/[\s　,;]/.test(t)) return false;
+    return /^[^@]+@[^@.]+(\.[^@.]+)+$/.test(t);
+  }
+
+  /* 「再送付」として印が入っている方。
+     ★アドレスを入れ直されたときは、新しいアドレスも一緒に返します。 */
   function reSend(list){
     var on = [];
     try{
       var els = document.querySelectorAll('.inv-check:checked[data-re="1"]');
       Array.prototype.forEach.call(els, function(el){
         var i = Number(el.value);
-        if(isFinite(i) && list[i] && on.indexOf(i) < 0) on.push(i);
+        if(!isFinite(i) || !list[i]) return;
+        for(var k = 0; k < on.length; k++){ if(on[k].i === i) return; }
+        var now = String(list[i].email || '').trim();
+        var inp = document.querySelector('.inv-mail[data-for="' + i + '"]');
+        var val = inp ? String(inp.value || '').trim() : now;
+        on.push({ i:i, now:now, next:val,
+                  changed:(val.toLowerCase() !== now.toLowerCase()) });
       });
     }catch(e){}
-    on.sort(function(a, b){ return a - b; });
+    on.sort(function(a, b){ return a.i - b.i; });
     return on;
   }
 
@@ -632,6 +694,27 @@
       return;
     }
 
+    /* ★アドレスの形がおかしいときは、通信する前に止めます（2026/10/1）。
+     *
+     *  打ち間違えたまま送ると、オーナー様はログインできなくなり、
+     *  明細もよその方に届きます。
+     *
+     *  ★ここで止めます。登録状況を読みにいくより前です。
+     *    あとで止めると、むだな通信を1回してから止まることになり、
+     *    「送っていません」とお伝えするのに一手おくれます。 */
+    var reChk = reSend(list);
+    var badIdx = [];
+    for(var q = 0; q < reChk.length; q++){
+      if(!mailOk(reChk[q].next)) badIdx.push(reChk[q].i);
+    }
+    if(badIdx.length){
+      alert('メールアドレスの形が正しくないようです。\n\n' +
+            names(list, badIdx) + '\n\n' +
+            'ご確認のうえ、もう一度押してください。\n' +
+            '（まだ1名にも送っていません。通信もしていません）');
+      return;
+    }
+
     var btn = document.getElementById('btn-to-mypage');
     var say = function(t){ if(btn) btn.textContent = t; };
     if(btn){ btn.disabled = true; btn.textContent = '確認しています…'; }
@@ -707,14 +790,27 @@
         }
 
         var re = reSend(list);
+        var chg = re.filter(function(x){ return x.changed; });
         var msg = 'オーナーマイページへ送ります。\n\n' +
           '　対象： ' + idx.length + ' 名\n' +
           names(list, idx) + '\n\n' +
           (re.length
             ? ('　うち 再送付： ' + re.length + ' 名\n' +
-               names(list, re) + '\n' +
+               names(list, re.map(function(x){ return x.i; })) + '\n' +
                '　　→ 開設のご案内（初回パスワード）をもう一度お送りします。\n' +
                '　　　 パスワードは新しいものに変わります。\n\n')
+            : '') +
+          (chg.length
+            ? ('★ メールアドレスを変えます（' + chg.length + ' 名）\n' +
+               chg.map(function(x){
+                 var d = list[x.i];
+                 return '　・' + (d.owner || d.atena || '（お名前なし）') + '\n' +
+                        '　　　前： ' + x.now + '\n' +
+                        '　　　後： ' + x.next;
+               }).join('\n') + '\n\n' +
+               '　　ログインIDも、このアドレスに変わります。\n' +
+               '　　打ち間違えると、オーナー様はログインできなくなり、\n' +
+               '　　明細もよその方に届きます。よくご確認ください。\n\n')
             : '') +
           (unknown
             ? '※ 登録状況を読めなかったため、はじめての方の人数は分かりません。\n'
@@ -930,9 +1026,11 @@
    *    返らず、**誰が入らなかったのか分かりません**。
    *    メールなら届かなければ返ってきたのに、それが無くなっていました。
    *    そこで、登録も1名ずつにします。 */
-  function go(cfg, list, idx, say, live, reIdx){
+  function go(cfg, list, idx, say, live, reList){
     var rows = [], authNg = false;
-    reIdx = reIdx || [];
+    /* 番号 → { now, next, changed } の表にします */
+    var reMap = {};
+    (reList || []).forEach(function(x){ reMap[x.i] = x; });
 
     var chain = Promise.resolve();
     idx.forEach(function(i, k){
@@ -941,15 +1039,9 @@
         say('送信中… ' + (k + 1) + '/' + idx.length);
 
         var o = shape(list[i]);
-        /* ★再送付の印が入っている方は、マイページ側に「もう一度
-             ご案内を出してください」とお伝えします（2026/10/1）。
-             ★マイページ側（Apps Script）が resend を受け取るように
-               なるまでは、何も起きません。そのときは表に
-               「確かめられません（再送付）」と出し、
-               「お送りしました」とは絶対に言いません。 */
-        if(reIdx.indexOf(i) >= 0) o.resend = true;
+        var rq = reMap[i] || null;
         var row = { name:o.name, email:o.email,
-                    resend:(reIdx.indexOf(i) >= 0),
+                    resend:!!rq,
                     made:false, added:false, pdf:false,
                     /* ★acct は3つの状態があります。
                          '新しく作りました' ／ 'もとからあります' ／ '分かりません'
@@ -1042,13 +1134,8 @@
            *    返さないあいだは null にして、赤にはしません。
            *    分からないものを「出ました」とも「出ていません」とも言いません。 */
           if(row.resend && !row.made){
-            if(r.resent == null){
-              row.mailOk = null;  row.mailTxt = '確かめられません（再送付）';
-            }else if(Number(r.resent) > 0){
-              row.mailOk = true;  row.mailTxt = '再送付しました';
-            }else{
-              row.mailOk = false; row.mailTxt = '再送付できていません';
-            }
+            /* ★あとで stResend を呼んで、その答えで埋めます */
+            row.mailOk = null; row.mailTxt = '—';
           }else if(!row.made){
             row.mailOk = null; row.mailTxt = '—';
           }else if(r.mailNg == null){
@@ -1095,6 +1182,45 @@
           }
         }).catch(function(e){
           row.addedTxt = (e && e.message) ? '通信できませんでした' : '入りませんでした';
+        }).then(function(){
+          /* ★③ 再送付（＋メールアドレスの入れ直し）
+           *
+           *  ご指示： 「再送付もできるように」「再送付時にはメールアドレス
+           *            入力できるようにしてほしい」
+           *            入れ直したアドレスは、登録アドレスとして置き換わります。
+           *
+           *  ★明細（push）を先に済ませてから呼びます。
+           *    アドレスを変えてから明細を入れると、どちらの口座の
+           *    話なのかが入れ違いになるためです。
+           *
+           *  ★マイページ側（Apps Script）の窓口 stResend は、まだ
+           *    入っていません。入るまでは、返ってきた字をそのまま出します。
+           *    「お送りしました」とは絶対に言いません。 */
+          if(!rq || authNg) return;
+          return post(cfg.url, { action:'stResend', key:cfg.key,
+                                 mail:rq.now, newMail:rq.next })
+            .then(function(r2){
+              if(r2 && r2.error === 'auth'){ authNg = true; return; }
+              if(!r2 || !r2.ok){
+                row.mailOk = false;
+                row.mailTxt = (r2 && r2.message) ? String(r2.message)
+                                                 : '窓口がまだ入っていません';
+                return;
+              }
+              if(!r2.sent){
+                row.mailOk = false;
+                row.mailTxt = (r2.message) ? String(r2.message)
+                                           : '再送付できていません';
+                return;
+              }
+              row.mailOk = true;
+              row.mailTxt = rq.changed ? '再送付しました（アドレス変更）'
+                                       : '再送付しました';
+              if(rq.changed) row.email = rq.next;
+            })
+            .catch(function(){
+              row.mailOk = false; row.mailTxt = '通信できませんでした';
+            });
         }).then(function(){
           row.ok = row.added && row.pdf &&
                    (row.mailOk !== false) && (row.noteOk !== false);

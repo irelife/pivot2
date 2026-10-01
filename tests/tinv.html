@@ -51,7 +51,13 @@ window.fetch = function(url, o){
   var b = JSON.parse(o.body);
   window.__sent.push(b);
   var r = { ok:true };
-  if(b.action === 'stCheck'){
+  /* ★再送付の窓口（stResend）。2026/10/1
+       既定は「まだ入っていません」です（本番と同じ状態）。
+       window.__resend = true にすると、成功した形を返します。 */
+  if(b.action === 'stResend'){
+    if(window.__resend){ r.sent = 1; }
+    else { r.ok = false; r.message = '窓口がまだ入っていません'; }
+  }else if(b.action === 'stCheck'){
     r.list = window.__reg.map(function(m){
       return { mail:m, name:'—', area:'', months:2, ym:'2026年9月',
                pdf:true, opened:false, login:'2026/9/20', seen:'' };

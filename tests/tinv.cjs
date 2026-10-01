@@ -162,28 +162,126 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   await p.waitForTimeout(2200);
   const rs = await p.evaluate(()=>{
     const t = document.querySelector('#tmp-board table');
-    const ps = window.__sent.filter(x=>x.action==='push');
     return {
       head: t ? [...t.querySelectorAll('thead th')].map(x=>x.textContent.trim()) : [],
       row:  t ? [...t.querySelectorAll('tbody tr td')].map(x=>x.textContent.trim()) : [],
-      resend: ps.length ? ps[0].owners[0].resend : undefined,
-      to: ps.length ? ps[0].owners[0].email : ''
+      push: window.__sent.filter(x=>x.action==='push'),
+      res:  window.__sent.filter(x=>x.action==='stResend'),
+      order: window.__sent.map(x=>x.action)
     };
   });
   const rcol = n => rs.row[rs.head.indexOf(n)];
   const cfr = dialogs.find(d=>/対象/.test(d.msg));
   console.log('    確認の文:', cfr ? cfr.msg.split('\n').filter(x=>/再送付|対象/.test(x)).join(' / ') : '(なし)');
-  console.log('    push の中身: resend =', JSON.stringify(rs.resend), '／宛先 =', rs.to);
+  console.log('    通信の順番:', rs.order.join(' → '));
+  console.log('    stResend の中身:', JSON.stringify(rs.res[0] ? {mail:rs.res[0].mail, newMail:rs.res[0].newMail} : null));
   console.log('    表:', rs.row.join(' | '));
   ok(cfr && /うち 再送付： 1 名/.test(cfr.msg), '★確認の文に「再送付 1名」と出る');
   ok(cfr && /パスワードは新しいものに変わります/.test(cfr.msg),
      '★★パスワードが変わることを、押す前にお伝えする');
-  ok(rs.resend === true, '★★再送付のつもりが、送信に乗っている（resend）');
-  ok(rs.to === 'yamada@example.jp', '★宛先は、その方だけ');
-  ok(/確かめられません/.test(rcol('開設のご案内') || ''),
-     '★★窓口が無いあいだは「確かめられません（再送付）」');
-  ok(!/お送りしました/.test(rcol('開設のご案内') || ''),
-     '★★★出ていないのに「お送りしました」と嘘をつかない');
+  ok(!/アドレスを変えます/.test(cfr ? cfr.msg : ''),
+     '★アドレスを直していないときは「アドレスを変えます」と出さない');
+  ok(rs.res.length === 1, '★★再送付の窓口（stResend）を1回だけ呼ぶ');
+  ok(rs.res[0] && rs.res[0].mail === 'yamada@example.jp',
+     '★どなたの再送付かを送っている');
+  ok(rs.res[0] && rs.res[0].newMail === 'yamada@example.jp',
+     '★直していないときは、同じアドレスを送る');
+  ok(rs.order.indexOf('push') >= 0 &&
+     rs.order.indexOf('push') < rs.order.indexOf('stResend'),
+     '★★明細（push）を先に済ませてから、アドレスを変える');
+  ok(/窓口がまだ入っていません|再送付できていません/.test(rcol('開設のご案内') || ''),
+     '★★窓口が無いあいだは、その旨を出す');
+  ok(!/お送りしました|再送付しました/.test(rcol('開設のご案内') || ''),
+     '★★★出ていないのに「送った」と嘘をつかない');
+
+  console.log('\n── ②-1b ★★★再送付で、メールアドレスを入れ直す ──');
+  /*  ご指示： 「再送付時にはメールアドレス入力できるようにしてほしい」
+   *           ①＝1（登録アドレスとして置き換わる。ログインIDも変わる）
+   *
+   *  ★ここがこの画面でいちばん危ないところです。
+   *    打ち間違えたまま送ると、オーナー様はログインできなくなり、
+   *    明細もよその方に届きます。
+   *    ですので「押す前に 前→後 を見せる」「形がおかしければ止める」
+   *    の2つを必ず見ます。 */
+  await p.evaluate(()=>{ window.__sent.length = 0; });
+  /* ① 印を入れていないあいだ、欄は押せないこと */
+  const lock = await p.evaluate(()=>{
+    document.querySelectorAll('.inv-check').forEach(b=>{ b.checked = false;
+      b.dispatchEvent(new Event('change')); });
+    const inp = document.querySelector('.inv-mail[data-for="0"]');
+    return { disabled: inp ? inp.disabled : null, val: inp ? inp.value : null };
+  });
+  console.log('    印なしのとき:', JSON.stringify(lock));
+  ok(lock.disabled === true, '★★印を入れるまで、アドレスの欄は押せない');
+  ok(lock.val === 'yamada@example.jp', '★はじめは、いまの登録アドレスが入っている');
+
+  /* ② 形がおかしいアドレスは、送る前に止めること */
+  dialogs=[]; p.__accept=true;
+  await p.evaluate(()=>{
+    const b = document.querySelector('.inv-check[data-re="1"][value="0"]');
+    b.checked = true; b.dispatchEvent(new Event('change'));
+    document.querySelector('.inv-mail[data-for="0"]').value = 'yamada(at)example';
+  });
+  await p.click('#btn-to-mypage');
+  await p.waitForTimeout(1200);
+  const badSent = await p.evaluate(()=>window.__sent.length);
+  const badMsg = dialogs.map(d=>d.msg).join(' / ');
+  console.log('    出た窓:', badMsg.split('\n')[0]);
+  ok(badSent === 0, '★★★形がおかしいときは、1回も通信しない');
+  ok(/形が正しくない/.test(badMsg), '★何がおかしいかを伝える');
+  ok(/まだ1名にも送っていません/.test(badMsg), '★★送っていないことを、はっきり伝える');
+  ok(/通信もしていません/.test(badMsg), '★通信もしていないことを伝える');
+
+  /* ③ ちゃんとしたアドレスに直したとき */
+  await p.evaluate(()=>{ window.__sent.length = 0;
+    document.querySelector('.inv-mail[data-for="0"]').value = 'yamada.new@example.jp'; });
+  dialogs=[]; p.__accept=true;
+  await p.click('#btn-to-mypage');
+  await p.waitForTimeout(2200);
+  const chg = await p.evaluate(()=>({
+    res: window.__sent.filter(x=>x.action==='stResend'),
+    push: window.__sent.filter(x=>x.action==='push')
+  }));
+  const cfc = dialogs.find(d=>/対象/.test(d.msg));
+  if(cfc) console.log('    確認の文:\n' + cfc.msg.split('\n')
+     .filter(x=>/アドレスを変えます|前：|後：|ログインID|打ち間違/.test(x))
+     .map(x=>'      '+x).join('\n'));
+  console.log('    stResend:', JSON.stringify(chg.res[0] ? {mail:chg.res[0].mail, newMail:chg.res[0].newMail} : null));
+  ok(cfc && /アドレスを変えます/.test(cfc.msg), '★★「アドレスを変えます」と出る');
+  ok(cfc && /前： yamada@example\.jp/.test(cfc.msg), '★★変更前を出す');
+  ok(cfc && /後： yamada\.new@example\.jp/.test(cfc.msg), '★★変更後を出す');
+  ok(cfc && /ログインIDも、このアドレスに変わります/.test(cfc.msg),
+     '★★ログインIDも変わることを伝える');
+  ok(cfc && /よその方に届きます/.test(cfc.msg),
+     '★★打ち間違えたときに何が起きるかを伝える');
+  ok(chg.res.length === 1 && chg.res[0].newMail === 'yamada.new@example.jp',
+     '★★新しいアドレスを送っている');
+  ok(chg.push.length === 1 && chg.push[0].owners[0].email === 'yamada@example.jp',
+     '★★明細（push）は、まだ元のアドレスで入れる（入れ違いを防ぐ）');
+  /* ④ 窓口が入ったときは、ちゃんと「再送付しました（アドレス変更）」と出ること */
+  await p.evaluate(()=>{ window.__resend = true; window.__sent.length = 0; });
+  dialogs=[]; p.__accept=true;
+  await p.click('#btn-to-mypage');
+  await p.waitForTimeout(2200);
+  const okr = await p.evaluate(()=>{
+    const t = document.querySelector('#tmp-board table');
+    return { head:[...t.querySelectorAll('thead th')].map(x=>x.textContent.trim()),
+             row:[...t.querySelectorAll('tbody tr td')].map(x=>x.textContent.trim()) };
+  });
+  const ocol = n => okr.row[okr.head.indexOf(n)];
+  console.log('    窓口が入ったとき:', okr.row.join(' | '));
+  ok(/再送付しました（アドレス変更）/.test(ocol('開設のご案内') || ''),
+     '★★窓口が入れば「再送付しました（アドレス変更）」と出る');
+  await p.evaluate(()=>{ window.__resend = false; });
+
+  /* 片づけ */
+  await p.evaluate(()=>{
+    const inp = document.querySelector('.inv-mail[data-for="0"]');
+    if(inp) inp.value = 'yamada@example.jp';
+    document.querySelectorAll('.inv-check').forEach(b=>{ b.checked = false;
+      b.dispatchEvent(new Event('change')); });
+    window.__sent.length = 0;
+  });
 
   console.log('\n── ③ 私（テスト）1名だけにチェックして送る ──');
   /* ★2026/10/1 … 明細PDFの作り手を、先に用意します。
@@ -412,7 +510,12 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   await p.evaluate(()=>{ window.__netng = false; });
 
   console.log('\n── ③-4 ★「明細が入りました」のお知らせ ──');
+  /* ★山田様・私（テスト）は、もう招待済みです。ですので箱は「再送付」しか
+       ありません。再送付が失敗すると、その知らせが下の一言を
+       覆い隠してしまい、この検査が見たいものが見えません。
+       ここでは再送付の窓口が入っている形（__resend）にします。 */
   await p.evaluate(()=>{
+    window.__resend = true;
     window.__pdfng = false; window.__noteoff = false; window.__notengai = false;
     window.RENT.makeOwnerPdfBase64 = async function(){ return window.__B64; };
     window.__sent.length = 0;
