@@ -71,14 +71,54 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   ok(v.rows[3][2]==='アドレス未登録','アドレス無しの方は その旨');
   ok(v.rows[0][3]==='2026/9/20',    '最終ログインが出る');
 
-  console.log('\n── ② チェック0のとき、いきなり全員に送らないか ──');
-  dialogs=[]; p.__accept=false;                 /* キャンセルします */
+  console.log('\n── ② ★★印が0のとき、1名にも送らないか ──');
+  /*  ★2026/10/1 … 期待を変えました。
+   *
+   *   改良前は、印が0のときに「全員に送りますか？」とお尋ねし、
+   *   ［OK］で全員に送っていました。112名の初回パスワードが
+   *   一度に飛ぶ道が、確認1回の先に残っていました。
+   *
+   *   ご指示（2026/10/1）：
+   *     「招待はオーナーカードに招待チェックボックスつけて
+   *       チェックしたオーナーだけにする仕様に変更して」
+   *
+   *   改良後は、その道そのものをなくします。
+   *   「OK を押しさえすれば全員に送れる」状態ではなくなりました。 */
+  dialogs=[]; p.__accept=true;                  /* ★OK を押しても送れません */
   await p.click('#btn-to-mypage'); await p.waitForTimeout(600);
-  ok(dialogs.length===1 && /全員/.test(dialogs[0].msg),
-     '★「全員に送りますか？」と必ず聞く');
-  ok(/1名だけお試し/.test(dialogs[0].msg), '★1名だけ試す方法も書いてある');
   let sent = await p.evaluate(()=>window.__sent.filter(x=>x.action==='push').length);
-  ok(sent===0, '★キャンセルしたので、1名も送っていない');
+  ok(sent===0, '★★OK を押しても、1名も送らない');
+  ok(dialogs.length===1 && dialogs[0].type==='alert',
+     '★確認（confirm）ではなく、お知らせ（alert）で止める');
+  ok(dialogs[0] && !/全員/.test(dialogs[0].msg),
+     '★★「全員に送りますか」という道が無くなった');
+  ok(dialogs[0] && /招待 に印/.test(dialogs[0].msg),
+     '★どこに印を入れるかを伝える');
+  ok(dialogs[0] && /再送付/.test(dialogs[0].msg),
+     '★招待済みの方への送り方（再送付）も伝える');
+
+  console.log('\n── ②-0 ★★オーナーカードの「招待」の箱 ──');
+  const cells = await p.evaluate(()=>
+    [...document.querySelectorAll('#rows > label')].map(l => {
+      const b = l.querySelector('.inv-check');
+      const w = l.querySelector('.inv-wrap');
+      return { who: (l.childNodes[1] ? l.childNodes[1].textContent : '').trim(),
+               box: b ? (b.getAttribute('data-re') ? '再送付' : '招待') : null,
+               done: !!(w && w.querySelector('.inv-done')),
+               txt: w ? w.textContent.replace(/\s+/g,'') : '' };
+    }));
+  cells.forEach(c=>console.log('    ', JSON.stringify(c)));
+  ok(cells.length===4, 'カードは4枚（別管理の森本様は一覧に出ない）');
+  ok(cells[0] && cells[0].done && cells[0].box==='再送付',
+     '★★招待済みの方（山田）は「招待済み」＋ ☐ 再送付');
+  ok(cells[1] && !cells[1].done && cells[1].box==='招待',
+     '★★未招待の方（鈴木）は ☐ 招待');
+  ok(cells[2] && cells[2].box==='招待', '★未招待の方（私）は ☐ 招待');
+  ok(cells[3] && cells[3].box===null && /アドレス未登録/.test(cells[3].txt),
+     '★アドレス未登録の方には箱を出さない');
+  const exBox = await p.evaluate(()=>
+    document.getElementById('rent-excluded-section').querySelectorAll('.inv-check').length);
+  ok(exBox===0, '★★別管理の区画に、招待の箱を出さない');
 
   console.log('\n── ②-2 ★別管理（除外）の方に、招待メールが飛ばないか ──');
   ok(v.rows.length===5, '表には別管理の方も出る（5行）');
@@ -86,14 +126,64 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
      '★別管理の方は「対象外（別管理）」と出る（「未招待」ではない）');
   ok(!/まだ招待していないオーナー様が 4 名/.test(v.head),
      '★別管理の方を「未招待」に数えない（招待し忘れに見えてしまうため）');
-  /* チェック0で「全員」に送るとき、別管理の方が混ざらないか */
-  dialogs=[]; p.__accept=false;
-  await p.click('#btn-to-mypage'); await p.waitForTimeout(600);
-  const zen = dialogs[0] ? dialogs[0].msg : '';
-  console.log('    「全員」の確認:', zen.split('\n').filter(x=>/名/.test(x)).join(' / '));
-  ok(/ある 3 名/.test(zen),
-     '★「全員」でも 3 名（山田・鈴木・私）。別管理の森本様とアドレス無しは入らない');
-  ok(!/森本/.test(zen), '★確認の文に森本様が出てこない');
+  /* ★別管理の方に、印を入れる手だてが無いこと。
+       改良前は「全員に送る」という道があり、そこに混ざらないかを
+       見ていました。その道が無くなったので、
+       「そもそも印を入れられない」ことを見ます。 */
+  const exCan = await p.evaluate(()=>{
+    const list = window.RENT.detail;
+    const boxes = [...document.querySelectorAll('.inv-check')].map(b=>Number(b.value));
+    return { boxes: boxes, mori: list.findIndex(d=>/森本/.test(d.owner||'')) };
+  });
+  console.log('    箱がある番号:', exCan.boxes.join(','), '／森本様の番号:', exCan.mori);
+  ok(exCan.boxes.indexOf(exCan.mori) < 0,
+     '★★別管理の森本様には、招待の箱そのものが無い（印を入れられない）');
+
+  console.log('\n── ②-1 ★★再送付（招待済みの方へ、もう一度ご案内を出す）──');
+  /*  ご指示： 「いちど招待したら招待済みにして。再送付もできるように」
+   *
+   *  ★マイページ側（Apps Script）の窓口は、まだ入っていません。
+   *    ですので、ここで見るのは次の2つです。
+   *      ① 再送付のつもりが、ちゃんと送信に乗っているか（resend）
+   *      ② 窓口が無いあいだ、「お送りしました」と嘘をつかないか
+   *    ②がいちばん大事です。押したのに何も起きていないのに
+   *    「お送りしました」と出ると、当社は届いたと思い込みます。 */
+  await p.evaluate(()=>{
+    window.__sent.length = 0;
+    window.RENT.makeOwnerPdfBase64 = async function(){ return window.__B64; };
+  });
+  dialogs=[]; p.__accept=true;
+  await p.evaluate(()=>{
+    document.querySelectorAll('.inv-check').forEach(b=>{ b.checked = false; });
+    const b = document.querySelector('.inv-check[data-re="1"][value="0"]');
+    if(b) b.checked = true;                       /* 山田様（招待済み）*/
+  });
+  await p.click('#btn-to-mypage');
+  await p.waitForTimeout(2200);
+  const rs = await p.evaluate(()=>{
+    const t = document.querySelector('#tmp-board table');
+    const ps = window.__sent.filter(x=>x.action==='push');
+    return {
+      head: t ? [...t.querySelectorAll('thead th')].map(x=>x.textContent.trim()) : [],
+      row:  t ? [...t.querySelectorAll('tbody tr td')].map(x=>x.textContent.trim()) : [],
+      resend: ps.length ? ps[0].owners[0].resend : undefined,
+      to: ps.length ? ps[0].owners[0].email : ''
+    };
+  });
+  const rcol = n => rs.row[rs.head.indexOf(n)];
+  const cfr = dialogs.find(d=>/対象/.test(d.msg));
+  console.log('    確認の文:', cfr ? cfr.msg.split('\n').filter(x=>/再送付|対象/.test(x)).join(' / ') : '(なし)');
+  console.log('    push の中身: resend =', JSON.stringify(rs.resend), '／宛先 =', rs.to);
+  console.log('    表:', rs.row.join(' | '));
+  ok(cfr && /うち 再送付： 1 名/.test(cfr.msg), '★確認の文に「再送付 1名」と出る');
+  ok(cfr && /パスワードは新しいものに変わります/.test(cfr.msg),
+     '★★パスワードが変わることを、押す前にお伝えする');
+  ok(rs.resend === true, '★★再送付のつもりが、送信に乗っている（resend）');
+  ok(rs.to === 'yamada@example.jp', '★宛先は、その方だけ');
+  ok(/確かめられません/.test(rcol('開設のご案内') || ''),
+     '★★窓口が無いあいだは「確かめられません（再送付）」');
+  ok(!/お送りしました/.test(rcol('開設のご案内') || ''),
+     '★★★出ていないのに「お送りしました」と嘘をつかない');
 
   console.log('\n── ③ 私（テスト）1名だけにチェックして送る ──');
   /* ★2026/10/1 … 明細PDFの作り手を、先に用意します。
@@ -104,8 +194,12 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
    *   正しく明細PDFが入る状態にしてから試します。 */
   await p.evaluate(()=>{
     window.RENT.makeOwnerPdfBase64 = async function(){ return window.__B64; };
+    window.__sent.length = 0;
+    /* ★前の検査（②-1 再送付）の印を、必ず消します。
+         残っていると「1名だけ送る」ことの検査になりません。 */
+    document.querySelectorAll('.inv-check').forEach(b=>{ b.checked = false; });
   });
-  await p.evaluate(()=>{ document.querySelector('.rent-check[value="2"]').checked = true; });
+  await p.evaluate(()=>{ document.querySelector('.inv-check[value="2"]').checked = true; });
   dialogs=[]; p.__accept=true;
   await p.click('#btn-to-mypage');
   await p.waitForSelector('#tmp-board', { timeout:8000 });
@@ -144,9 +238,9 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
     window.__sent.length = 0;
   });
   dialogs=[]; p.__accept=true;
-  await p.evaluate(()=>{ document.querySelector('.rent-check[value="0"]').checked = true;
-                         document.querySelector('.rent-check[value="1"]').checked = false;
-                         document.querySelector('.rent-check[value="2"]').checked = false; });
+  await p.evaluate(()=>{ document.querySelector('.inv-check[value="0"]').checked = true;
+                         document.querySelector('.inv-check[value="1"]').checked = false;
+                         document.querySelector('.inv-check[value="2"]').checked = false; });
   await p.click('#btn-to-mypage');
   await p.waitForSelector('#tmp-board', { timeout:8000 });
   await p.waitForTimeout(400);
@@ -186,8 +280,8 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   await p.evaluate(()=>{ window.__pdfng = true;
     window.RENT.makeOwnerPdfBase64 = async function(){ return window.__B64; }; });
   dialogs=[]; p.__accept=true;
-  await p.evaluate(()=>{ document.querySelector('.rent-check[value="0"]').checked = true;
-                         document.querySelector('.rent-check[value="2"]').checked = false; });
+  await p.evaluate(()=>{ document.querySelector('.inv-check[value="0"]').checked = true;
+                         document.querySelector('.inv-check[value="2"]').checked = false; });
   await p.click('#btn-to-mypage');
   await p.waitForTimeout(2000);
   /* ★列の番号ではなく「列の名前」で見ます。
@@ -222,8 +316,8 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
    *  鈴木様は まだ招待されていない方です（__reg に入っていません）。 */
   await p.evaluate(()=>{ window.__sent.length = 0; });
   dialogs=[]; p.__accept=true;
-  await p.evaluate(()=>{ document.querySelector('.rent-check[value="0"]').checked = false;
-                         document.querySelector('.rent-check[value="1"]').checked = true; });
+  await p.evaluate(()=>{ document.querySelector('.inv-check[value="0"]').checked = false;
+                         document.querySelector('.inv-check[value="1"]').checked = true; });
   await p.click('#btn-to-mypage');
   await p.waitForTimeout(2000);
   const blk = await p.evaluate(()=>{
@@ -266,8 +360,8 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
     };
   });
   dialogs=[]; p.__accept=true;
-  await p.evaluate(()=>{ document.querySelector('.rent-check[value="1"]').checked = true;
-                         document.querySelector('.rent-check[value="2"]').checked = false; });
+  await p.evaluate(()=>{ document.querySelector('.inv-check[value="1"]').checked = true;
+                         document.querySelector('.inv-check[value="2"]').checked = false; });
   await p.click('#btn-to-mypage');
   await p.waitForTimeout(2500);
   const ng = await p.evaluate(()=>{
@@ -326,9 +420,9 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   const noteCol = async (val, label) => {
     dialogs=[]; p.__accept=true;
     await p.evaluate((v)=>{
-      document.querySelector('.rent-check[value="'+v+'"]').checked = true;
+      document.querySelector('.inv-check[value="'+v+'"]').checked = true;
       [0,1,2].filter(x=>x!==v).forEach(x=>{
-        document.querySelector('.rent-check[value="'+x+'"]').checked = false; });
+        document.querySelector('.inv-check[value="'+x+'"]').checked = false; });
     }, val);
     await p.click('#btn-to-mypage');
     await p.waitForTimeout(2200);
@@ -380,16 +474,23 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
     window.__sent.length = 0;
     window.__netng = false;
   });
-  /* 1つ目（全員に送りますか）は OK、2つ目（対象112名）で取り消します */
-  dialogs=[]; p.__accept=true; p.__cancelMain=true;
+  /* ★2026/10/1 … 「印が0なら全員」の道が無くなったので、
+       112名ぶんの箱に、実際に印を入れてから押します。
+       これは本番で起こりうる操作です（全選択のつもりで入れてしまう）。 */
+  await p.waitForTimeout(600);                    /* 箱が差し込まれるのを待ちます */
+  const n112 = await p.evaluate(()=>{
+    const bs = [...document.querySelectorAll('.inv-check')];
+    bs.forEach(b=>{ b.checked = true; });
+    return bs.length;
+  });
+  console.log('    印を入れた箱の数:', n112);
+  ok(n112 === 112, '★112名ぶんの箱が出ている');
+  dialogs=[]; p.__accept=false;                   /* 確認で取り消します */
   await p.click('#btn-to-mypage'); await p.waitForTimeout(2500);
-  const big = dialogs.map(d=>d.msg).join('\n----\n');
   console.log('    出た窓の数:', dialogs.length);
   const m2 = dialogs.filter(d=>/対象/.test(d.msg))[0];
   if(m2) console.log('    ' + m2.msg.split('\n').filter(x=>/★|対象|名/.test(x))
                        .slice(0,10).map(x=>'  '+x).join('\n    '));
-  ok(/全員/.test(dialogs[0] ? dialogs[0].msg : ''),
-     'まずチェック0の確認（全員に送りますか）');
   ok(m2 && /対象： 112 名/.test(m2.msg), '★対象が112名と出る');
   ok(m2 && /一度に 112 名です/.test(m2.msg), '★「一度に112名です」と伝える');
   ok(m2 && /分かかり/.test(m2.msg), '★かかる時間を伝える');
@@ -399,7 +500,6 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   ok(m2 && /つまずき記録/.test(m2.msg), '★超えたぶんの行き先も伝える');
   const pushed = await p.evaluate(()=>window.__sent.filter(x=>x.action==='push').length);
   ok(pushed === 0, '★取り消したので、1名も送っていない');
-  p.__cancelMain = false;
 
   console.log('\nJS の不具合:', errs.length ? errs : 'なし');
   ok(errs.length===0, 'JS の不具合なし');

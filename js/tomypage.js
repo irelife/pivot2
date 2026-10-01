@@ -172,6 +172,139 @@
     return (invMap && k) ? (invMap[k] || null) : null;
   }
 
+  /* ══════════════════════════════════════════════
+   *  オーナーカードの「招待」の箱（2026/10/1）
+   *
+   *  ご指示： 「招待はオーナーカードに招待チェックボックスつけて
+   *            チェックしたオーナーだけにする仕様に変更して。
+   *            で、いちど招待したら招待済みにして。再送付もできるように」
+   *
+   *  改良前は、メール送信用のチェック（.rent-check）を借りていました。
+   *  同じ箱が「月々のメール」と「マイページへの招待」の2つの意味を
+   *  持つため、どちらのつもりで入れたのか分かりませんでした。
+   *
+   *  改良後は、招待専用の箱（.inv-check）をカードに足します。
+   *    未招待　　　　 … ☐ 招待
+   *    招待済み　　　 … 招待済み ＋ ☐ 再送付
+   *    アドレス未登録 … アドレス未登録（箱は出しません）
+   *  ★別管理の方のカードは一覧に出ないので、箱も出ません。
+   *
+   *  ★ownermail.js は1文字も触りません。あちらが描いたあとに、
+   *    こちらから差し込みます。描き直されたら、また差し込みます。
+   * ══════════════════════════════════════════════ */
+
+  function invCell(i, d){
+    var mail = String((d && d.email) || '').trim();
+    var wrap = document.createElement('span');
+    wrap.className = 'inv-wrap';
+    wrap.style.cssText =
+      'display:inline-flex;align-items:center;gap:5px;flex-shrink:0;' +
+      'margin-left:8px;font-size:12px;line-height:1.2';
+
+    if(!mail){
+      wrap.innerHTML = '<span style="color:#a14a3a;font-weight:700">' +
+                       'アドレス未登録</span>';
+      return wrap;
+    }
+
+    var rec = invOf(mail);
+    var know = (invMap !== null);
+
+    if(know && rec){
+      wrap.innerHTML =
+        '<span class="inv-done" style="color:#2c6ea1;font-weight:800">招待済み</span>' +
+        '<label style="display:inline-flex;align-items:center;gap:4px;' +
+        'cursor:pointer;color:#666">' +
+        '<input type="checkbox" class="inv-check" data-re="1" value="' + i + '"' +
+        ' style="width:16px;height:16px;cursor:pointer">再送付</label>';
+    }else{
+      wrap.innerHTML =
+        '<label style="display:inline-flex;align-items:center;gap:4px;' +
+        'cursor:pointer;color:#C9184A;font-weight:800">' +
+        '<input type="checkbox" class="inv-check" value="' + i + '"' +
+        ' style="width:16px;height:16px;cursor:pointer">招待</label>' +
+        (know ? '' : '<span class="inv-unk" style="color:#999;font-weight:400">（状況未確認）</span>');
+    }
+
+    /* カードを開いてしまわないようにします */
+    var box = wrap.querySelector('.inv-check');
+    if(box) box.addEventListener('click', function(ev){ ev.stopPropagation(); });
+    var lab = wrap.querySelector('label');
+    if(lab) lab.addEventListener('click', function(ev){ ev.stopPropagation(); });
+    return wrap;
+  }
+
+  /* 箱を差し込みます。すでに入っている印は、消しません。 */
+  function invDeco(){
+    var list = null;
+    try{ list = window.RENT && window.RENT.detail; }catch(e){}
+    if(!Array.isArray(list)) return;
+
+    /* ★場所でしぼりません。shown() と同じ「.rent-check が全部」です。
+         別管理の方のカードには .rent-check がないので（ownermail.js が
+         そう作っています）、別管理の方に招待の箱は出ません。
+         ★#preview と #rows のどちらでも動くようにしています。 */
+    var els;
+    try{ els = document.querySelectorAll('.rent-check'); }catch(e){ return; }
+    if(!els || !els.length) return;
+
+    Array.prototype.forEach.call(els, function(el){
+      var i = Number(el.value);
+      if(!isFinite(i) || !list[i]) return;
+      var head = el.parentNode;
+      if(!head) return;
+
+      var old = head.querySelector('.inv-wrap');
+      /* ★印（チェック）は残します。登録状況を読み込んだだけで
+           入れた印が消えると、入れ直しになります。 */
+      var was = false, wasRe = false;
+      if(old){
+        var b = old.querySelector('.inv-check');
+        was = !!(b && b.checked);
+        wasRe = !!(b && b.getAttribute('data-re'));
+        if(old.parentNode) old.parentNode.removeChild(old);
+      }
+      var cell = invCell(i, list[i]);
+      var nb = cell.querySelector('.inv-check');
+      /* ★「招待」で入れた印を、作り直しで「再送付」に化けさせません。
+           意味がちがうので、種類が変わったら印は引き継ぎません。 */
+      if(nb && was && wasRe === !!nb.getAttribute('data-re')) nb.checked = true;
+      head.insertBefore(cell, el.nextSibling);
+    });
+  }
+
+  /* 一覧が描き直されたら、また差し込みます（検索・並べ替え・取込など） */
+  function invWatch(){
+    var box = document.getElementById('preview') ||
+              document.getElementById('rows');
+    if(!box || box.__invWatched) return;
+    box.__invWatched = true;
+    var busy = false;
+    try{
+      var mo = new MutationObserver(function(){
+        if(busy) return;
+        busy = true;
+        setTimeout(function(){ busy = false; invDeco(); }, 60);
+      });
+      mo.observe(box, { childList:true, subtree:false });
+    }catch(e){}
+    invDeco();
+  }
+
+  /* ★すでに URL と管理キーを覚えているときだけ、黙って登録状況を読みます。
+       覚えていないときは聞きません（開いただけで窓が出ると煩わしいため）。
+       そのときは「（状況未確認）」と出します。［マイページの登録状況］を
+       押していただくと「招待済み」に変わります。 */
+  function invQuiet(){
+    var url = '', key = '';
+    try{
+      url = localStorage.getItem(LS_URL) || '';
+      key = localStorage.getItem(LS_KEY) || '';
+    }catch(e){}
+    if(!url || !key) return;
+    invLoad({ url:url, key:key }).then(invDeco, function(){});
+  }
+
   /* ── 登録状況の表 ───────────────────────────── */
   function invBoard(list){
     var old = document.getElementById('tmp-inv');
@@ -281,7 +414,7 @@
     if(btn){ btn.disabled = true; btn.textContent = '確認しています…'; }
     invBoard(null);
     invLoad(cfg)
-      .then(function(){ invBoard(got.list); })
+      .then(function(){ invBoard(got.list); invDeco(); })
       .catch(function(e){ alert(e && e.message ? e.message : '確認できませんでした。'); })
       .then(function(){ if(btn){ btn.disabled = false; btn.textContent = was; } });
   }
@@ -363,14 +496,31 @@
    *  ★チェックの箱は、オーナーメールの振り分け一覧にもともとある
    *    ものです（.rent-check。value にその方の番号が入っています）。
    *    新しく足していません。 */
+  /* ★2026/10/1 … 見る箱を .rent-check から .inv-check に変えました。
+   *   .rent-check は「月々のメールを送る相手」の箱です。同じ箱を
+   *   借りていたため、どちらのつもりで入れた印か分かりませんでした。 */
   function picked(list){
     var on = [];
     try{
-      var els = document.querySelectorAll('.rent-check:checked');
+      var els = document.querySelectorAll('.inv-check:checked');
       Array.prototype.forEach.call(els, function(el){
         var i = Number(el.value);
         if(isFinite(i) && list[i] && String(list[i].email || '').trim() &&
            on.indexOf(i) < 0) on.push(i);
+      });
+    }catch(e){}
+    on.sort(function(a, b){ return a - b; });
+    return on;
+  }
+
+  /* 「再送付」として印が入っている方（招待済みの方の箱） */
+  function reSend(list){
+    var on = [];
+    try{
+      var els = document.querySelectorAll('.inv-check:checked[data-re="1"]');
+      Array.prototype.forEach.call(els, function(el){
+        var i = Number(el.value);
+        if(isFinite(i) && list[i] && on.indexOf(i) < 0) on.push(i);
       });
     }catch(e){}
     on.sort(function(a, b){ return a - b; });
@@ -464,16 +614,22 @@
       return;
     }
 
+    /* ★2026/10/1 … 「チェックが0なら全員」をやめました。
+     *
+     *  ご指示： 「チェックしたオーナーだけにする仕様に変更して」
+     *
+     *  改良前は、0件のときに「全員に送りますか？」とお尋ねし、
+     *  ［OK］で全員に送っていました。112名の初回パスワードが
+     *  一度に飛ぶ道が、確認1回の先に残っていました。
+     *  改良後は、その道をなくします。送るのは、印を入れた方だけです。 */
     var idx = picked(list);
     if(!idx.length){
-      if(!window.confirm(
-        '上の一覧に、チェックが1つも入っていません。\n\n' +
-        'メールアドレスのある ' + withMail.length + ' 名 **全員** に送りますか？\n\n' +
-        '★はじめての方には、初回パスワードのご案内メールが届きます。\n' +
-        '　送ったメールは、取り消せません。\n\n' +
-        '1名だけお試しになるときは、［キャンセル］を押して、\n' +
-        '上の一覧でその方にチェックを入れてから、もう一度押してください。')) return;
-      idx = withMail;
+      alert('どなたにも印が入っていません。\n\n' +
+            'オーナー様のカードの ☐ 招待 に印を入れてから、\n' +
+            'もう一度押してください。\n\n' +
+            '※ すでに招待済みの方へもう一度お送りするときは、\n' +
+            '　 そのカードの ☐ 再送付 に印を入れてください。');
+      return;
     }
 
     var btn = document.getElementById('btn-to-mypage');
@@ -550,9 +706,16 @@
           }
         }
 
+        var re = reSend(list);
         var msg = 'オーナーマイページへ送ります。\n\n' +
           '　対象： ' + idx.length + ' 名\n' +
           names(list, idx) + '\n\n' +
+          (re.length
+            ? ('　うち 再送付： ' + re.length + ' 名\n' +
+               names(list, re) + '\n' +
+               '　　→ 開設のご案内（初回パスワード）をもう一度お送りします。\n' +
+               '　　　 パスワードは新しいものに変わります。\n\n')
+            : '') +
           (unknown
             ? '※ 登録状況を読めなかったため、はじめての方の人数は分かりません。\n'
             : ('　はじめての方　 ' + neu + ' 名 ← 初回パスワードのご案内メールが届きます\n' +
@@ -571,10 +734,12 @@
         board(null);
         invBoard(null);
 
-        return go(cfg, list, idx, say, got.live)
+        return go(cfg, list, idx, say, got.live, re)
           .then(function(r){
             board(r.rows);
             invMap = null;          /* 台帳が変わったので、次は読み直します */
+            /* ★送ったばかりの方を「招待済み」に変えます */
+            invQuiet();
           })
           .catch(function(e){
             board(null);
@@ -765,8 +930,9 @@
    *    返らず、**誰が入らなかったのか分かりません**。
    *    メールなら届かなければ返ってきたのに、それが無くなっていました。
    *    そこで、登録も1名ずつにします。 */
-  function go(cfg, list, idx, say, live){
+  function go(cfg, list, idx, say, live, reIdx){
     var rows = [], authNg = false;
+    reIdx = reIdx || [];
 
     var chain = Promise.resolve();
     idx.forEach(function(i, k){
@@ -775,7 +941,15 @@
         say('送信中… ' + (k + 1) + '/' + idx.length);
 
         var o = shape(list[i]);
+        /* ★再送付の印が入っている方は、マイページ側に「もう一度
+             ご案内を出してください」とお伝えします（2026/10/1）。
+             ★マイページ側（Apps Script）が resend を受け取るように
+               なるまでは、何も起きません。そのときは表に
+               「確かめられません（再送付）」と出し、
+               「お送りしました」とは絶対に言いません。 */
+        if(reIdx.indexOf(i) >= 0) o.resend = true;
         var row = { name:o.name, email:o.email,
+                    resend:(reIdx.indexOf(i) >= 0),
                     made:false, added:false, pdf:false,
                     /* ★acct は3つの状態があります。
                          '新しく作りました' ／ 'もとからあります' ／ '分かりません'
@@ -867,7 +1041,15 @@
            *  ★マイページ側が mailNg を返すようになったときだけ分かります。
            *    返さないあいだは null にして、赤にはしません。
            *    分からないものを「出ました」とも「出ていません」とも言いません。 */
-          if(!row.made){
+          if(row.resend && !row.made){
+            if(r.resent == null){
+              row.mailOk = null;  row.mailTxt = '確かめられません（再送付）';
+            }else if(Number(r.resent) > 0){
+              row.mailOk = true;  row.mailTxt = '再送付しました';
+            }else{
+              row.mailOk = false; row.mailTxt = '再送付できていません';
+            }
+          }else if(!row.made){
             row.mailOk = null; row.mailTxt = '—';
           }else if(r.mailNg == null){
             row.mailOk = null; row.mailTxt = '確かめられません';
@@ -972,7 +1154,9 @@
     s.addEventListener('click', function(){ conf(true); });
 
     var note = document.createElement('span');
-    note.textContent = 'チェックを入れた方だけに送ります（無ければ全員に確認します）';
+    note.textContent =
+      'オーナー様のカードの ☐ 招待 に印を入れた方だけに送ります' +
+      '（招待済みの方は ☐ 再送付）';
     note.style.cssText = 'font-size:12.5px;color:#888';
 
     wrap.appendChild(b); wrap.appendChild(v); wrap.appendChild(s);
@@ -997,6 +1181,11 @@
     }else{
       host.appendChild(wrap);
     }
+
+    /* ★オーナーカードに「招待」の箱を差し込みます（2026/10/1）。
+         ownermail.js が一覧を描き直しても、また差し込みます。 */
+    invWatch();
+    invQuiet();
   }
 
   if(document.readyState === 'loading'){
