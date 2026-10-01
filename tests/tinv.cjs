@@ -96,6 +96,15 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   ok(!/森本/.test(zen), '★確認の文に森本様が出てこない');
 
   console.log('\n── ③ 私（テスト）1名だけにチェックして送る ──');
+  /* ★2026/10/1 … 明細PDFの作り手を、先に用意します。
+   *   それまで、この検査は「明細PDFが無いまま送れていた」ことに
+   *   頼っていました。2026/10/1 から、明細PDFが入らない
+   *   「はじめての方」には招待を送りません（ご指示）。
+   *   この検査のねらいは「1名だけに送るか」なので、
+   *   正しく明細PDFが入る状態にしてから試します。 */
+  await p.evaluate(()=>{
+    window.RENT.makeOwnerPdfBase64 = async function(){ return window.__B64; };
+  });
   await p.evaluate(()=>{ document.querySelector('.rent-check[value="2"]').checked = true; });
   dialogs=[]; p.__accept=true;
   await p.click('#btn-to-mypage');
@@ -197,7 +206,54 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
      '★マイページ側が返した理由（DRIVE_ID…）を、そのまま表に出す');
   ok(why && col(why, '明細PDF') !== '入りませんでした',
      '★「入りませんでした」だけで済ませない（原因さがしが始められないため）');
-  await p.evaluate(()=>{ window.__pdfng = false;
+  /* ★2026/10/1 … この方（山田）は すでに招待済み です（__reg に入っています）。
+   *   招待済みの方には招待メールが出ないので、明細PDFが入らなくても
+   *   送ります。止めるのは「はじめての方」だけです。 */
+  ok(why && col(why, 'アカウント') === 'もとからあります',
+     '★招待済みの方は、明細PDFが入らなくても送る（止めるのは はじめての方だけ）');
+
+  console.log('\n── ③-1b ★★明細PDFが入らない「はじめての方」に、招待を送らないか ──');
+  /*  ご指示（2026/10/1）：
+   *    「マイページへ送る、は、明細添付していることを条件にしてください。
+   *      明細添付してないオーナーは招待不可」
+   *
+   *  初回のご案内メールは取り消せません。明細が1枚も入っていない
+   *  マイページにお招きすると、オーナー様は空の画面をご覧になります。
+   *  鈴木様は まだ招待されていない方です（__reg に入っていません）。 */
+  await p.evaluate(()=>{ window.__sent.length = 0; });
+  dialogs=[]; p.__accept=true;
+  await p.evaluate(()=>{ document.querySelector('.rent-check[value="0"]').checked = false;
+                         document.querySelector('.rent-check[value="1"]').checked = true; });
+  await p.click('#btn-to-mypage');
+  await p.waitForTimeout(2000);
+  const blk = await p.evaluate(()=>{
+    const t=document.querySelector('#tmp-board table');
+    return {
+      tbl: t ? { head:[...t.querySelectorAll('thead th')].map(x=>x.textContent.trim()),
+                 row:[...t.querySelectorAll('tbody tr td')].map(x=>x.textContent.trim()) } : null,
+      push: window.__sent.filter(x=>x.action==='push').length,
+      pushed: window.__sent.filter(x=>x.action==='push')
+                .map(x=>String((x.owners||[])[0].email||'')),
+      reg: window.__reg.slice()
+    };
+  });
+  const bcol = n => blk.tbl.row[blk.tbl.head.indexOf(n)];
+  console.log('    表:', blk.tbl ? blk.tbl.row.join(' | ') : '(なし)');
+  console.log('    push した相手:', blk.pushed.length ? blk.pushed.join(' , ') : '(なし)');
+  ok(!!blk.tbl, '結果の表は出る（黙って終わらない）');
+  ok(blk.push === 0, '★★push を1回も送っていない');
+  ok(blk.reg.indexOf('suzuki@example.jp') < 0,
+     '★★台帳に作られていない（あとから「招待済み」に見えない）');
+  ok(blk.tbl && bcol('アカウント') === '送っていません',
+     '★アカウントの欄は「送っていません」');
+  ok(blk.tbl && /招待しませんでした/.test(bcol('明細')),
+     '★その理由を、表にそのまま出す');
+  ok(blk.tbl && /DRIVE_ID/.test(bcol('明細PDF')),
+     '★明細PDFが入らなかった理由も、そのまま残す');
+  ok(blk.tbl && bcol('開設のご案内') === '—',
+     '★「開設のご案内」は — （出していないので「お送りしました」と言わない）');
+
+  await p.evaluate(()=>{ window.__pdfng = false; window.__sent.length = 0;
     window.RENT.makeOwnerPdfBase64 = async function(){ return null; }; });
 
   console.log('\n── ③-2 ★通信できなかったとき、嘘をつかないか ──');
@@ -224,14 +280,34 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   });
   console.log('    表:', ng ? ng.rows.map(r=>r.join(' | ')).join(' / ') : '(なし)');
   ok(!!ng, '結果の表は出る');
-  ok(ng && ng.rows[0][ng.head.indexOf('アカウント')] === '分かりません',
-     '★アカウントの欄は「分かりません」（「もとからあります」と嘘をつかない）');
-  ok(ng && /通信できませんでした/.test(ng.rows[0][ng.head.indexOf('明細')]),
-     '明細は「通信できませんでした」');
-  ok(ng && /つながっていない/.test(ng.note),
-     '★下の一言で「1回もつながっていない」と伝える');
+  /* ★2026/10/1 … ここの期待を変えました。
+   *   明細PDFが入らなかった「はじめての方」には push しなくなったため、
+   *   アカウントの欄は「分かりません」ではなく「送っていません」になります。
+   *   この検査のねらいは「嘘をつかない」ことです。実際に送っていないので
+   *   「送っていません」は嘘ではなく、「分かりません」より正確です。
+   *   ★大事なのは、ここが「もとからあります」にならないことです。 */
+  ok(ng && ng.rows[0][ng.head.indexOf('アカウント')] !== 'もとからあります',
+     '★★アカウントの欄に「もとからあります」と嘘をつかない');
+  ok(ng && ng.rows[0][ng.head.indexOf('アカウント')] === '送っていません',
+     '★アカウントの欄は「送っていません」（push していないため）');
+  ok(ng && /読めず|送りませんでした/.test(ng.rows[0][ng.head.indexOf('明細')]),
+     '★明細の欄に、送らなかった理由が出る');
+  /* ★2026/10/1 … 下の一言の字が変わりました。
+   *   push しなくなったため、「1回もつながっていない」と言い切れません
+   *   （つながっていないのか、stCheck が入っていないのかが分かりません）。
+   *   言い切れることだけを書きます。
+   *     ・こちらから1通も送っていない      … 確かです
+   *     ・アカウントも作られていない        … 確かです
+   *     ・ご案内メールも出ていない          … 確かです  ★ここが大事
+   *     ・つながっていない可能性がある      … 可能性として書きます */
+  ok(ng && /1通も送っていません/.test(ng.note),
+     '★下の一言で「こちらから1通も送っていない」と伝える');
   ok(ng && /メールも出ていません/.test(ng.note),
-     '★「ご案内メールも出ていません」と、はっきり伝える');
+     '★★「ご案内メールも出ていません」と、はっきり伝える');
+  ok(ng && /つながっていない可能性/.test(ng.note),
+     '★つながっていない可能性に触れる（言い切らない）');
+  ok(ng && !/1回もつながっていない/.test(ng.note),
+     '★★確かめていないことを「つながっていない」と言い切らない');
   /* ★英語のまま出さないか */
   const alerts = dialogs.filter(d=>d.type==='alert').map(d=>d.msg);
   ok(!alerts.some(m=>/Failed to fetch/.test(m)),
