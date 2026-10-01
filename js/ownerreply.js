@@ -34,9 +34,18 @@
 
   var area  = '';        /* '' = すべて / '?' = 支社がまだ */
   var only  = true;      /* お返事がまだのものだけ */
+  var q     = '';        /* 検索の字 */
   var ready = false;     /* 管理キーが通ったか */
 
   function $(id){ return document.getElementById(id); }
+  /* 検索でくらべるための形。全角と半角、大文字と小文字をそろえます。
+     ★「ＡＢＣ」と「abc」、「１２３」と「123」を同じに扱うためです。 */
+  function fold(s){
+    var v = String(s == null ? '' : s);
+    try{ if(v.normalize) v = v.normalize('NFKC'); }catch(e){}
+    return v.toLowerCase();
+  }
+
   function esc(s){
     return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
       return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];
@@ -130,6 +139,24 @@
       '#view-reply .orp-a .n{margin-left:6px;font-size:.72rem;font-weight:800;color:var(--orp-ng-t)}',
       '#view-reply .orp-a.on .n{color:#ffd9d0}',
       '#view-reply .orp-only{display:flex;align-items:center;gap:6px;font-size:.8rem;font-weight:700}',
+      /* ★2026/10/1 … 検索欄と、件数の表示 */
+      '#view-reply .orp-q{width:100%;box-sizing:border-box;margin:10px 0 6px;',
+      '  font-family:inherit;font-size:.86rem;padding:9px 12px;border-radius:9px;',
+      '  border:1px solid var(--rt-line);background:#fff;color:#17171a}',
+      '#view-reply .orp-q:focus{outline:2px solid var(--rt-accent-d);outline-offset:1px}',
+      '#view-reply .orp-cnt{margin:0 0 10px;font-size:.74rem;color:var(--orp-sub)}',
+      /* ★2026/10/1 … 見出しを押すと開閉します。
+           ボタンにするので、見た目をボタンらしくない形に戻します。 */
+      '#view-reply .orp-hb{width:100%;font:inherit;text-align:left;cursor:pointer;',
+      '  background:transparent;border:0;padding:0;color:inherit}',
+      '#view-reply .orp-hb:hover .orp-o{text-decoration:underline}',
+      '#view-reply .orp-ti2{flex:1 1 auto;min-width:0;font-size:.78rem;',
+      '  color:var(--orp-sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '#view-reply .orp-cv{flex:0 0 auto;width:9px;height:9px;margin-left:4px;',
+      '  border-right:2px solid var(--orp-sub);border-bottom:2px solid var(--orp-sub);',
+      '  transform:rotate(45deg) translate(-2px,-2px);transition:transform .15s}',
+      '#view-reply .orp-cv.on{transform:rotate(-135deg) translate(-2px,-2px)}',
+      '#view-reply .orp-body[hidden]{display:none}',
       '#view-reply .orp-mails{font-size:.74rem;color:var(--orp-sub);margin:0 0 14px}',
       '#view-reply .orp-t{background:var(--rt-card);border:1px solid var(--rt-line);',
       '  border-radius:12px;padding:14px 16px;margin-bottom:14px}',
@@ -223,6 +250,11 @@
       '<div class="orp-bar" id="orp-tabs"></div>' +
       '<label class="orp-only"><input type="checkbox" id="orp-only" checked>' +
       '未返信のみ表示</label>' +
+      /* ★2026/10/1 … 検索欄。件数が増えると、目で探せなくなるためです。
+           オーナー様のお名前・番号・用件・本文のどれでも引けます。 */
+      '<input type="search" id="orp-q" class="orp-q" ' +
+      'placeholder="オーナー様・番号・用件・本文で検索">' +
+      '<p class="orp-cnt" id="orp-cnt"></p>' +
       '<p class="orp-mails" id="orp-mails"></p>' +
       '<div id="orp-chk-host"></div>' +
       '<div id="orp-list"></div>';
@@ -230,6 +262,12 @@
 
     $('orp-only').addEventListener('change', function(){
       only = $('orp-only').checked; load();
+    });
+    /* ★打つたびに通信すると重くなるので、手元にある一覧を絞るだけにします。
+         （stList は 200件まで返すので、そのなかから探します） */
+    $('orp-q').addEventListener('input', function(){
+      q = String($('orp-q').value || '').trim();
+      if(last) paint(last);
     });
     $('orp-again').addEventListener('click', load);
     $('orp-chk-go').addEventListener('click', check);
@@ -384,7 +422,10 @@
   var LABEL = { '':'すべて', '福山':'福山', '倉敷':'倉敷・総社', '岡山':'岡山',
                 '?':'支社がまだ' };
 
+  var last = null;        /* 直前の結果。検索のたびに通信しないため */
+
   function paint(r){
+    last = r;
     var n = r.counts || {};
     badge(n[''] || 0);
 
@@ -407,10 +448,31 @@
       '／岡山 ' + (m['岡山'] || '（未設定→SUPPORT）') +
       '／SUPPORT ' + (m.SUPPORT || '');
 
-    var list = r.list || [];
+    var all = r.list || [];
+
+    /* ★検索。お名前・番号・用件・本文のどれでも引けます。
+         全角と半角、大文字と小文字は、そろえてからくらべます。 */
+    var list = all;
+    if(q){
+      var k = fold(q);
+      list = all.filter(function(t){
+        var hay = [t.owner, t.id, t.title, t.type, t.area, t.mail]
+                    .concat((t.msgs || []).map(function(m){ return m.body; }))
+                    .join(' ');
+        return fold(hay).indexOf(k) >= 0;
+      });
+    }
+
+    /* 件数は、いつも出します。「200件で切れている」ことも伝えます。 */
+    $('orp-cnt').textContent =
+      (q ? ('「' + q + '」に一致： ' + list.length + ' 件　／　') : '') +
+      '表示： ' + all.length + ' 件' +
+      (all.length >= 200 ? '　★200件までしか出せません。絞り込んでご覧ください。' : '');
+
     if(!list.length){
       $('orp-list').innerHTML = '<div class="empty">' +
-        (only ? '未返信のものはありません。' : 'やりとりの履歴はありません。') +
+        (q ? ('「' + esc(q) + '」に一致するやりとりはありません。')
+           : (only ? '未返信のものはありません。' : 'やりとりの履歴はありません。')) +
         '</div>';
       return;
     }
@@ -429,14 +491,26 @@
                '>' + esc(a ? a : '（未設定）') + '</option>';
       }).join('');
 
+      /* ★2026/10/1 … 開閉式にしました。
+       *   改良前は、全部のやりとりを開いたまま縦に並べていました。
+       *   件数が増えると、1つ返信するのに延々とスクロールします。
+       *   ★未返信のものだけ開いておきます。いま手を打つべきものです。
+       *   ★検索したときは、見つかったものを全部開きます
+       *     （探しあてたのに、また押して開くのは手間だからです）。 */
+      var opened = t.open || !!q;
       return '<div class="orp-t' + (t.open ? ' open' : '') + '">' +
-        '<div class="orp-h">' +
+        '<button type="button" class="orp-h orp-hb" data-fold="' + esc(t.id) + '"' +
+        ' aria-expanded="' + (opened ? 'true' : 'false') + '">' +
           '<span class="orp-o">' + esc(t.owner) + '</span>' +
           '<span class="orp-c' + (t.open ? ' open' : ' done') + '">' +
             (t.open ? '未返信' : '返信済み') + '</span>' +
           '<span class="orp-c">' + esc(t.type) + '</span>' +
           '<span class="orp-c">' + esc(t.area || '支社がまだ') + '</span>' +
-        '</div>' +
+          '<span class="orp-ti2">' + esc(t.title) + '</span>' +
+          '<span class="orp-cv' + (opened ? ' on' : '') + '" aria-hidden="true"></span>' +
+        '</button>' +
+        '<div class="orp-body" data-body="' + esc(t.id) + '"' +
+          (opened ? '' : ' hidden') + '>' +
         '<p class="orp-ti">' + esc(t.title) + '　' + esc(t.id) + '</p>' +
         '<div class="orp-talk">' + talk + '</div>' +
         '<div class="orp-r">' +
@@ -448,8 +522,23 @@
         '</div>' +
         '<div class="orp-ar"><span>この方の支社</span>' +
           '<select data-area="' + esc(t.mail) + '">' + sel + '</select></div>' +
+        '</div>' +
       '</div>';
     }).join('');
+
+    /* 見出しを押すと、開いたり閉じたりします */
+    Array.prototype.forEach.call($('orp-list').querySelectorAll('[data-fold]'),
+      function(h){
+        h.addEventListener('click', function(){
+          var b = $('orp-list').querySelector(
+            '[data-body="' + h.getAttribute('data-fold').replace(/"/g, '\\"') + '"]');
+          if(!b) return;
+          b.hidden = !b.hidden;
+          h.setAttribute('aria-expanded', b.hidden ? 'false' : 'true');
+          var cv = h.querySelector('.orp-cv');
+          if(cv) cv.classList.toggle('on', !b.hidden);
+        });
+      });
 
     Array.prototype.forEach.call($('orp-list').querySelectorAll('[data-send]'),
       function(b){ b.addEventListener('click', function(){ reply(b); }); });

@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>ownerreply 検査台</title></head>
+<body>
+<div id="rent-view">
+  <!-- 本物と同じ作り： .tabs（タブの並び）と #view-history が要ります -->
+  <div class="tabs" id="tabs"></div>
+  <div class="view active" id="view-send"><div id="rows"></div></div>
+  <div class="view" id="view-history"><div id="histBody">（送信履歴のつもり）</div></div>
+</div>
+<script>
+/* ownermail.js のふり（画面の切り替えだけ） */
+window.RENT = { showView:function(v){
+  [].forEach.call(document.querySelectorAll('#rent-view .view'), function(el){
+    el.classList.toggle('active', el.id === 'view-' + v);
+    el.style.display = (el.id === 'view-' + v) ? 'block' : 'none';
+  });
+} };
+</script>
+<script>
+/* 接続設定は、はじめから入っている形にします */
+localStorage.setItem('pv_mypage_url','https://script.google.com/macros/s/TEST/exec');
+localStorage.setItem('pv_mypage_key','K'.repeat(40));
+window.__sent = [];
+/* 12件のやりとり。1件だけ未返信にします。 */
+window.__list = (function(){
+  var out = [], who = ['山田 太郎','鈴木 花子','佐藤 一郎','高橋 次郎','田中 三郎',
+                       '伊藤 四郎','渡辺 五郎','中村 六郎','小林 七郎','加藤 八郎',
+                       'Turnkey合同会社','株式会社ＡＢＣ'];
+  for(var i=0;i<12;i++){
+    var open = (i===0);
+    out.push({ id:'C2026100'+i+'-'+i+'-XXXX', type:'お問い合わせ',
+      title:(i===10?'登録内容の変更':'明細について'),
+      owner:who[i], mail:'o'+i+'@example.jp', area:(i%3===0?'福山':''),
+      open:open, last:1000-i,
+      msgs:[{at:'2026/10/1 22:43', who:'オーナー',
+             body:(i===10?'ご登録内容の変更をお願いいたします。相続':'9月分についてお尋ねします。')}]
+        .concat(open?[]:[{at:'2026/10/1 23:00', who:'当社', body:'承知いたしました。'}])
+    });
+  }
+  return out;
+})();
+window.fetch = function(url,o){
+  var b = JSON.parse(o.body); window.__sent.push(b);
+  var r = { ok:true };
+  if(b.action === 'stList'){
+    r.list = window.__list.filter(function(t){ return b.open ? t.open : true; });
+    r.counts = { '':1, '福山':1, '倉敷':0, '岡山':0, '?':0 };
+    r.mails = { '福山':'a@x.jp', '倉敷':'', '岡山':'', 'SUPPORT':'s@x.jp' };
+  }else if(b.action === 'stReply'){ r.ok = true; }
+  else if(b.action === 'stCheck'){ r.list = []; }
+  /* ★本物の call() は r.text() を通してから JSON にします。
+       （JSON でない答えのとき、確かめる先を出すためです。）
+       ここも text() を返す形にそろえます。json() だけだと動きません。 */
+  var t = JSON.stringify(r);
+  return Promise.resolve({
+    ok:true, status:200,
+    text:function(){ return Promise.resolve(t); },
+    json:function(){ return Promise.resolve(JSON.parse(t)); }
+  });
+};
+</script>
+<script src="../js/ownerreply.js"></script>
+</body></html>
