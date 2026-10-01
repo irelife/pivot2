@@ -100,6 +100,10 @@ window.fetch = function(url, o){
       else if(window.__notengai){ r.noted = 0; r.noteNg = 1; }
       else { r.noted = 1; r.noteNg = 0; }
     }
+  }else if(b.action === 'stQuota'){
+    /* 本日あと何通送れるか。window.__left で変えられます。 */
+    if(window.__left === undefined) r.ok = false;
+    else r.left = window.__left;
   }else if(b.action === 'putPdf'){
     /* ★入れられなかったときは、理由を message で返します（本物と同じ形） */
     if(window.__pdfng) r = { ok:false, error:'ng',

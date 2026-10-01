@@ -200,6 +200,11 @@
     wrap.style.cssText =
       'display:inline-flex;align-items:center;gap:5px;flex-shrink:0;' +
       'margin-left:8px;font-size:12px;line-height:1.2';
+    /* ★印の意味は data-kind で分けます（2026/10/1）
+     *     inv … 招待する（はじめての方）
+     *     mon … 今月の明細（ご利用中の方。毎月これを使います）
+     *     re  … ご案内の再送付（パスワードを作り直します）
+     *   名前ではなく、この印で何が起きるかが決まります。 */
 
     if(!mail){
       /* ★オーナー一覧の札と、同じ見え方にそろえます（2026/10/1）。
@@ -227,11 +232,30 @@
        *      ・押す前の確認で、変更前 → 変更後 をお見せします
        *    打ち間違えたまま送ると、オーナー様はログインできなくなり、
        *    明細もよその方に届きます。いちばん気をつけるところです。 */
+      /* ★2026/10/1 … 「今月の明細」の印を足しました。
+       *
+       *  【改良前】 招待済みの方のカードには ☐ 再送付 しかありませんでした。
+       *            毎月の明細をマイページに入れるには、それを押すしか
+       *            なく、押すと**初回パスワードが作り直されます**。
+       *            つまり、毎月の明細を安全に入れる道がありませんでした。
+       *
+       *  【改良後】 ☑ 今月の明細 を足し、はじめから入れておきます。
+       *            毎月の手順は「明細PDFを取り込む →［マイページへ送る］」
+       *            の2つだけになります。パスワードは変わりません。
+       *
+       *  ★再送付と同時には入れられません。再送付は明細も一緒に入るため、
+       *    両方入れると同じことを2回することになります。 */
       wrap.innerHTML =
         '<span class="inv-done" style="color:#2c6ea1;font-weight:800">招待済み</span>' +
         '<label style="display:inline-flex;align-items:center;gap:4px;' +
-        'cursor:pointer;color:#666">' +
-        '<input type="checkbox" class="inv-check" data-re="1" value="' + i + '"' +
+        'cursor:pointer;color:#2c6ea1;font-weight:700" ' +
+        'title="今月の明細をマイページに入れ、入ったことをお知らせします。パスワードは変わりません">' +
+        '<input type="checkbox" class="inv-check" data-kind="mon" value="' + i + '"' +
+        ' checked style="width:16px;height:16px;cursor:pointer">今月の明細</label>' +
+        '<label style="display:inline-flex;align-items:center;gap:4px;' +
+        'cursor:pointer;color:#666" ' +
+        'title="開設のご案内をもう一度お送りします。パスワードは新しいものに変わります">' +
+        '<input type="checkbox" class="inv-check" data-kind="re" value="' + i + '"' +
         ' style="width:16px;height:16px;cursor:pointer">再送付</label>' +
         '<input type="email" class="inv-mail" data-for="' + i + '"' +
         ' value="' + mail.replace(/"/g, '&quot;') + '" disabled' +
@@ -242,32 +266,53 @@
       wrap.innerHTML =
         '<label style="display:inline-flex;align-items:center;gap:4px;' +
         'cursor:pointer;color:#C9184A;font-weight:800">' +
-        '<input type="checkbox" class="inv-check" value="' + i + '"' +
-        ' style="width:16px;height:16px;cursor:pointer">招待</label>' +
+        '<input type="checkbox" class="inv-check" data-kind="inv" value="' + i + '"' +
+        ' style="width:16px;height:16px;cursor:pointer">招待する</label>' +
         (know ? '' : '<span class="inv-unk" style="color:#999;font-weight:400">（状況未確認）</span>');
     }
 
     /* カードを開いてしまわないようにします */
-    var box = wrap.querySelector('.inv-check');
+    var boxes = wrap.querySelectorAll('.inv-check');
+    var mon = wrap.querySelector('.inv-check[data-kind="mon"]');
+    var re  = wrap.querySelector('.inv-check[data-kind="re"]');
     var inp = wrap.querySelector('.inv-mail');
-    if(box){
-      box.addEventListener('click', function(ev){ ev.stopPropagation(); });
+
+    /* ★アドレス欄が開くのは「再送付」のときだけです。
+         ログインIDが変わるのは再送付のときだけで、
+         今月の明細を入れるだけならアドレスは関わらないためです。 */
+    var sync = function(){
+      var on = !!(re && re.checked);
       if(inp){
-        var sync = function(){
-          inp.disabled = !box.checked;
-          inp.style.background = box.checked ? '#fff' : '#f4f4f5';
-          inp.style.color      = box.checked ? '#17171a' : '#999';
-        };
-        box.addEventListener('change', sync);
-        sync();
+        inp.disabled = !on;
+        inp.style.background = on ? '#fff'    : '#f4f4f5';
+        inp.style.color      = on ? '#17171a' : '#999';
       }
-    }
+      /* ★再送付は明細も一緒に入ります。両方入れると同じことを2回
+           することになるので、今月の明細は外して押せなくします。 */
+      if(mon){
+        if(on && mon.checked) mon.checked = false;
+        if(!on && mon.disabled) mon.checked = true;
+        mon.disabled = on;
+        var lb = mon.parentNode;
+        if(lb && lb.style){
+          lb.style.opacity = on ? '.45' : '1';
+          lb.style.cursor  = on ? 'default' : 'pointer';
+        }
+      }
+    };
+    Array.prototype.forEach.call(boxes, function(b){
+      b.addEventListener('click', function(ev){ ev.stopPropagation(); });
+      b.addEventListener('change', function(){ sync(); sumPaint(); });
+    });
+    sync();
+
     if(inp){
       inp.addEventListener('click', function(ev){ ev.stopPropagation(); });
       inp.addEventListener('keydown', function(ev){ ev.stopPropagation(); });
     }
-    var lab = wrap.querySelector('label');
-    if(lab) lab.addEventListener('click', function(ev){ ev.stopPropagation(); });
+    Array.prototype.forEach.call(wrap.querySelectorAll('label'), function(lb){
+      lb.addEventListener('click', function(ev){ ev.stopPropagation(); });
+    });
     return wrap;
   }
 
@@ -293,34 +338,40 @@
 
       var old = head.querySelector('.inv-wrap');
       /* ★印（チェック）は残します。登録状況を読み込んだだけで
-           入れた印が消えると、入れ直しになります。 */
-      var was = false, wasRe = false, wasMail = '';
+           入れた印が消えると、入れ直しになります。
+         ★2026/10/1 … 箱が3種類になったので、種類ごとに覚えます。
+           「招待」で入れた印が、作り直しで「再送付」に化けると、
+           押したつもりのないパスワード再発行が起きます。 */
+      var wasOn = {}, wasMail = '', had = false;
       if(old){
-        var b = old.querySelector('.inv-check');
+        had = true;
         var m0 = old.querySelector('.inv-mail');
-        was = !!(b && b.checked);
-        wasRe = !!(b && b.getAttribute('data-re'));
-        if(m0 && b && b.checked) wasMail = String(m0.value || '').trim();
+        var ob = old.querySelectorAll('.inv-check');
+        Array.prototype.forEach.call(ob, function(b){
+          wasOn[b.getAttribute('data-kind') || 'inv'] = !!b.checked;
+        });
+        if(m0 && wasOn.re) wasMail = String(m0.value || '').trim();
         if(old.parentNode) old.parentNode.removeChild(old);
       }
       var cell = invCell(i, list[i]);
-      var nb = cell.querySelector('.inv-check');
-      /* ★「招待」で入れた印を、作り直しで「再送付」に化けさせません。
-           意味がちがうので、種類が変わったら印は引き継ぎません。 */
-      if(nb && was && wasRe === !!nb.getAttribute('data-re')){
-        nb.checked = true;
-        /* ★入れかけのアドレスも残します。描き直しで消えると、
-             打ち直しになり、打ち間違いのもとになります。 */
+      /* ★はじめて作るときだけ、既定（今月の明細＝入り）を使います。
+           2回目からは、画面に出ていた状態をそのまま戻します。
+           そうしないと、外した印が描き直しのたびに戻ってしまいます。 */
+      if(had){
+        Array.prototype.forEach.call(cell.querySelectorAll('.inv-check'), function(b){
+          var k = b.getAttribute('data-kind') || 'inv';
+          if(wasOn[k] !== undefined) b.checked = wasOn[k];
+        });
         var ni = cell.querySelector('.inv-mail');
-        if(ni && wasMail){
-          ni.value = wasMail;
-          ni.disabled = false;
-          ni.style.background = '#fff';
-          ni.style.color = '#17171a';
-        }
+        if(ni && wasMail) ni.value = wasMail;
+        /* 入れ直した状態に合わせて、欄の開け閉めをやり直します */
+        var rb = cell.querySelector('.inv-check[data-kind="re"]');
+        if(rb) rb.dispatchEvent(new Event('change'));
       }
       head.insertBefore(cell, el.nextSibling);
     });
+    /* 札をつけ直したら、まとめの数も合わせます */
+    sumPaint();
   }
 
   /* 一覧が描き直されたら、また差し込みます（検索・並べ替え・取込など） */
@@ -352,10 +403,14 @@
       key = localStorage.getItem(LS_KEY) || '';
     }catch(e){}
     if(!url || !key) return;
-    invLoad({ url:url, key:key }).then(function(){
+    var cfg = { url:url, key:key };
+    invLoad(cfg).then(function(){
       invDeco();
       ownDeco();        /* オーナー一覧のカードも、ここで色がつきます */
     }, function(){});
+    /* ★本日あと何通かも、黙って読んでおきます。
+         押してから「上限でした」と知るのでは、手おくれだからです。 */
+    quotaLoad(cfg).then(sumPaint, sumPaint);
   }
 
   /* ══════════════════════════════════════════════
@@ -660,6 +715,52 @@
     return on;
   }
 
+  /* ══════════════════════════════════════════════
+   *  いま印が入っているものを、種類ごとに数えます（2026/10/1）
+   *
+   *  ★「送るつもりのもの」と「実際に送るもの」を、同じ1か所から出します。
+   *    画面の数と、押したあとに起きることが食いちがわないためです。
+   * ══════════════════════════════════════════════ */
+  function kinds(){
+    var c = { inv:0, mon:0, re:0 };
+    try{
+      var els = document.querySelectorAll('.inv-check:checked');
+      Array.prototype.forEach.call(els, function(el){
+        var k = el.getAttribute('data-kind') || 'inv';
+        if(c[k] !== undefined) c[k]++;
+      });
+    }catch(e){}
+    return c;
+  }
+
+  /* 一覧に出ているのに、アドレスが無くて送れない方の数 */
+  function noMailCount(){
+    var list = pickDetail().list, sh = shown(), n = 0;
+    Object.keys(sh).forEach(function(k){
+      var d = list[Number(k)];
+      if(d && !String(d.email || '').trim()) n++;
+    });
+    return n;
+  }
+
+  /* ══════════════════════════════════════════════
+   *  本日あと何通送れるか
+   *
+   *  ★オーナーマイページと PIVOT2 は、同じ Google アカウントで
+   *    動いています。1日の送信枠は**2つで分け合っています**。
+   *    ですので「あと何通」は、マイページ側に聞くのが正しい数です。
+   *  ★窓口（stQuota）がまだ無いときは、推測しません。
+   * ══════════════════════════════════════════════ */
+  var mailLeft = null;     /* null=まだ聞いていない / -1=聞けなかった */
+
+  function quotaLoad(cfg){
+    return post(cfg.url, { action:'stQuota', key:cfg.key })
+      .then(function(r){
+        mailLeft = (r && r.ok && isFinite(r.left)) ? Number(r.left) : -1;
+      })
+      .catch(function(){ mailLeft = -1; });
+  }
+
   /* メールアドレスの形を、かんたんに確かめます。
      ★ここで弾くのは「明らかにおかしいもの」だけです。
        実在するかどうかは分かりません。 */
@@ -675,7 +776,7 @@
   function reSend(list){
     var on = [];
     try{
-      var els = document.querySelectorAll('.inv-check:checked[data-re="1"]');
+      var els = document.querySelectorAll('.inv-check:checked[data-kind="re"]');
       Array.prototype.forEach.call(els, function(el){
         var i = Number(el.value);
         if(!isFinite(i) || !list[i]) return;
@@ -789,10 +890,10 @@
     var idx = picked(list);
     if(!idx.length){
       alert('どなたにも印が入っていません。\n\n' +
-            'オーナー様のカードの ☐ 招待 に印を入れてから、\n' +
-            'もう一度押してください。\n\n' +
-            '※ すでに招待済みの方へもう一度お送りするときは、\n' +
-            '　 そのカードの ☐ 再送付 に印を入れてください。');
+            'オーナー様のカードの ☐ に印を入れてから、もう一度押してください。\n\n' +
+            '　☑ 今月の明細 … ご利用中の方。毎月はこれです\n' +
+            '　☐ 招待する　 … はじめての方。初回パスワードが届きます\n' +
+            '　☐ 再送付　　 … パスワードを作り直してお送りします');
       return;
     }
 
@@ -855,12 +956,17 @@
                   '　 ' + MANY + ' 名ずつに分けると、結果の表も読みやすく、\n' +
                   '　 途中で失敗したときの押し直しも楽になります。\n';
         }
-        if(!unknown && neu > MAIL_DAY){
-          warn += '\n★ はじめての方が ' + neu + ' 名です。\n' +
-                  '　 ご案内メールは1日 ' + MAIL_DAY + ' 通ほどまでで、\n' +
-                  '　 再設定・お返事のお知らせも同じ枠を使います。\n' +
-                  '　 超えたぶんは届きません（台帳の「つまずき記録」に残ります）。\n' +
-                  '　 日を分けてお送りください。\n';
+        /* ★本当の残り通数（stQuota）が読めているときは、そちらを使います。
+             目安の MAIL_DAY は、読めなかったときの控えです。
+             両方出すと、どちらを信じるか分からなくなります。 */
+        if(mailLeft === null || mailLeft < 0){
+          if(!unknown && neu > MAIL_DAY){
+            warn += '\n★ はじめての方が ' + neu + ' 名です。\n' +
+                    '　 ご案内メールは1日 ' + MAIL_DAY + ' 通ほどまでで、\n' +
+                    '　 再設定・お返事のお知らせも同じ枠を使います。\n' +
+                    '　 超えたぶんは届きません（台帳の「つまずき記録」に残ります）。\n' +
+                    '　 日を分けてお送りください。\n';
+          }
         }
 
         /* ★2026/10/1 追加。明細PDFを作れないときは、押す前に止めます。
@@ -893,9 +999,19 @@
 
         var re = reSend(list);
         var chg = re.filter(function(x){ return x.changed; });
+        var kc  = kinds();
+        /* ★2026/10/1 … 何が起きるかを、種類ごとに先に書きます。
+             改良前はお名前の羅列が先頭にあり、肝心の
+             「パスワードが変わる方が何名か」が下に埋もれていました。 */
         var msg = 'オーナーマイページへ送ります。\n\n' +
-          '　対象： ' + idx.length + ' 名\n' +
-          names(list, idx) + '\n\n' +
+          '　送る相手： ' + idx.length + ' 名\n' +
+          (kc.mon ? ('　　☑ 今月の明細　' + kc.mon + ' 名' +
+                     ' … 明細が入ったお知らせが届きます\n') : '') +
+          (kc.inv ? ('　　☐ 招待する　　' + kc.inv + ' 名' +
+                     ' … 初回パスワードのご案内が届きます\n') : '') +
+          (kc.re  ? ('　　☐ 再送付　　　' + kc.re  + ' 名' +
+                     ' … ★パスワードを作り直します\n') : '') +
+          '\n' + names(list, idx) + '\n\n' +
           (re.length
             ? ('　うち 再送付： ' + re.length + ' 名\n' +
                names(list, re.map(function(x){ return x.i; })) + '\n' +
@@ -916,8 +1032,15 @@
             : '') +
           (unknown
             ? '※ 登録状況を読めなかったため、はじめての方の人数は分かりません。\n'
-            : ('　はじめての方　 ' + neu + ' 名 ← 初回パスワードのご案内メールが届きます\n' +
-               '　すでに登録済み ' + old + ' 名 ← メールは届きません。明細だけ増えます\n')) +
+            : '') +
+          /* ★本日の枠。足りないときだけ出します。
+               足りているときにも出すと、読み飛ばす字が増えるだけです。 */
+          ((mailLeft !== null && mailLeft >= 0 && idx.length > mailLeft)
+            ? ('\n★ 本日あと ' + mailLeft + ' 通しか送れません。\n' +
+               '　 ' + idx.length + ' 名ぶん要るので、' + (idx.length - mailLeft) +
+               ' 名には届きません。\n' +
+               '　 日を分けてお送りください。\n')
+            : '') +
           (got.live ? '' :
            '\n※ 明細PDFを作れません。\n' +
            '　 はじめての方 ' + neu + ' 名には、招待を送りません。\n' +
@@ -1340,6 +1463,67 @@
     });
   }
 
+  /* ══════════════════════════════════════════════
+   *  ボタンの上の「今月ぶん」のまとめ（2026/10/1）
+   *
+   *  ご指示： 「わかりやすい仕様に」「直感的な操作ができるような」
+   *
+   *  【改良前】 押すまで、何名に・何が起きるか分かりませんでした。
+   *            確認の窓に長い文が出て、そこで初めて読むことになります。
+   *  【改良後】 押す前から、ボタンの真上に出ています。
+   *            印を入れ外しするたびに、その場で変わります。
+   *
+   *  ★数は、実際に印が入っている箱から数えます。
+   *    「たぶんこうだろう」という推測は、1つも入れていません。
+   * ══════════════════════════════════════════════ */
+  function sumRow(n, ttl, txt, col){
+    return '<div style="display:flex;gap:10px;align-items:baseline;' +
+           'padding:2px 0">' +
+           '<span style="flex:0 0 7.5em;font-weight:700;color:' + col + '">' +
+           ttl + '</span>' +
+           '<span style="flex:0 0 3.5em;text-align:right;font-weight:800;' +
+           'font-variant-numeric:tabular-nums">' + n + ' 名</span>' +
+           '<span style="flex:1 1 auto;color:#57575c">' + txt + '</span>' +
+           '</div>';
+  }
+
+  function sumPaint(){
+    var box = document.getElementById('tmp-sum');
+    if(!box) return;
+
+    var c  = kinds();
+    var nm = noMailCount();
+    var n  = c.inv + c.mon + c.re;
+
+    var left =
+      (mailLeft === null) ? '確かめていません' :
+      (mailLeft < 0)      ? '確かめられません（マイページ側の窓口がまだのようです）' :
+      ('あと ' + mailLeft + ' 通');
+
+    /* ★足りないときだけ赤くします。足りているのに赤いと、
+         本当に足りないときに気づけなくなります。 */
+    var needs = c.inv + c.mon + c.re;      /* 1名につきメール1通 */
+    var tight = (mailLeft !== null && mailLeft >= 0 && needs > mailLeft);
+
+    box.innerHTML =
+      '<p style="margin:0 0 8px;font-weight:800;font-size:14px">' +
+        '今月ぶん　送る相手 ' + n + ' 名' +
+      '</p>' +
+      (c.mon ? sumRow(c.mon, '今月の明細', '明細が入ったことを、お知らせします', '#2c6ea1') : '') +
+      (c.inv ? sumRow(c.inv, '招待する',   '開設のご案内（初回パスワード）が届きます', '#C9184A') : '') +
+      (c.re  ? sumRow(c.re,  '再送付',     '★パスワードを作り直します', '#c9001a') : '') +
+      (nm    ? sumRow(nm,    'アドレス未登録', '送れません。ご登録をお願いします', '#8a5a00') : '') +
+      (n ? '' : '<div style="color:#57575c">カードの ☐ に印を入れてください。</div>') +
+      '<p style="margin:8px 0 0;padding-top:8px;border-top:1px solid #e5e5ea;' +
+        'font-size:12.5px;color:' + (tight ? '#c9001a;font-weight:800' : '#57575c') + '">' +
+        '本日の送信枠　' + left +
+        (tight ? ('　★ ' + needs + ' 通ぶん要ります。' +
+                  (needs - mailLeft) + ' 名は届きません。日を分けてください。') : '') +
+        '　<span style="color:#8a8a8f;font-weight:400">' +
+        '（マイページと PIVOT2 で、1日ぶんを分け合っています）</span>' +
+      '</p>';
+  }
+
   /* ── ボタンを置きます ──────────────────────── */
   function put(){
     if(document.getElementById('btn-to-mypage')) return;
@@ -1383,12 +1567,21 @@
 
     var note = document.createElement('span');
     note.textContent =
-      'オーナー様のカードの ☐ 招待 に印を入れた方だけに送ります' +
-      '（招待済みの方は ☐ 再送付）';
+      'ご利用中の方は ☑ 今月の明細 がはじめから入っています。' +
+      'はじめての方は ☐ 招待する に印を入れてください。';
     note.style.cssText = 'font-size:12.5px;color:#888';
 
     wrap.appendChild(b); wrap.appendChild(v); wrap.appendChild(s);
     wrap.appendChild(note);
+
+    /* ★まとめは、ボタンの真上に置きます。
+         押す前に目に入る場所でないと、出す意味がありません。 */
+    var sum = document.createElement('div');
+    sum.id = 'tmp-sum';
+    sum.style.cssText =
+      'margin:16px 0 0;padding:12px 16px;border-radius:12px;background:#fff;' +
+      'border:1px solid #d2d2d7;font-size:13px;color:#1d1d1f;line-height:1.7;' +
+      'max-width:640px';
 
     /* ★置く場所（2026/9/23 直し）
      *
@@ -1405,10 +1598,13 @@
     var bar = document.getElementById('rent-btn-send');
     bar = bar ? bar.parentNode : null;
     if(bar && bar.parentNode){
-      bar.parentNode.insertBefore(wrap, bar.nextSibling);
+      bar.parentNode.insertBefore(sum,  bar.nextSibling);
+      bar.parentNode.insertBefore(wrap, sum.nextSibling);
     }else{
+      host.appendChild(sum);
       host.appendChild(wrap);
     }
+    sumPaint();
 
     /* ★オーナーカードに「招待」の箱を差し込みます（2026/10/1）。
          ownermail.js が一覧を描き直しても、また差し込みます。 */
