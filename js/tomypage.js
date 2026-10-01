@@ -202,8 +202,13 @@
       'margin-left:8px;font-size:12px;line-height:1.2';
 
     if(!mail){
-      wrap.innerHTML = '<span style="color:#a14a3a;font-weight:700">' +
-                       'アドレス未登録</span>';
+      /* ★オーナー一覧の札と、同じ見え方にそろえます（2026/10/1）。
+           同じ意味のものが2つの画面でちがう色だと、見分けの手がかりに
+           なりません。 */
+      wrap.innerHTML = '<span class="inv-nomail" style="font-size:11px;' +
+                       'font-weight:800;line-height:1.2;padding:2px 7px;' +
+                       'border-radius:999px;white-space:nowrap;' +
+                       'color:#17171a;background:#ffcc00">アドレス未登録</span>';
       return wrap;
     }
 
@@ -386,12 +391,19 @@
 
   function ownBadge(o){
     var mail = String((o && o.email) || '').trim();
-    var txt, col;
-    if(o && o.exclude){        txt = '対象外';        col = '#8a8a8f'; }
-    else if(!mail){            txt = 'アドレス未登録'; col = '#a14a3a'; }
-    else if(invMap === null){  txt = '（状況未確認）'; col = '#a0a0a5'; }
-    else if(invOf(mail)){      txt = '招待済み';      col = '#2c6ea1'; }
-    else {                     txt = '未招待';        col = '#c9184a'; }
+    var txt, bg, fg = '#fff';
+    if(o && o.exclude){        txt = '対象外';        bg = '#8a8a8f'; }
+    else if(!mail){
+      /* ★アドレス未登録だけ、黄色の地に黒い字にします（2026/10/1 ご指示）。
+       *   ここは「当社が直さなければならない方」です。112枚のカードの中で
+       *   いちばん先に目に入るようにします。
+       *   ★黒い字にするのは、黄色に白い字だと読めないためです
+       *     （黄色＋白＝明暗差 1.51 ／ 黄色＋黒＝11.83。目安は 4.5）。 */
+      txt = 'アドレス未登録'; bg = '#ffcc00'; fg = '#17171a';
+    }
+    else if(invMap === null){  txt = '（状況未確認）'; bg = '#a0a0a5'; }
+    else if(invOf(mail)){      txt = '招待済み';      bg = '#2c6ea1'; }
+    else {                     txt = '未招待';        bg = '#c9184a'; }
 
     var el = document.createElement('span');
     el.className = 'inv-own';
@@ -399,7 +411,7 @@
     el.style.cssText =
       'margin-left:auto;flex:0 0 auto;font-size:11px;font-weight:800;' +
       'line-height:1.2;padding:2px 7px;border-radius:999px;' +
-      'white-space:nowrap;color:#fff;background:' + col;
+      'white-space:nowrap;color:' + fg + ';background:' + bg;
     return el;
   }
 

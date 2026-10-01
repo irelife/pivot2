@@ -6,6 +6,28 @@
  *
  *   ふだんの使いかたを、そのまま並べています。                   */
 const fs=require('fs');
+
+/* ══════════════════════════════════════════════
+ *  ★日付は「いまより○日あと」で表します（2026/10/1）
+ *
+ *  2026/9/23 まで、ここに日付を直に書いていました。
+ *      updatedAt:'2026-09-30T00:00:00.000Z'
+ *  「ほかの端末が、あとで直した」という意味で書いたものです。
+ *
+ *  ところが js/store.js は
+ *      where('updatedAt', '>', fs_seen)
+ *  で「前に見たときより新しいもの」だけを読みます。
+ *  fs_seen は、保存したときに「いま」まで進みます。
+ *  ですので 2026/10/1 になった瞬間、2026-09-30 は「過去」になり、
+ *  読まれなくなりました。検査が、その日から赤くなりました。
+ *
+ *  ★アプリは正しく、検査の書きかたが悪かったのです。
+ *    実際に「いま＋1日」に変えると、13 PASS / 0 FAIL で通りました。
+ *
+ *  日を直に書くと、その日が過ぎた瞬間に壊れます。
+ *  「いまより○日あと」と書けば、いつ走らせても意味が変わりません。
+ * ══════════════════════════════════════════════ */
+const LATER = (d) => new Date(Date.now() + d * 86400000).toISOString();
 /* どこでも動くように：playwright があればそれを、無ければ playwright-core を使います */
 const {chromium}=(function(){ try{ return require('playwright'); }
                               catch(e){ return require('playwright-core'); } })();
@@ -115,8 +137,8 @@ const NET={up:true};
 
  console.log('\nB2 触っていない物件を、保存で古い内容に戻さない');
  LOG.length=0;
- await pg.evaluate((p)=>{ window.__set(p,'b25',{id:'b25',name:'★ほかの人が直した',addr:'住所25',spots:{},
-   rev:2,updatedAt:'2026-10-01T00:00:00.000Z',updatedBy:'ほか'}); }, BP);
+ await pg.evaluate((a)=>{ window.__set(a[0],'b25',{id:'b25',name:'★ほかの人が直した',addr:'住所25',spots:{},
+   rev:2,updatedAt:a[1],updatedBy:'ほか'}); }, [BP, LATER(1)]);
  await edit('b26','★B2じぶん'); await pg.waitForTimeout(3500);
  ok('★ ほかの人の直しが残っている', (await nameIn('b25'))==='★ほかの人が直した', await nameIn('b25'));
  dump('B2');
@@ -131,15 +153,15 @@ const NET={up:true};
 
  console.log('\nB4 15分ごとの読み直しが、入力中の内容を上書きしない');
  await pg.evaluate(()=>{ var all=pbLoadAll(); all['b28'].name='★B4いま入力中'; pbSaveRaw(all); });
- await pg.evaluate((p)=>{ window.__set(p,'b28',{id:'b28',name:'クラウドの古い内容',addr:'住所28',spots:{},
-   rev:9,updatedAt:'2026-10-02T00:00:00.000Z',updatedBy:'ほか'}); }, BP);
+ await pg.evaluate((a)=>{ window.__set(a[0],'b28',{id:'b28',name:'クラウドの古い内容',addr:'住所28',spots:{},
+   rev:9,updatedAt:a[1],updatedBy:'ほか'}); }, [BP, LATER(2)]);
  await pg.evaluate(()=>{ try{ window.__pvSyncNow(); }catch(e){} }); await pg.waitForTimeout(2500);
  ok('★ 入力中の内容が消えない', (await mineName('b28'))==='★B4いま入力中', await mineName('b28'));
 
  console.log('\n══ C スマホとPCで情報が違う ══');
  console.log('\nC1 ほかの端末が直した物件が、開き直さずに出る');
- await pg.evaluate((p)=>{ window.__set(p,'b29',{id:'b29',name:'★C1スマホから',addr:'住所29',spots:{},
-   rev:5,updatedAt:'2026-10-05T00:00:00.000Z',updatedBy:'スマホ'}); }, BP);
+ await pg.evaluate((a)=>{ window.__set(a[0],'b29',{id:'b29',name:'★C1スマホから',addr:'住所29',spots:{},
+   rev:5,updatedAt:a[1],updatedBy:'スマホ'}); }, [BP, LATER(5)]);
  await pg.evaluate(()=>{ try{ window.__pvSyncNow(); }catch(e){} }); await pg.waitForTimeout(2500);
  ok('★ 出てくる', (await mineName('b29'))==='★C1スマホから', await mineName('b29'));
 
@@ -151,8 +173,8 @@ const NET={up:true};
  ok('★ 出てくる', Array.isArray(ow)&&ow.join().indexOf('★C2あたらしい人')>=0, ow);
 
  console.log('\nC3 ほかの端末が入れた契約が、開き直さずに出る');
- await pg.evaluate((p)=>{ window.__seed(p,'c99',{id:'c99',contractor:'★C3あたらしい契約',
-   rev:1,updatedAt2:'2026-10-06T00:00:00.000Z',updatedBy2:'スマホ'}); }, CP);
+ await pg.evaluate((a)=>{ window.__seed(a[0],'c99',{id:'c99',contractor:'★C3あたらしい契約',
+   rev:1,updatedAt2:a[1],updatedBy2:'スマホ'}); }, [CP, LATER(6)]);
  await pg.evaluate(()=>{ try{ window.__pvSyncContracts(); }catch(e){} }); await pg.waitForTimeout(2000);
  const ct=await pg.evaluate((k)=>{ try{ var m=JSON.parse(localStorage.getItem(k)||'{}');
    return Object.keys(m).map(id=>m[id].contractor||''); }catch(e){ return String(e); } },

@@ -5,6 +5,28 @@
      ・続けて保存しても平気か
      ・ぶつかりは、ちゃんと見つかるか                            */
 const fs=require('fs');
+
+/* ══════════════════════════════════════════════
+ *  ★日付は「いまより○日あと」で表します（2026/10/1）
+ *
+ *  2026/9/23 まで、ここに日付を直に書いていました。
+ *      updatedAt:'2026-09-30T00:00:00.000Z'
+ *  「ほかの端末が、あとで直した」という意味で書いたものです。
+ *
+ *  ところが js/store.js は
+ *      where('updatedAt', '>', fs_seen)
+ *  で「前に見たときより新しいもの」だけを読みます。
+ *  fs_seen は、保存したときに「いま」まで進みます。
+ *  ですので 2026/10/1 になった瞬間、2026-09-30 は「過去」になり、
+ *  読まれなくなりました。検査が、その日から赤くなりました。
+ *
+ *  ★アプリは正しく、検査の書きかたが悪かったのです。
+ *    実際に「いま＋1日」に変えると、13 PASS / 0 FAIL で通りました。
+ *
+ *  日を直に書くと、その日が過ぎた瞬間に壊れます。
+ *  「いまより○日あと」と書けば、いつ走らせても意味が変わりません。
+ * ══════════════════════════════════════════════ */
+const LATER = (d) => new Date(Date.now() + d * 86400000).toISOString();
 /* どこでも動くように：playwright があればそれを、無ければ playwright-core を使います */
 const {chromium}=(function(){ try{ return require('playwright'); }
                               catch(e){ return require('playwright-core'); } })();
@@ -57,8 +79,11 @@ const SENT=[];
     last?(last.payload.buildings['b5']||{}).name:null);
 
  console.log('\n❷ ほかの端末が直した物件を、保存で消さない');
- await pg.evaluate((p)=>{ window.__set(p,'b9',{id:'b9',name:'ほかの端末が直した',addr:'住所9',spots:{},
-   rev:2,updatedAt:'2026-09-30T00:00:00.000Z',updatedBy:'ほか'}); }, BP);
+ /* ★日付は Node の側で作って、ブラウザへ渡します。
+      evaluate の中は別の世界なので、LATER はそのままでは使えません
+      （2026/10/1、ここで一度つまずきました）。 */
+ await pg.evaluate((a)=>{ window.__set(a[0],'b9',{id:'b9',name:'ほかの端末が直した',addr:'住所9',spots:{},
+   rev:2,updatedAt:a[1],updatedBy:'ほか'}); }, [BP, LATER(1)]);
  SENT.length=0;
  await pg.evaluate(()=>{ var all=pbLoadAll(); all['b6'].name='★2つめ'; pbSaveRaw(all); window.__pushNow(); });
  await pg.waitForTimeout(3500);

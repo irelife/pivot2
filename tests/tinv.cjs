@@ -166,6 +166,26 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
      '★★鈴木様（台帳に無い）は「未招待」', own[1]);
   ok(own[3] && own[3].badge === 'アドレス未登録',
      '★アドレスが無い方は「アドレス未登録」（招待できない方として分ける）', own[3]);
+  /* ★2026/10/1 ご指示：「アドレス未登録、背景黄色文字黒にして」
+   *   ここは「当社が直さなければならない方」です。112枚のカードの中で
+   *   いちばん先に目に入る色にします。
+   *   ★黄色に白い字では読めません（明暗差 1.51）。黒にします（11.83）。 */
+  const badgeCol = await p.evaluate(()=>{
+    const bs = [...document.querySelectorAll('#ownerCards .ow-head .inv-own')];
+    const one = bs.filter(b=>b.textContent.trim()==='アドレス未登録')[0];
+    const other = bs.filter(b=>b.textContent.trim()==='未招待')[0];
+    const g = e => e ? { bg:getComputedStyle(e).backgroundColor,
+                         fg:getComputedStyle(e).color } : null;
+    return { nomail:g(one), mi:g(other) };
+  });
+  console.log('    アドレス未登録:', JSON.stringify(badgeCol.nomail));
+  console.log('    未招待　　　　:', JSON.stringify(badgeCol.mi));
+  ok(badgeCol.nomail && badgeCol.nomail.bg === 'rgb(255, 204, 0)',
+     '★★アドレス未登録の地は 黄色（#FFCC00）', badgeCol.nomail);
+  ok(badgeCol.nomail && badgeCol.nomail.fg === 'rgb(23, 23, 26)',
+     '★★アドレス未登録の字は 黒（#17171A）', badgeCol.nomail);
+  ok(badgeCol.mi && badgeCol.mi.fg === 'rgb(255, 255, 255)',
+     '★ほかの札は、これまでどおり白い字', badgeCol.mi);
   ok(own[4] && own[4].badge === '対象外',
      '★★別管理の森本様は「対象外」（「未招待」と出すと、招待し忘れに見える）', own[4]);
 
