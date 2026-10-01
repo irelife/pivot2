@@ -172,6 +172,184 @@
     return (invMap && k) ? (invMap[k] || null) : null;
   }
 
+  /* ══════════════════════════════════════════════
+   *  オーナーカードの「招待」の箱（2026/10/1）
+   *
+   *  ご指示： 「招待はオーナーカードに招待チェックボックスつけて
+   *            チェックしたオーナーだけにする仕様に変更して。
+   *            で、いちど招待したら招待済みにして。再送付もできるように」
+   *
+   *  改良前は、メール送信用のチェック（.rent-check）を借りていました。
+   *  同じ箱が「月々のメール」と「マイページへの招待」の2つの意味を
+   *  持つため、どちらのつもりで入れたのか分かりませんでした。
+   *
+   *  改良後は、招待専用の箱（.inv-check）をカードに足します。
+   *    未招待　　　　 … ☐ 招待
+   *    招待済み　　　 … 招待済み ＋ ☐ 再送付
+   *    アドレス未登録 … アドレス未登録（箱は出しません）
+   *  ★別管理の方のカードは一覧に出ないので、箱も出ません。
+   *
+   *  ★ownermail.js は1文字も触りません。あちらが描いたあとに、
+   *    こちらから差し込みます。描き直されたら、また差し込みます。
+   * ══════════════════════════════════════════════ */
+
+  function invCell(i, d){
+    var mail = String((d && d.email) || '').trim();
+    var wrap = document.createElement('span');
+    wrap.className = 'inv-wrap';
+    wrap.style.cssText =
+      'display:inline-flex;align-items:center;gap:5px;flex-shrink:0;' +
+      'margin-left:8px;font-size:12px;line-height:1.2';
+
+    if(!mail){
+      wrap.innerHTML = '<span style="color:#a14a3a;font-weight:700">' +
+                       'アドレス未登録</span>';
+      return wrap;
+    }
+
+    var rec = invOf(mail);
+    var know = (invMap !== null);
+
+    if(know && rec){
+      /* ★再送付のときは、メールアドレスを入れ直せるようにします（2026/10/1）。
+       *
+       *  ご指示： 「再送付時にはメールアドレス入力できるようにしてほしい」
+       *           入れ直したアドレスは、登録アドレスとして置き換わります（①＝1）。
+       *
+       *  ★ログインIDが変わります。ですので
+       *      ・はじめは「いまの登録アドレス」を入れておきます
+       *      ・印を入れるまで、欄は押せません（うっかり直すのを防ぐため）
+       *      ・押す前の確認で、変更前 → 変更後 をお見せします
+       *    打ち間違えたまま送ると、オーナー様はログインできなくなり、
+       *    明細もよその方に届きます。いちばん気をつけるところです。 */
+      wrap.innerHTML =
+        '<span class="inv-done" style="color:#2c6ea1;font-weight:800">招待済み</span>' +
+        '<label style="display:inline-flex;align-items:center;gap:4px;' +
+        'cursor:pointer;color:#666">' +
+        '<input type="checkbox" class="inv-check" data-re="1" value="' + i + '"' +
+        ' style="width:16px;height:16px;cursor:pointer">再送付</label>' +
+        '<input type="email" class="inv-mail" data-for="' + i + '"' +
+        ' value="' + mail.replace(/"/g, '&quot;') + '" disabled' +
+        ' title="再送付するときだけ、ここでアドレスを直せます"' +
+        ' style="font:inherit;font-size:12px;padding:3px 6px;border-radius:5px;' +
+        'border:1px solid #d9c9a8;background:#f4f4f5;color:#999;width:170px">';
+    }else{
+      wrap.innerHTML =
+        '<label style="display:inline-flex;align-items:center;gap:4px;' +
+        'cursor:pointer;color:#C9184A;font-weight:800">' +
+        '<input type="checkbox" class="inv-check" value="' + i + '"' +
+        ' style="width:16px;height:16px;cursor:pointer">招待</label>' +
+        (know ? '' : '<span class="inv-unk" style="color:#999;font-weight:400">（状況未確認）</span>');
+    }
+
+    /* カードを開いてしまわないようにします */
+    var box = wrap.querySelector('.inv-check');
+    var inp = wrap.querySelector('.inv-mail');
+    if(box){
+      box.addEventListener('click', function(ev){ ev.stopPropagation(); });
+      if(inp){
+        var sync = function(){
+          inp.disabled = !box.checked;
+          inp.style.background = box.checked ? '#fff' : '#f4f4f5';
+          inp.style.color      = box.checked ? '#17171a' : '#999';
+        };
+        box.addEventListener('change', sync);
+        sync();
+      }
+    }
+    if(inp){
+      inp.addEventListener('click', function(ev){ ev.stopPropagation(); });
+      inp.addEventListener('keydown', function(ev){ ev.stopPropagation(); });
+    }
+    var lab = wrap.querySelector('label');
+    if(lab) lab.addEventListener('click', function(ev){ ev.stopPropagation(); });
+    return wrap;
+  }
+
+  /* 箱を差し込みます。すでに入っている印は、消しません。 */
+  function invDeco(){
+    var list = null;
+    try{ list = window.RENT && window.RENT.detail; }catch(e){}
+    if(!Array.isArray(list)) return;
+
+    /* ★場所でしぼりません。shown() と同じ「.rent-check が全部」です。
+         別管理の方のカードには .rent-check がないので（ownermail.js が
+         そう作っています）、別管理の方に招待の箱は出ません。
+         ★#preview と #rows のどちらでも動くようにしています。 */
+    var els;
+    try{ els = document.querySelectorAll('.rent-check'); }catch(e){ return; }
+    if(!els || !els.length) return;
+
+    Array.prototype.forEach.call(els, function(el){
+      var i = Number(el.value);
+      if(!isFinite(i) || !list[i]) return;
+      var head = el.parentNode;
+      if(!head) return;
+
+      var old = head.querySelector('.inv-wrap');
+      /* ★印（チェック）は残します。登録状況を読み込んだだけで
+           入れた印が消えると、入れ直しになります。 */
+      var was = false, wasRe = false, wasMail = '';
+      if(old){
+        var b = old.querySelector('.inv-check');
+        var m0 = old.querySelector('.inv-mail');
+        was = !!(b && b.checked);
+        wasRe = !!(b && b.getAttribute('data-re'));
+        if(m0 && b && b.checked) wasMail = String(m0.value || '').trim();
+        if(old.parentNode) old.parentNode.removeChild(old);
+      }
+      var cell = invCell(i, list[i]);
+      var nb = cell.querySelector('.inv-check');
+      /* ★「招待」で入れた印を、作り直しで「再送付」に化けさせません。
+           意味がちがうので、種類が変わったら印は引き継ぎません。 */
+      if(nb && was && wasRe === !!nb.getAttribute('data-re')){
+        nb.checked = true;
+        /* ★入れかけのアドレスも残します。描き直しで消えると、
+             打ち直しになり、打ち間違いのもとになります。 */
+        var ni = cell.querySelector('.inv-mail');
+        if(ni && wasMail){
+          ni.value = wasMail;
+          ni.disabled = false;
+          ni.style.background = '#fff';
+          ni.style.color = '#17171a';
+        }
+      }
+      head.insertBefore(cell, el.nextSibling);
+    });
+  }
+
+  /* 一覧が描き直されたら、また差し込みます（検索・並べ替え・取込など） */
+  function invWatch(){
+    var box = document.getElementById('preview') ||
+              document.getElementById('rows');
+    if(!box || box.__invWatched) return;
+    box.__invWatched = true;
+    var busy = false;
+    try{
+      var mo = new MutationObserver(function(){
+        if(busy) return;
+        busy = true;
+        setTimeout(function(){ busy = false; invDeco(); }, 60);
+      });
+      mo.observe(box, { childList:true, subtree:false });
+    }catch(e){}
+    invDeco();
+  }
+
+  /* ★すでに URL と管理キーを覚えているときだけ、黙って登録状況を読みます。
+       覚えていないときは聞きません（開いただけで窓が出ると煩わしいため）。
+       そのときは「（状況未確認）」と出します。［マイページの登録状況］を
+       押していただくと「招待済み」に変わります。 */
+  function invQuiet(){
+    var url = '', key = '';
+    try{
+      url = localStorage.getItem(LS_URL) || '';
+      key = localStorage.getItem(LS_KEY) || '';
+    }catch(e){}
+    if(!url || !key) return;
+    invLoad({ url:url, key:key }).then(invDeco, function(){});
+  }
+
   /* ── 登録状況の表 ───────────────────────────── */
   function invBoard(list){
     var old = document.getElementById('tmp-inv');
@@ -281,7 +459,7 @@
     if(btn){ btn.disabled = true; btn.textContent = '確認しています…'; }
     invBoard(null);
     invLoad(cfg)
-      .then(function(){ invBoard(got.list); })
+      .then(function(){ invBoard(got.list); invDeco(); })
       .catch(function(e){ alert(e && e.message ? e.message : '確認できませんでした。'); })
       .then(function(){ if(btn){ btn.disabled = false; btn.textContent = was; } });
   }
@@ -363,10 +541,13 @@
    *  ★チェックの箱は、オーナーメールの振り分け一覧にもともとある
    *    ものです（.rent-check。value にその方の番号が入っています）。
    *    新しく足していません。 */
+  /* ★2026/10/1 … 見る箱を .rent-check から .inv-check に変えました。
+   *   .rent-check は「月々のメールを送る相手」の箱です。同じ箱を
+   *   借りていたため、どちらのつもりで入れた印か分かりませんでした。 */
   function picked(list){
     var on = [];
     try{
-      var els = document.querySelectorAll('.rent-check:checked');
+      var els = document.querySelectorAll('.inv-check:checked');
       Array.prototype.forEach.call(els, function(el){
         var i = Number(el.value);
         if(isFinite(i) && list[i] && String(list[i].email || '').trim() &&
@@ -374,6 +555,37 @@
       });
     }catch(e){}
     on.sort(function(a, b){ return a - b; });
+    return on;
+  }
+
+  /* メールアドレスの形を、かんたんに確かめます。
+     ★ここで弾くのは「明らかにおかしいもの」だけです。
+       実在するかどうかは分かりません。 */
+  function mailOk(v){
+    var t = String(v == null ? '' : v).trim();
+    if(!t || t.length > 254) return false;
+    if(/[\s　,;]/.test(t)) return false;
+    return /^[^@]+@[^@.]+(\.[^@.]+)+$/.test(t);
+  }
+
+  /* 「再送付」として印が入っている方。
+     ★アドレスを入れ直されたときは、新しいアドレスも一緒に返します。 */
+  function reSend(list){
+    var on = [];
+    try{
+      var els = document.querySelectorAll('.inv-check:checked[data-re="1"]');
+      Array.prototype.forEach.call(els, function(el){
+        var i = Number(el.value);
+        if(!isFinite(i) || !list[i]) return;
+        for(var k = 0; k < on.length; k++){ if(on[k].i === i) return; }
+        var now = String(list[i].email || '').trim();
+        var inp = document.querySelector('.inv-mail[data-for="' + i + '"]');
+        var val = inp ? String(inp.value || '').trim() : now;
+        on.push({ i:i, now:now, next:val,
+                  changed:(val.toLowerCase() !== now.toLowerCase()) });
+      });
+    }catch(e){}
+    on.sort(function(a, b){ return a.i - b.i; });
     return on;
   }
 
@@ -464,16 +676,43 @@
       return;
     }
 
+    /* ★2026/10/1 … 「チェックが0なら全員」をやめました。
+     *
+     *  ご指示： 「チェックしたオーナーだけにする仕様に変更して」
+     *
+     *  改良前は、0件のときに「全員に送りますか？」とお尋ねし、
+     *  ［OK］で全員に送っていました。112名の初回パスワードが
+     *  一度に飛ぶ道が、確認1回の先に残っていました。
+     *  改良後は、その道をなくします。送るのは、印を入れた方だけです。 */
     var idx = picked(list);
     if(!idx.length){
-      if(!window.confirm(
-        '上の一覧に、チェックが1つも入っていません。\n\n' +
-        'メールアドレスのある ' + withMail.length + ' 名 **全員** に送りますか？\n\n' +
-        '★はじめての方には、初回パスワードのご案内メールが届きます。\n' +
-        '　送ったメールは、取り消せません。\n\n' +
-        '1名だけお試しになるときは、［キャンセル］を押して、\n' +
-        '上の一覧でその方にチェックを入れてから、もう一度押してください。')) return;
-      idx = withMail;
+      alert('どなたにも印が入っていません。\n\n' +
+            'オーナー様のカードの ☐ 招待 に印を入れてから、\n' +
+            'もう一度押してください。\n\n' +
+            '※ すでに招待済みの方へもう一度お送りするときは、\n' +
+            '　 そのカードの ☐ 再送付 に印を入れてください。');
+      return;
+    }
+
+    /* ★アドレスの形がおかしいときは、通信する前に止めます（2026/10/1）。
+     *
+     *  打ち間違えたまま送ると、オーナー様はログインできなくなり、
+     *  明細もよその方に届きます。
+     *
+     *  ★ここで止めます。登録状況を読みにいくより前です。
+     *    あとで止めると、むだな通信を1回してから止まることになり、
+     *    「送っていません」とお伝えするのに一手おくれます。 */
+    var reChk = reSend(list);
+    var badIdx = [];
+    for(var q = 0; q < reChk.length; q++){
+      if(!mailOk(reChk[q].next)) badIdx.push(reChk[q].i);
+    }
+    if(badIdx.length){
+      alert('メールアドレスの形が正しくないようです。\n\n' +
+            names(list, badIdx) + '\n\n' +
+            'ご確認のうえ、もう一度押してください。\n' +
+            '（まだ1名にも送っていません。通信もしていません）');
+      return;
     }
 
     var btn = document.getElementById('btn-to-mypage');
@@ -522,17 +761,67 @@
                   '　 日を分けてお送りください。\n';
         }
 
+        /* ★2026/10/1 追加。明細PDFを作れないときは、押す前に止めます。
+         *
+         *  改良前は「※ 明細PDFは付きません」とだけ出して、そのまま
+         *  送っていました。はじめての方には、明細が1枚も無いマイページへの
+         *  ご案内メールが飛びます。取り消せません。
+         *
+         *  ★すでに招待済みの方が混じっているときは、止めません。
+         *    その方には明細の行だけ入るので、送る値があります。
+         *    はじめての方のぶんだけ、送らないとお伝えします。 */
+        if(!got.live){
+          if(unknown){
+            alert('明細PDFを作れない状態です。\n\n' +
+                  'この画面で明細PDFを取り込み直してから、もう一度押してください。\n\n' +
+                  '※ マイページの登録状況も読めていないため、どなたが招待済みか\n' +
+                  '　 分かりません。明細の入っていないマイページにお招きしないよう、\n' +
+                  '　 送信を止めました。');
+            return;
+          }
+          if(!old){
+            alert('明細PDFを作れない状態です。\n\n' +
+                  'チェックされた ' + idx.length + ' 名は、全員「はじめての方」です。\n' +
+                  '明細が1枚も入っていないマイページにお招きすることになるため、\n' +
+                  '送信を止めました。\n\n' +
+                  'この画面で明細PDFを取り込み直してから、もう一度押してください。');
+            return;
+          }
+        }
+
+        var re = reSend(list);
+        var chg = re.filter(function(x){ return x.changed; });
         var msg = 'オーナーマイページへ送ります。\n\n' +
           '　対象： ' + idx.length + ' 名\n' +
           names(list, idx) + '\n\n' +
+          (re.length
+            ? ('　うち 再送付： ' + re.length + ' 名\n' +
+               names(list, re.map(function(x){ return x.i; })) + '\n' +
+               '　　→ 開設のご案内（初回パスワード）をもう一度お送りします。\n' +
+               '　　　 パスワードは新しいものに変わります。\n\n')
+            : '') +
+          (chg.length
+            ? ('★ メールアドレスを変えます（' + chg.length + ' 名）\n' +
+               chg.map(function(x){
+                 var d = list[x.i];
+                 return '　・' + (d.owner || d.atena || '（お名前なし）') + '\n' +
+                        '　　　前： ' + x.now + '\n' +
+                        '　　　後： ' + x.next;
+               }).join('\n') + '\n\n' +
+               '　　ログインIDも、このアドレスに変わります。\n' +
+               '　　打ち間違えると、オーナー様はログインできなくなり、\n' +
+               '　　明細もよその方に届きます。よくご確認ください。\n\n')
+            : '') +
           (unknown
             ? '※ 登録状況を読めなかったため、はじめての方の人数は分かりません。\n'
             : ('　はじめての方　 ' + neu + ' 名 ← 初回パスワードのご案内メールが届きます\n' +
                '　すでに登録済み ' + old + ' 名 ← メールは届きません。明細だけ増えます\n')) +
           (got.live ? '' :
-           '\n※ 明細PDFは付きません。\n' +
-           '　 この画面で明細PDFを取り込み直してから押していただくと、\n' +
-           '　 PDFも一緒に送られます。\n') +
+           '\n※ 明細PDFを作れません。\n' +
+           '　 はじめての方 ' + neu + ' 名には、招待を送りません。\n' +
+           '　 （明細が1枚も無いマイページにお招きしないためです）\n' +
+           '　 すでに登録済みの ' + old + ' 名には、明細の行だけ入ります。\n' +
+           '　 この画面で明細PDFを取り込み直すと、全員に送れます。\n') +
           warn +
           '\nよろしいですか？';
         if(!window.confirm(msg)) return;
@@ -541,10 +830,12 @@
         board(null);
         invBoard(null);
 
-        return go(cfg, list, idx, say, got.live)
+        return go(cfg, list, idx, say, got.live, re)
           .then(function(r){
             board(r.rows);
             invMap = null;          /* 台帳が変わったので、次は読み直します */
+            /* ★送ったばかりの方を「招待済み」に変えます */
+            invQuiet();
           })
           .catch(function(e){
             board(null);
@@ -627,11 +918,28 @@
     var netNg = rows.filter(function(r){ return r.acct === '分かりません'; }).length;
     var mailNg = rows.filter(function(r){ return r.mailOk === false; }).length;
     var noteNg = rows.filter(function(r){ return r.noteOk === false; }).length;
+    /* ★2026/10/1 追加。明細PDFが無くて招待を止めた方です。
+         noreg … マイページの登録状況も読めなかった（つながっていない疑い）
+         nopdf … つながってはいるが、明細PDFが入らなかった */
+    var skipNo = rows.filter(function(r){ return r.skip && r.skipWhy === 'noreg'; }).length;
+    var skipPd = rows.filter(function(r){ return r.skip && r.skipWhy === 'nopdf'; }).length;
     note.textContent = netNg
       ? '★「分かりません」「通信できませんでした」は、マイページ側に1回も' +
         'つながっていない状態です。アカウントも作られておらず、' +
         'ご案内メールも出ていません。［接続設定］の URL と、デプロイの' +
         '「アクセスできるユーザー＝全員」をご確認のうえ、もう一度お試しください。'
+      : skipNo
+      ? '★「送っていません」の方へは、こちらから1通も送っていません。' +
+        'アカウントも作られておらず、ご案内メールも出ていません。' +
+        'マイページの登録状況を読めず、明細PDFも入らなかったため、' +
+        '明細の無いマイページにお招きしないよう止めました。マイページ側に' +
+        'つながっていない可能性があります。［接続設定］の URL と、デプロイの' +
+        '「アクセスできるユーザー＝全員」をご確認のうえ、もう一度お試しください。'
+      : skipPd
+      ? '★「送っていません」の方へは、こちらから1通も送っていません。' +
+        'アカウントも作られておらず、ご案内メールも出ていません。' +
+        '明細PDFが入らなかったため、招待を止めました。この画面で明細PDFを' +
+        '取り込み直してから、もう一度押してください。'
       : mailNg
       ? '★「開設のご案内」が“出ていません”の方は、初回パスワードが届いておらず、' +
         'マイページに入れません。マイページ側の記録をご確認のうえ、当社からお伝えください。'
@@ -718,8 +1026,11 @@
    *    返らず、**誰が入らなかったのか分かりません**。
    *    メールなら届かなければ返ってきたのに、それが無くなっていました。
    *    そこで、登録も1名ずつにします。 */
-  function go(cfg, list, idx, say, live){
+  function go(cfg, list, idx, say, live, reList){
     var rows = [], authNg = false;
+    /* 番号 → { now, next, changed } の表にします */
+    var reMap = {};
+    (reList || []).forEach(function(x){ reMap[x.i] = x; });
 
     var chain = Promise.resolve();
     idx.forEach(function(i, k){
@@ -728,7 +1039,9 @@
         say('送信中… ' + (k + 1) + '/' + idx.length);
 
         var o = shape(list[i]);
+        var rq = reMap[i] || null;
         var row = { name:o.name, email:o.email,
+                    resend:!!rq,
                     made:false, added:false, pdf:false,
                     /* ★acct は3つの状態があります。
                          '新しく作りました' ／ 'もとからあります' ／ '分かりません'
@@ -765,10 +1078,44 @@
             .catch(function(){ row.pdfTxt = '通信できませんでした'; });
         });
 
-        /* ② この方を登録（1名だけ送るので、added は 0 か 1 になります） */
+        /* ② この方を登録（1名だけ送るので、added は 0 か 1 になります）
+         *
+         *  ★2026/10/1 追加。明細PDFが入らなかった方には、招待を送りません。
+         *
+         *  ご指示： 「マイページへ送る、は、明細添付していることを
+         *           条件にしてください。明細添付してないオーナーは招待不可」
+         *
+         *  なぜ要るか： 初回のご案内メールは取り消せません。明細が1枚も
+         *  入っていないマイページにお招きすると、オーナー様はログインして
+         *  何も無い画面をご覧になります。はじめてお使いになる画面が空で、
+         *  当社には「送った」と出ている——これがいちばん困る形です。
+         *
+         *  ★見るのは「PDFがドライブに入ったか（row.pdf）」です。
+         *    「PDFを作れたか」ではありません。作れてもドライブに
+         *    入らなければ、オーナー様の画面には何も出ないためです。
+         *
+         *  ★すでに招待済みの方は、そのまま送ります。
+         *    その方には招待メールは出ず、明細の行が増えるだけなので、
+         *    止める理由がありません（ご指示も「招待不可」です）。 */
         return step1.then(function(){
+          if(!row.pdf && !invOf(o.email)){
+            /* ★送らなかった方には印をつけます。表の下の一言で
+                 「こちらから1通も送っていない」とお伝えするためです。
+                 印が無いと、netNg が 0 になり、通信が死んでいても
+                 注意書きが出なくなります（2026/10/1 に一度やりました）。 */
+            row.skip   = true;
+            row.skipWhy = (invMap === null) ? 'noreg' : 'nopdf';
+            row.acct   = '送っていません';
+            row.addedTxt = (invMap === null)
+              ? '登録状況が読めず、明細PDFも入らなかったため、送りませんでした'
+              : '明細PDFが入らなかったため、招待しませんでした';
+            row.noteOk = null; row.noteTxt = '—';
+            row.mailOk = null; row.mailTxt = '—';
+            return null;                /* ★push しません */
+          }
           return post(cfg.url, { action:'push', key:cfg.key, owners:[o] });
         }).then(function(r){
+          if(r === null) return;        /* 送らなかった方（上で理由を入れてあります） */
           if(r && r.error === 'auth'){ authNg = true; return; }
           if(!r || !r.ok){
             row.addedTxt = (r && r.message) ? String(r.message) : '入りませんでした';
@@ -786,7 +1133,10 @@
            *  ★マイページ側が mailNg を返すようになったときだけ分かります。
            *    返さないあいだは null にして、赤にはしません。
            *    分からないものを「出ました」とも「出ていません」とも言いません。 */
-          if(!row.made){
+          if(row.resend && !row.made){
+            /* ★あとで stResend を呼んで、その答えで埋めます */
+            row.mailOk = null; row.mailTxt = '—';
+          }else if(!row.made){
             row.mailOk = null; row.mailTxt = '—';
           }else if(r.mailNg == null){
             row.mailOk = null; row.mailTxt = '確かめられません';
@@ -832,6 +1182,45 @@
           }
         }).catch(function(e){
           row.addedTxt = (e && e.message) ? '通信できませんでした' : '入りませんでした';
+        }).then(function(){
+          /* ★③ 再送付（＋メールアドレスの入れ直し）
+           *
+           *  ご指示： 「再送付もできるように」「再送付時にはメールアドレス
+           *            入力できるようにしてほしい」
+           *            入れ直したアドレスは、登録アドレスとして置き換わります。
+           *
+           *  ★明細（push）を先に済ませてから呼びます。
+           *    アドレスを変えてから明細を入れると、どちらの口座の
+           *    話なのかが入れ違いになるためです。
+           *
+           *  ★マイページ側（Apps Script）の窓口 stResend は、まだ
+           *    入っていません。入るまでは、返ってきた字をそのまま出します。
+           *    「お送りしました」とは絶対に言いません。 */
+          if(!rq || authNg) return;
+          return post(cfg.url, { action:'stResend', key:cfg.key,
+                                 mail:rq.now, newMail:rq.next })
+            .then(function(r2){
+              if(r2 && r2.error === 'auth'){ authNg = true; return; }
+              if(!r2 || !r2.ok){
+                row.mailOk = false;
+                row.mailTxt = (r2 && r2.message) ? String(r2.message)
+                                                 : '窓口がまだ入っていません';
+                return;
+              }
+              if(!r2.sent){
+                row.mailOk = false;
+                row.mailTxt = (r2.message) ? String(r2.message)
+                                           : '再送付できていません';
+                return;
+              }
+              row.mailOk = true;
+              row.mailTxt = rq.changed ? '再送付しました（アドレス変更）'
+                                       : '再送付しました';
+              if(rq.changed) row.email = rq.next;
+            })
+            .catch(function(){
+              row.mailOk = false; row.mailTxt = '通信できませんでした';
+            });
         }).then(function(){
           row.ok = row.added && row.pdf &&
                    (row.mailOk !== false) && (row.noteOk !== false);
@@ -891,7 +1280,9 @@
     s.addEventListener('click', function(){ conf(true); });
 
     var note = document.createElement('span');
-    note.textContent = 'チェックを入れた方だけに送ります（無ければ全員に確認します）';
+    note.textContent =
+      'オーナー様のカードの ☐ 招待 に印を入れた方だけに送ります' +
+      '（招待済みの方は ☐ 再送付）';
     note.style.cssText = 'font-size:12.5px;color:#888';
 
     wrap.appendChild(b); wrap.appendChild(v); wrap.appendChild(s);
@@ -916,6 +1307,11 @@
     }else{
       host.appendChild(wrap);
     }
+
+    /* ★オーナーカードに「招待」の箱を差し込みます（2026/10/1）。
+         ownermail.js が一覧を描き直しても、また差し込みます。 */
+    invWatch();
+    invQuiet();
   }
 
   if(document.readyState === 'loading'){
