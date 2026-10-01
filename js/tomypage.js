@@ -347,7 +347,97 @@
       key = localStorage.getItem(LS_KEY) || '';
     }catch(e){}
     if(!url || !key) return;
-    invLoad({ url:url, key:key }).then(invDeco, function(){});
+    invLoad({ url:url, key:key }).then(function(){
+      invDeco();
+      ownDeco();        /* オーナー一覧のカードも、ここで色がつきます */
+    }, function(){});
+  }
+
+  /* ══════════════════════════════════════════════
+   *  オーナー一覧のカードに「招待済み」を出す（2026/10/1）
+   *
+   *  ご指示： 「このカード一覧にオーナーマイページ招待済み、と
+   *            右上辺りにわかるように記載してほしい」
+   *
+   *  改良前は、招待済みかどうかは［マイページの登録状況］の表を
+   *  開かないと分かりませんでした。オーナー一覧（112枚）を見ながら
+   *  「この方はもう招待したか」を思い出せませんでした。
+   *
+   *  改良後は、カードの右上に出します。
+   *      招待済み　　　 … 青
+   *      未招待　　　　 … 赤
+   *      アドレス未登録 … 灰（招待したくてもできない方。直す必要があります）
+   *      対象外　　　　 … 灰（別管理。当社が「送らない」と決めた方）
+   *      （状況未確認） … 灰（まだ台帳を読んでいない）
+   *
+   *  ★ownermail.js は1文字も触りません。あちらが描いたあとに
+   *    こちらから差し込み、描き直されたらまた差し込みます。
+   *  ★お名前やアドレスは、カードに足しません（公開リポジトリのため、
+   *    そもそもコードには書きません。画面で読むだけです）。
+   * ══════════════════════════════════════════════ */
+
+  /* カードの onclick から、その方の番号を取り出します */
+  function ownIdx(card){
+    var a = '';
+    try{ a = card.getAttribute('onclick') || ''; }catch(e){}
+    var m = a.match(/openOwnerSheet\((\d+)\)/);
+    return m ? Number(m[1]) : -1;
+  }
+
+  function ownBadge(o){
+    var mail = String((o && o.email) || '').trim();
+    var txt, col;
+    if(o && o.exclude){        txt = '対象外';        col = '#8a8a8f'; }
+    else if(!mail){            txt = 'アドレス未登録'; col = '#a14a3a'; }
+    else if(invMap === null){  txt = '（状況未確認）'; col = '#a0a0a5'; }
+    else if(invOf(mail)){      txt = '招待済み';      col = '#2c6ea1'; }
+    else {                     txt = '未招待';        col = '#c9184a'; }
+
+    var el = document.createElement('span');
+    el.className = 'inv-own';
+    el.textContent = txt;
+    el.style.cssText =
+      'margin-left:auto;flex:0 0 auto;font-size:11px;font-weight:800;' +
+      'line-height:1.2;padding:2px 7px;border-radius:999px;' +
+      'white-space:nowrap;color:#fff;background:' + col;
+    return el;
+  }
+
+  function ownDeco(){
+    var list = null;
+    try{ list = window.RENT_CORE && window.RENT_CORE.owners; }catch(e){}
+    if(!Array.isArray(list)) return;
+
+    var cards;
+    try{ cards = document.querySelectorAll('#ownerCards .ow-card'); }catch(e){ return; }
+    if(!cards || !cards.length) return;
+
+    Array.prototype.forEach.call(cards, function(card){
+      var i = ownIdx(card);
+      if(i < 0 || !list[i]) return;
+      var head = card.querySelector('.ow-head');
+      if(!head) return;
+      var old = head.querySelector('.inv-own');
+      if(old && old.parentNode) old.parentNode.removeChild(old);
+      head.appendChild(ownBadge(list[i]));
+    });
+  }
+
+  /* 一覧が描き直されたら（検索・取込・並べ替え）、また差し込みます */
+  function ownWatch(){
+    var box = document.getElementById('ownerCards');
+    if(!box || box.__invWatched) return;
+    box.__invWatched = true;
+    var busy = false;
+    try{
+      var mo = new MutationObserver(function(){
+        if(busy) return;
+        busy = true;
+        setTimeout(function(){ busy = false; ownDeco(); }, 60);
+      });
+      mo.observe(box, { childList:true, subtree:false });
+    }catch(e){}
+    ownDeco();
   }
 
   /* ── 登録状況の表 ───────────────────────────── */
@@ -459,7 +549,7 @@
     if(btn){ btn.disabled = true; btn.textContent = '確認しています…'; }
     invBoard(null);
     invLoad(cfg)
-      .then(function(){ invBoard(got.list); invDeco(); })
+      .then(function(){ invBoard(got.list); invDeco(); ownDeco(); })
       .catch(function(e){ alert(e && e.message ? e.message : '確認できませんでした。'); })
       .then(function(){ if(btn){ btn.disabled = false; btn.textContent = was; } });
   }
@@ -1322,4 +1412,14 @@
   /* 画面が切り替わったあとにも置けるよう、しばらく試します */
   var n = 0;
   var t = setInterval(function(){ put(); if(++n > 20) clearInterval(t); }, 1500);
+
+  /* ★オーナー一覧（#ownerCards）は、送信の画面とは別の画面です。
+       そちらを開いたときにも札がつくよう、別に見張ります。
+       ★一覧はクラウドから届いてから描かれるので、少し長めに待ちます。 */
+  var n2 = 0;
+  var t2 = setInterval(function(){
+    ownWatch();
+    if(document.getElementById('ownerCards')){ invQuiet(); clearInterval(t2); }
+    if(++n2 > 40) clearInterval(t2);
+  }, 1500);
 })();

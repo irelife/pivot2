@@ -12,6 +12,13 @@
     <div id="rows"></div>
     <div id="rent-excluded-section">（メール送信しないオーナー のつもり）</div>
   </div>
+  <!-- ★オーナー一覧の画面（ownermail.js の renderOwners のふり）。
+       カードの作りは本物と同じにします（.ow-card ／ .ow-head ／
+       onclick="RENT.openOwnerSheet(i)"）。 -->
+  <div class="view" id="view-owners">
+    <table id="ownerTable"></table>
+    <div id="ownerCards"></div>
+  </div>
 </div>
 <script>
 /* ownermail.js のふりをします（読み取り口だけ） */
@@ -41,6 +48,23 @@ document.getElementById('rows').innerHTML = window.RENT.detail
   }).join('');
 document.getElementById('rent-excluded-section').innerHTML =
   'メール送信しないオーナー（別管理）： 森本 将行（morimoto@example.jp）';
+/* ★オーナー一覧のカード（本物と同じ作り）。
+     森本様は別管理（exclude）、アドレス無しの方はメールが空です。 */
+window.RENT_CORE = { owners: window.RENT.detail.map(function(d,i){
+  return { name:d.owner, atena:d.atena, email:d.email,
+           exclude:(i === 4) };        /* 4番＝森本様＝別管理 */
+}) };
+document.getElementById('ownerCards').innerHTML =
+  window.RENT_CORE.owners.map(function(o,i){
+    return '<div class="ow-row"><button type="button" class="ow-card"' +
+           ' onclick="RENT.openOwnerSheet(' + i + ')">' +
+           '<div class="ow-head"></div>' +
+           '<div class="ow-mid"><div class="ow-atena">' + o.name + '</div></div>' +
+           '<div class="ow-foot"><span class="ow-tou">' +
+           '<span class="num">1</span><span class="unit">棟</span></span></div>' +
+           '</button></div>';
+  }).join('');
+
 /* 接続設定は、はじめから入っている形にします */
 localStorage.setItem('pv_mypage_url','https://script.google.com/macros/s/TEST/exec');
 localStorage.setItem('pv_mypage_key','K'.repeat(40));
