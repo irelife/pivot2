@@ -139,6 +139,55 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   ok(exCan.boxes.indexOf(exCan.mori) < 0,
      '★★別管理の森本様には、招待の箱そのものが無い（印を入れられない）');
 
+  console.log('\n── ①-2 ★★オーナー一覧のカードに「招待済み」が出るか ──');
+  /*  ご指示（2026/10/1）：
+   *    「このカード一覧にオーナーマイページ招待済み、と
+   *      右上辺りにわかるように記載してほしい」
+   *
+   *  ★112枚のカードを見ながら「この方はもう招待したか」が分かる
+   *    ようにするためのものです。表を開き直さずに分かることが大事です。 */
+  await p.waitForTimeout(900);          /* 札が差し込まれるのを待ちます */
+  const own = await p.evaluate(()=>
+    [...document.querySelectorAll('#ownerCards .ow-card')].map(c => {
+      const b = c.querySelector('.ow-head .inv-own');
+      return { who: (c.querySelector('.ow-atena')||{}).textContent || '',
+               badge: b ? b.textContent.trim() : null,
+               inHead: !!b,
+               right: b ? getComputedStyle(b).marginLeft : '' };
+    }));
+  own.forEach(o=>console.log('    ', JSON.stringify(o)));
+  ok(own.length === 5, 'カードが5枚ある', own.length);
+  ok(own.every(o=>o.inHead), '★札は、カードの上の段（.ow-head）に入っている');
+  ok(own.every(o=>o.right === 'auto' || /px$/.test(o.right)),
+     '★右寄せになっている（margin-left:auto）', own.map(o=>o.right));
+  ok(own[0] && own[0].badge === '招待済み',
+     '★★山田様（台帳にある）は「招待済み」', own[0]);
+  ok(own[1] && own[1].badge === '未招待',
+     '★★鈴木様（台帳に無い）は「未招待」', own[1]);
+  ok(own[3] && own[3].badge === 'アドレス未登録',
+     '★アドレスが無い方は「アドレス未登録」（招待できない方として分ける）', own[3]);
+  ok(own[4] && own[4].badge === '対象外',
+     '★★別管理の森本様は「対象外」（「未招待」と出すと、招待し忘れに見える）', own[4]);
+
+  /* ★一覧が描き直されても、札が消えないこと（検索・取込でよく起きます） */
+  await p.evaluate(()=>{
+    const h = document.getElementById('ownerCards');
+    h.innerHTML = window.RENT_CORE.owners.map(function(o,i){
+      return '<div class="ow-row"><button type="button" class="ow-card"' +
+             ' onclick="RENT.openOwnerSheet(' + i + ')">' +
+             '<div class="ow-head"></div>' +
+             '<div class="ow-mid"><div class="ow-atena">' + o.name + '</div></div>' +
+             '</button></div>';
+    }).join('');
+  });
+  await p.waitForTimeout(500);
+  const again = await p.evaluate(()=>
+    [...document.querySelectorAll('#ownerCards .ow-head .inv-own')].map(b=>b.textContent.trim()));
+  console.log('    描き直したあと:', again.join(' / '));
+  ok(again.length === 5, '★★描き直されても、札がまた付く', again);
+  ok(again[0] === '招待済み' && again[4] === '対象外',
+     '★中身も同じ', again);
+
   console.log('\n── ②-1 ★★再送付（招待済みの方へ、もう一度ご案内を出す）──');
   /*  ご指示： 「いちど招待したら招待済みにして。再送付もできるように」
    *
