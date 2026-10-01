@@ -97,6 +97,8 @@ window.fetch = function(url, o){
          window.__notengai = true で「出せなかった」を作れます。 */
     if(!window.__noteoff){
       if(neu || !one.fileId){ r.noted = 0; r.noteNg = 0; }
+      /* ★1日の送信枠が尽きたとき。マイページ側が順番待ちに入れます。 */
+      else if(window.__notewait){ r.noted = 0; r.noteNg = 0; r.noteWait = 1; }
       else if(window.__notengai){ r.noted = 0; r.noteNg = 1; }
       else { r.noted = 1; r.noteNg = 0; }
     }

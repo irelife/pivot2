@@ -44,6 +44,11 @@ window.__reg  = ['yamada@example.jp','sato@example.jp','takahashi@example.jp'];
    ★page.reload() では JavaScript で入れた値が消えてしまうため、
      URL から読む形にしています（ここで一度つまずきました）。
      ?left=none … 窓口がまだ入っていない（聞けない）状態 */
+/* 順番待ち（翌朝に自動で送るぶん）。?wait=5 で変えられます。 */
+window.__wait = (function(){
+  var m = String(location.search || '').match(/wait=(\d+)/);
+  return m ? Number(m[1]) : 0;
+})();
 window.__left = (function(){
   var m = String(location.search || '').match(/left=([^&]+)/);
   if(!m) return 100;
@@ -59,7 +64,7 @@ window.fetch = function(url, o){
     });
   }else if(b.action === 'stQuota'){
     if(window.__left === null) r.ok = false;      /* 窓口がまだのとき */
-    else r.left = window.__left;
+    else { r.left = window.__left; r.wait = window.__wait; }
   }else if(b.action === 'push'){
     var one = (b.owners||[])[0] || {};
     var mail = String(one.email||'').toLowerCase();

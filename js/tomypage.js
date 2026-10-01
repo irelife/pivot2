@@ -752,13 +752,15 @@
    *  ★窓口（stQuota）がまだ無いときは、推測しません。
    * ══════════════════════════════════════════════ */
   var mailLeft = null;     /* null=まだ聞いていない / -1=聞けなかった */
+  var mailWait = 0;        /* 順番待ち（翌朝に自動でお送りします） */
 
   function quotaLoad(cfg){
     return post(cfg.url, { action:'stQuota', key:cfg.key })
       .then(function(r){
         mailLeft = (r && r.ok && isFinite(r.left)) ? Number(r.left) : -1;
+        mailWait = (r && r.ok && isFinite(r.wait)) ? Number(r.wait) : 0;
       })
-      .catch(function(){ mailLeft = -1; });
+      .catch(function(){ mailLeft = -1; mailWait = 0; });
   }
 
   /* メールアドレスの形を、かんたんに確かめます。
@@ -1036,10 +1038,12 @@
           /* ★本日の枠。足りないときだけ出します。
                足りているときにも出すと、読み飛ばす字が増えるだけです。 */
           ((mailLeft !== null && mailLeft >= 0 && idx.length > mailLeft)
-            ? ('\n★ 本日あと ' + mailLeft + ' 通しか送れません。\n' +
-               '　 ' + idx.length + ' 名ぶん要るので、' + (idx.length - mailLeft) +
-               ' 名には届きません。\n' +
-               '　 日を分けてお送りください。\n')
+            ? ('\n★ 本日の送信枠は、あと ' + mailLeft + ' 通です。\n' +
+               '　 きょう ' + mailLeft + ' 名にお送りし、残り ' +
+               (idx.length - mailLeft) + ' 名は\n' +
+               '　 明日の朝、マイページ側から自動でお送りします。\n' +
+               '　 ★押すのは今日の1回だけで結構です。明日は何もなさらなくて\n' +
+               '　　 かまいません。\n')
             : '') +
           (got.live ? '' :
            '\n※ 明細PDFを作れません。\n' +
@@ -1385,6 +1389,15 @@
            *    同じ月に2通目も出ません（押し直しても増えません）。 */
           if(r.noted == null && r.noteNg == null){
             row.noteOk = null; row.noteTxt = '確かめられません';
+          }else if(Number(r.noteWait) > 0){
+            /* ★2026/10/1 … 1日の送信枠が尽きたとき。
+             *   改良前は、ただ「出ていません」と赤く出すだけで、
+             *   当社が手で押し直すしかありませんでした。
+             *   改良後は、マイページ側が順番待ちに入れて、
+             *   翌朝に自動でお送りします。ですので赤にはしません。
+             *   ★「出ていません」と同じ色にすると、手を打つべきもの
+             *     （本当に失敗したもの）が埋もれます。 */
+            row.noteOk = null; row.noteTxt = '明日お送りします';
           }else if(Number(r.noteNg) > 0){
             row.noteOk = false; row.noteTxt = '出ていません';
           }else if(Number(r.noted) > 0){
@@ -1515,11 +1528,28 @@
       (nm    ? sumRow(nm,    'アドレス未登録', '送れません。ご登録をお願いします', '#8a5a00') : '') +
       (n ? '' : '<div style="color:#57575c">カードの ☐ に印を入れてください。</div>') +
       '<p style="margin:8px 0 0;padding-top:8px;border-top:1px solid #e5e5ea;' +
-        'font-size:12.5px;color:' + (tight ? '#c9001a;font-weight:800' : '#57575c') + '">' +
+        'font-size:12.5px;color:#57575c">' +
         '本日の送信枠　' + left +
-        (tight ? ('　★ ' + needs + ' 通ぶん要ります。' +
-                  (needs - mailLeft) + ' 名は届きません。日を分けてください。') : '') +
-        '　<span style="color:#8a8a8f;font-weight:400">' +
+        /* ★2026/10/1 … 枠が足りないときの言いかたを変えました。
+         *   改良前は「◯名は届きません。日を分けてください」。
+         *   当社が明日もう一度押す前提の書きかたで、押し忘れたら
+         *   その方には永久に届きません。
+         *   改良後は、マイページ側が順番待ちに入れて翌朝お送りします。
+         *   ですので「何名が明日になるか」をお伝えします。
+         *   ★押すのは今日の1回だけです。 */
+        (tight
+          ? ('<br><span style="color:#8a5a00;font-weight:800">' +
+             '★ ' + needs + ' 通ぶん要ります。きょうは ' + mailLeft + ' 名、' +
+             '残り ' + (needs - mailLeft) + ' 名は<u>明日の朝に自動でお送りします</u>。' +
+             '押すのは今日の1回だけで結構です。</span>')
+          : '') +
+        (mailWait
+          ? ('<br><span style="color:#8a5a00;font-weight:800">' +
+             '順番待ち ' + mailWait + ' 件</span>' +
+             '<span style="color:#8a8a8f;font-weight:400">' +
+             '　前に送れなかったぶんです。明日の朝に自動でお送りします</span>')
+          : '') +
+        '<br><span style="color:#8a8a8f">' +
         '（マイページと PIVOT2 で、1日ぶんを分け合っています）</span>' +
       '</p>';
   }

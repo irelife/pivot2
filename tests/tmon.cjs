@@ -159,13 +159,22 @@ const ok = (c, m, x) => {
   t = await sumTxt();
   console.log('   ' + t.split('本日の送信枠')[1]);
   ok(/あと 1 通/.test(t), '★残り1通と出る', t);
-  ok(/2 名は届きません/.test(t), '★★何名に届かないかを、押す前に数で出す', t);
+  /* ★2026/10/1 … 言いかたを変えました。
+       改良前は「2名は届きません。日を分けてください」。当社が明日
+       もう一度押す前提で、押し忘れたらその方には永久に届きません。
+       改良後は、マイページ側が順番待ちに入れて翌朝お送りします。 */
+  ok(/残り 2 名は/.test(t) && /明日の朝に自動でお送りします/.test(t),
+     '★★★届かないのではなく「明日の朝に自動で送る」と出す', t);
+  ok(!/届きません/.test(t), '★★「届きません」とは言わない（実際には届くため）', t);
+  ok(/押すのは今日の1回だけ/.test(t), '★★明日は何もしなくてよいと伝える', t);
   dialogs = []; p.__accept = false;            /* 取り消します */
   await p.click('#btn-to-mypage');
   await p.waitForTimeout(1800);
   const cf2 = dialogs.find(d => /送る相手/.test(d.msg));
-  ok(cf2 && /本日あと 1 通しか送れません/.test(cf2.msg),
+  ok(cf2 && /明日の朝、マイページ側から自動でお送りします/.test(cf2.msg),
      '★★確認の窓でも、もう一度伝える', cf2 && cf2.msg);
+  ok(cf2 && /押すのは今日の1回だけ/.test(cf2.msg),
+     '★確認の窓でも「明日は何もしなくてよい」と伝える');
   const none = await p.evaluate(() =>
     window.__sent.filter(x => x.action === 'push').length);
   ok(none === 0, '★取り消したら、1名も送らない', none);
@@ -178,6 +187,23 @@ const ok = (c, m, x) => {
   console.log('   ' + t.split('本日の送信枠')[1]);
   ok(/確かめられません/.test(t), '★★読めないときは「確かめられません」（0とは書かない）', t);
   ok(!/あと 0 通/.test(t), '★★★読めないことを「あと0通」と言い換えない');
+
+  console.log('\n❾ 順番待ちがあるとき（前に送れなかったぶん）');
+  await p.goto('file://' + D + 'tmon.html?left=100&wait=12');
+  await p.waitForSelector('#btn-to-mypage', { timeout:10000 });
+  await p.waitForTimeout(900);
+  t = await sumTxt();
+  console.log('   ' + t.split('本日の送信枠')[1]);
+  ok(/順番待ち 12 件/.test(t), '★★たまっている数が、押さなくても分かる', t);
+  ok(/明日の朝に自動でお送りします/.test(t),
+     '★★それがどうなるかも書く（放っておいてよいと分かる）', t);
+
+  console.log('\n❿ 順番待ちが0のときは、よけいな字を出さない');
+  await p.goto('file://' + D + 'tmon.html?left=100&wait=0');
+  await p.waitForSelector('#btn-to-mypage', { timeout:10000 });
+  await p.waitForTimeout(900);
+  t = await sumTxt();
+  ok(!/順番待ち/.test(t), '★0件のときは「順番待ち 0 件」を出さない', t);
 
   ok(errs.length === 0, '　JavaScript の誤りが出ない', errs);
   await p.close(); await b.close();

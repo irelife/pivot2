@@ -667,6 +667,23 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   const nt = await p.evaluate(()=>[...document.querySelectorAll('#tmp-board p')].pop().textContent.trim());
   ok(/入ったことをご存じありません/.test(nt),
      '★下の一言で「明細は入っているが、ご存じない」と伝える');
+  /* ★★1日の送信枠が尽きたとき（2026/10/1）。
+       マイページ側が順番待ちに入れ、翌朝に自動でお送りします。
+       ★ですので赤にはしません。「出ていません」と同じ色にすると、
+         本当に手を打つべきもの（失敗したもの）が埋もれます。 */
+  await p.evaluate(()=>{ window.__notengai = false; window.__notewait = true; });
+  let rw = await noteCol(0, '枠が尽きたとき');
+  ok(rw.row[3] === '明日お送りします',
+     '★★★枠が尽きたら「明日お送りします」（失敗あつかいにしない）');
+  const wcol = await p.evaluate(()=>{
+    const t = document.querySelector('#tmp-board table');
+    const td = [...t.querySelectorAll('tbody tr td')][3];
+    return getComputedStyle(td).color;
+  });
+  console.log('    その欄の色: ' + wcol);
+  ok(!/215,\s*0,\s*21/.test(wcol), '★★赤（#d70015）にしない', wcol);
+  await p.evaluate(()=>{ window.__notewait = false; });
+
   /* マイページ側が、まだ知らせてこないとき */
   await p.evaluate(()=>{ window.__notengai = false; window.__noteoff = true; });
   let r3 = await noteCol(0, 'まだ知らせてこないとき');
