@@ -1,0 +1,82 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>毎月の明細 検査台</title></head>
+<body>
+<div id="rent-view">
+  <div class="view active" id="view-send">
+    <div id="dropzone">（明細PDFのドロップ枠のつもり）</div>
+    <div id="bar">
+      <label><input type="checkbox" id="rent-check-all"> 全選択</label>
+      <button class="btn btn-sm" id="rent-btn-send">一斉送信</button>
+      <span id="rent-action-status"></span>
+    </div>
+    <div id="rows"></div>
+    <div id="rent-excluded-section">（メール送信しないオーナー のつもり）</div>
+  </div>
+  <div class="view" id="view-owners"><div id="ownerCards"></div></div>
+</div>
+<script>
+/* ご利用中 3名 ／ はじめて 2名 ／ アドレス無し 1名 ／ 別管理 1名 */
+window.RENT = { detail: [
+  { owner:'山田 太郎',  atena:'山田 太郎 様',  email:'yamada@example.jp',  props:[] },
+  { owner:'佐藤 次郎',  atena:'佐藤 次郎 様',  email:'sato@example.jp',    props:[] },
+  { owner:'高橋 三郎',  atena:'高橋 三郎 様',  email:'takahashi@example.jp',props:[] },
+  { owner:'鈴木 花子',  atena:'鈴木 花子 様',  email:'suzuki@example.jp',  props:[] },
+  { owner:'田中 四郎',  atena:'田中 四郎 様',  email:'tanaka@example.jp',  props:[] },
+  { owner:'アドレス無し',atena:'',             email:'',                   props:[] },
+  { owner:'森本 将行',  atena:'森本 将行 様',  email:'morimoto@example.jp',props:[] }
+], makeOwnerPdfBase64: async function(){ return window.__B64; } };
+window.__B64 = 'JVBERi0xLjQK' + 'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVowMTIzNDU2Nzg5'.repeat(4);
+window.__EXCLUDED = 6;                /* 森本様＝別管理。一覧に出しません */
+document.getElementById('rows').innerHTML = window.RENT.detail
+  .map(function(d,i){
+    if(i === window.__EXCLUDED) return '';
+    return '<label><input type="checkbox" class="rent-check" value="'+i+'"'+
+           (d.email?'':' disabled')+'> '+d.owner+'</label><br>';
+  }).join('');
+window.RENT_CORE = { owners: window.RENT.detail.map(function(d,i){
+  return { name:d.owner, atena:d.atena, email:d.email, exclude:(i === 6) }; }) };
+
+localStorage.setItem('pv_mypage_url','https://script.google.com/macros/s/TEST/exec');
+localStorage.setItem('pv_mypage_key','K'.repeat(40));
+window.__sent = [];
+/* 台帳に載っている＝招待済み（ご利用中）の3名 */
+window.__reg  = ['yamada@example.jp','sato@example.jp','takahashi@example.jp'];
+/* 本日あと何通。?left=1 のように、開くときのURLで変えられます。
+   ★page.reload() では JavaScript で入れた値が消えてしまうため、
+     URL から読む形にしています（ここで一度つまずきました）。
+     ?left=none … 窓口がまだ入っていない（聞けない）状態 */
+/* 順番待ち（翌朝に自動で送るぶん）。?wait=5 で変えられます。 */
+window.__wait = (function(){
+  var m = String(location.search || '').match(/wait=(\d+)/);
+  return m ? Number(m[1]) : 0;
+})();
+window.__left = (function(){
+  var m = String(location.search || '').match(/left=([^&]+)/);
+  if(!m) return 100;
+  return (m[1] === 'none') ? null : Number(m[1]);
+})();
+window.fetch = function(url, o){
+  var b = JSON.parse(o.body); window.__sent.push(b);
+  var r = { ok:true };
+  if(b.action === 'stCheck'){
+    r.list = window.__reg.map(function(m){
+      return { mail:m, name:'—', area:'', months:2, ym:'2026年9月',
+               pdf:true, opened:false, login:'2026/9/20', seen:'' };
+    });
+  }else if(b.action === 'stQuota'){
+    if(window.__left === null) r.ok = false;      /* 窓口がまだのとき */
+    else { r.left = window.__left; r.wait = window.__wait; }
+  }else if(b.action === 'push'){
+    var one = (b.owners||[])[0] || {};
+    var mail = String(one.email||'').toLowerCase();
+    var neu = window.__reg.indexOf(mail) < 0;
+    if(neu) window.__reg.push(mail);
+    r.made = neu ? 1 : 0; r.added = one.fileId ? 1 : 0; r.mailNg = 0;
+    if(neu || !one.fileId){ r.noted = 0; r.noteNg = 0; }
+    else { r.noted = 1; r.noteNg = 0; }
+  }else if(b.action === 'putPdf'){ r.id = 'FID'; }
+  else if(b.action === 'stResend'){ r.sent = 1; }
+  return Promise.resolve({ text:function(){ return Promise.resolve(JSON.stringify(r)); } });
+};
+</script>
+<script src="../js/tomypage.js"></script>
+</body></html>

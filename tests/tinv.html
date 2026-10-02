@@ -97,9 +97,15 @@ window.fetch = function(url, o){
          window.__notengai = true で「出せなかった」を作れます。 */
     if(!window.__noteoff){
       if(neu || !one.fileId){ r.noted = 0; r.noteNg = 0; }
+      /* ★1日の送信枠が尽きたとき。マイページ側が順番待ちに入れます。 */
+      else if(window.__notewait){ r.noted = 0; r.noteNg = 0; r.noteWait = 1; }
       else if(window.__notengai){ r.noted = 0; r.noteNg = 1; }
       else { r.noted = 1; r.noteNg = 0; }
     }
+  }else if(b.action === 'stQuota'){
+    /* 本日あと何通送れるか。window.__left で変えられます。 */
+    if(window.__left === undefined) r.ok = false;
+    else r.left = window.__left;
   }else if(b.action === 'putPdf'){
     /* ★入れられなかったときは、理由を message で返します（本物と同じ形） */
     if(window.__pdfng) r = { ok:false, error:'ng',

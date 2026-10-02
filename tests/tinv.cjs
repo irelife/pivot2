@@ -26,7 +26,7 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   p.on('dialog', async d => { dialogs.push({type:d.type(), msg:d.message()});
     if (d.type()==='confirm') {
       /* ★確認が2段のとき（全員に送りますか → 対象○名）を分けて答えます */
-      if (p.__cancelMain && /対象：/.test(d.message())) await d.dismiss();
+      if (p.__cancelMain && /送る相手：/.test(d.message())) await d.dismiss();
       else await (p.__accept ? d.accept() : d.dismiss());
     }
     else await d.accept(); });
@@ -43,13 +43,36 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
     const kids=[...document.getElementById('view-send').children].map(x=>x.id||x.className||'(無名)');
     const w = document.getElementById('btn-to-mypage').parentNode;
     return { kids:kids, idx:kids.indexOf(w.id||w.className||'(無名)'),
+             sum:kids.indexOf('tmp-sum'),
              bar:kids.indexOf('bar'), rows:kids.indexOf('rows') };
   });
   console.log('    view-send の中身:', where.kids.join(' → '));
-  ok(where.idx === where.bar + 1,
-     '★［一斉送信］のすぐ下にある（' + (where.bar+1) + '番目）');
+  /* ★2026/10/1 … ［一斉送信］の下に「今月ぶん」のまとめ（#tmp-sum）が
+       入りました。その下がボタンです。押す前に数が目に入る並びです。 */
+  ok(where.sum === where.bar + 1,
+     '★★「今月ぶん」のまとめが［一斉送信］のすぐ下にある');
+  ok(where.idx === where.sum + 1,
+     '★ボタンは、まとめのすぐ下にある');
   ok(where.idx < where.rows,
      '★オーナー様の一覧より「上」にある（下だと見つけられません）');
+
+  /* ★★★はじめの印（何も触っていない状態）。
+       ここで見ないと、あとの検査が印を外したあとの姿を見てしまいます。 */
+  const first = await p.evaluate(()=>{
+    const out = {};
+    document.querySelectorAll('.inv-check').forEach(b=>{
+      const k = b.getAttribute('data-kind');
+      out[k] = (out[k] || 0) + (b.checked ? 1 : 0);
+    });
+    return out;
+  });
+  console.log('    はじめから入っている印:', JSON.stringify(first));
+  ok(first.mon === 1,
+     '★★★「今月の明細」は、はじめから入っている（毎月の手順を2つにするため）');
+  ok(!first.inv,
+     '★★★「招待する」は、はじめから入っていない（初回パスワードは取り消せないため）');
+  ok(!first.re,
+     '★★★「再送付」も、はじめから入っていない（パスワードが作り直されるため）');
 
   console.log('\n── ① 登録状況（招待済み・未招待）──');
   await p.click('#btn-mypage-inv');
@@ -84,6 +107,13 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
    *
    *   改良後は、その道そのものをなくします。
    *   「OK を押しさえすれば全員に送れる」状態ではなくなりました。 */
+  /* ★2026/10/1 … 「今月の明細」がはじめから入るようになったので、
+       いったん全部の印を外してから試します。
+       ★ここで見たいのは「印が0なら送らない」ことです。 */
+  await p.evaluate(()=>{
+    document.querySelectorAll('.inv-check').forEach(b=>{
+      b.checked = false; b.dispatchEvent(new Event('change')); });
+  });
   dialogs=[]; p.__accept=true;                  /* ★OK を押しても送れません */
   await p.click('#btn-to-mypage'); await p.waitForTimeout(600);
   let sent = await p.evaluate(()=>window.__sent.filter(x=>x.action==='push').length);
@@ -92,29 +122,42 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
      '★確認（confirm）ではなく、お知らせ（alert）で止める');
   ok(dialogs[0] && !/全員/.test(dialogs[0].msg),
      '★★「全員に送りますか」という道が無くなった');
-  ok(dialogs[0] && /招待 に印/.test(dialogs[0].msg),
+  ok(dialogs[0] && /今月の明細/.test(dialogs[0].msg),
+     '★毎月使う印（今月の明細）を、いちばん上に伝える');
+  ok(dialogs[0] && /招待する/.test(dialogs[0].msg),
      '★どこに印を入れるかを伝える');
   ok(dialogs[0] && /再送付/.test(dialogs[0].msg),
      '★招待済みの方への送り方（再送付）も伝える');
 
-  console.log('\n── ②-0 ★★オーナーカードの「招待」の箱 ──');
+  console.log('\n── ②-0 ★★オーナーカードの箱（招待／今月の明細／再送付）──');
+  /* ★2026/10/1 … 招待済みの方の箱が2つになりました。
+   *
+   *  【改良前】 招待済みの方には ☐ 再送付 しかありませんでした。
+   *            毎月の明細をマイページに入れるには、それを押すしか
+   *            なく、押すと初回パスワードが作り直されます。
+   *            つまり、毎月の明細を安全に入れる道がありませんでした。
+   *  【改良後】 ☑ 今月の明細（はじめから入っている）を足しました。 */
   const cells = await p.evaluate(()=>
     [...document.querySelectorAll('#rows > label')].map(l => {
-      const b = l.querySelector('.inv-check');
       const w = l.querySelector('.inv-wrap');
+      const bs = [...l.querySelectorAll('.inv-check')];
       return { who: (l.childNodes[1] ? l.childNodes[1].textContent : '').trim(),
-               box: b ? (b.getAttribute('data-re') ? '再送付' : '招待') : null,
+               box: bs.map(b=>({mon:'今月の明細', re:'再送付', inv:'招待'}
+                                 [b.getAttribute('data-kind')] || '?')).join('＋'),
+               on : bs.filter(b=>b.checked).map(b=>b.getAttribute('data-kind')).join(','),
                done: !!(w && w.querySelector('.inv-done')),
                txt: w ? w.textContent.replace(/\s+/g,'') : '' };
     }));
   cells.forEach(c=>console.log('    ', JSON.stringify(c)));
   ok(cells.length===4, 'カードは4枚（別管理の森本様は一覧に出ない）');
-  ok(cells[0] && cells[0].done && cells[0].box==='再送付',
-     '★★招待済みの方（山田）は「招待済み」＋ ☐ 再送付');
+  ok(cells[0] && cells[0].done && cells[0].box==='今月の明細＋再送付',
+     '★★招待済みの方（山田）は「招待済み」＋ ☑今月の明細 ＋ ☐再送付');
+
   ok(cells[1] && !cells[1].done && cells[1].box==='招待',
      '★★未招待の方（鈴木）は ☐ 招待');
+
   ok(cells[2] && cells[2].box==='招待', '★未招待の方（私）は ☐ 招待');
-  ok(cells[3] && cells[3].box===null && /アドレス未登録/.test(cells[3].txt),
+  ok(cells[3] && cells[3].box==='' && /アドレス未登録/.test(cells[3].txt),
      '★アドレス未登録の方には箱を出さない');
   const exBox = await p.evaluate(()=>
     document.getElementById('rent-excluded-section').querySelectorAll('.inv-check').length);
@@ -224,7 +267,7 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   dialogs=[]; p.__accept=true;
   await p.evaluate(()=>{
     document.querySelectorAll('.inv-check').forEach(b=>{ b.checked = false; });
-    const b = document.querySelector('.inv-check[data-re="1"][value="0"]');
+    const b = document.querySelector('.inv-check[data-kind="re"][value="0"]');
     if(b) b.checked = true;                       /* 山田様（招待済み）*/
   });
   await p.click('#btn-to-mypage');
@@ -240,8 +283,8 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
     };
   });
   const rcol = n => rs.row[rs.head.indexOf(n)];
-  const cfr = dialogs.find(d=>/対象/.test(d.msg));
-  console.log('    確認の文:', cfr ? cfr.msg.split('\n').filter(x=>/再送付|対象/.test(x)).join(' / ') : '(なし)');
+  const cfr = dialogs.find(d=>/送る相手/.test(d.msg));
+  console.log('    確認の文:', cfr ? cfr.msg.split('\n').filter(x=>/再送付|送る相手/.test(x)).join(' / ') : '(なし)');
   console.log('    通信の順番:', rs.order.join(' → '));
   console.log('    stResend の中身:', JSON.stringify(rs.res[0] ? {mail:rs.res[0].mail, newMail:rs.res[0].newMail} : null));
   console.log('    表:', rs.row.join(' | '));
@@ -287,7 +330,7 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   /* ② 形がおかしいアドレスは、送る前に止めること */
   dialogs=[]; p.__accept=true;
   await p.evaluate(()=>{
-    const b = document.querySelector('.inv-check[data-re="1"][value="0"]');
+    const b = document.querySelector('.inv-check[data-kind="re"][value="0"]');
     b.checked = true; b.dispatchEvent(new Event('change'));
     document.querySelector('.inv-mail[data-for="0"]').value = 'yamada(at)example';
   });
@@ -311,7 +354,7 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
     res: window.__sent.filter(x=>x.action==='stResend'),
     push: window.__sent.filter(x=>x.action==='push')
   }));
-  const cfc = dialogs.find(d=>/対象/.test(d.msg));
+  const cfc = dialogs.find(d=>/送る相手/.test(d.msg));
   if(cfc) console.log('    確認の文:\n' + cfc.msg.split('\n')
      .filter(x=>/アドレスを変えます|前：|後：|ログインID|打ち間違/.test(x))
      .map(x=>'      '+x).join('\n'));
@@ -375,12 +418,19 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   console.log('    送った相手:', pushes.map(x=>x.owners[0].email).join(' , '));
   ok(pushes.length===1, '★通信は1名ぶんだけ');
   ok(pushes[0].owners[0].email==='me@example.jp', '★送った相手は、私だけ');
-  const cf = dialogs.find(d=>/対象/.test(d.msg));
+  const cf = dialogs.find(d=>/送る相手/.test(d.msg));
   console.log('    確認の文:\n' + (cf? cf.msg.split('\n').map(x=>'      '+x).join('\n') : '(なし)'));
-  ok(cf && /対象： 1 名/.test(cf.msg), '★「対象 1名」と出る');
+  ok(cf && /送る相手： 1 名/.test(cf.msg), '★「送る相手 1名」と出る');
   ok(cf && /私（テスト）/.test(cf.msg), '★お名前が出る');
-  ok(cf && /はじめての方　 1 名/.test(cf.msg), '★はじめての方が1名と出る');
-  ok(cf && /すでに登録済み 0 名/.test(cf.msg), '★登録済みは0名と出る');
+  /* ★2026/10/1 … 確認の文を、印の種類ごとに書き直しました。
+       改良前は「はじめての方 1名／すでに登録済み 0名」と人数だけで、
+       その方に何が起きるか（パスワードが届く／変わる）は
+       下のほうに埋もれていました。 */
+  ok(cf && /☐ 招待する　　1 名/.test(cf.msg), '★★招待が1名と、印の名前つきで出る');
+  ok(cf && /初回パスワードのご案内が届きます/.test(cf.msg),
+     '★★その方に何が起きるかを、人数の横に書く');
+  ok(cf && !/今月の明細/.test(cf.msg),
+     '★印の入っていない種類は、確認の文に出さない（読む字を増やさない）');
 
   const bd = await p.evaluate(()=>{
     const t=document.querySelector('#tmp-board table');
@@ -617,6 +667,23 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   const nt = await p.evaluate(()=>[...document.querySelectorAll('#tmp-board p')].pop().textContent.trim());
   ok(/入ったことをご存じありません/.test(nt),
      '★下の一言で「明細は入っているが、ご存じない」と伝える');
+  /* ★★1日の送信枠が尽きたとき（2026/10/1）。
+       マイページ側が順番待ちに入れ、翌朝に自動でお送りします。
+       ★ですので赤にはしません。「出ていません」と同じ色にすると、
+         本当に手を打つべきもの（失敗したもの）が埋もれます。 */
+  await p.evaluate(()=>{ window.__notengai = false; window.__notewait = true; });
+  let rw = await noteCol(0, '枠が尽きたとき');
+  ok(rw.row[3] === '明日お送りします',
+     '★★★枠が尽きたら「明日お送りします」（失敗あつかいにしない）');
+  const wcol = await p.evaluate(()=>{
+    const t = document.querySelector('#tmp-board table');
+    const td = [...t.querySelectorAll('tbody tr td')][3];
+    return getComputedStyle(td).color;
+  });
+  console.log('    その欄の色: ' + wcol);
+  ok(!/215,\s*0,\s*21/.test(wcol), '★★赤（#d70015）にしない', wcol);
+  await p.evaluate(()=>{ window.__notewait = false; });
+
   /* マイページ側が、まだ知らせてこないとき */
   await p.evaluate(()=>{ window.__notengai = false; window.__noteoff = true; });
   let r3 = await noteCol(0, 'まだ知らせてこないとき');
@@ -660,10 +727,10 @@ const ok=(c,m)=>{ if(c){pass++;console.log('  ✅ '+m);} else {fail++;console.lo
   dialogs=[]; p.__accept=false;                   /* 確認で取り消します */
   await p.click('#btn-to-mypage'); await p.waitForTimeout(2500);
   console.log('    出た窓の数:', dialogs.length);
-  const m2 = dialogs.filter(d=>/対象/.test(d.msg))[0];
-  if(m2) console.log('    ' + m2.msg.split('\n').filter(x=>/★|対象|名/.test(x))
+  const m2 = dialogs.filter(d=>/送る相手/.test(d.msg))[0];
+  if(m2) console.log('    ' + m2.msg.split('\n').filter(x=>/★|送る相手|名/.test(x))
                        .slice(0,10).map(x=>'  '+x).join('\n    '));
-  ok(m2 && /対象： 112 名/.test(m2.msg), '★対象が112名と出る');
+  ok(m2 && /送る相手： 112 名/.test(m2.msg), '★送る相手が112名と出る');
   ok(m2 && /一度に 112 名です/.test(m2.msg), '★「一度に112名です」と伝える');
   ok(m2 && /分かかり/.test(m2.msg), '★かかる時間を伝える');
   ok(m2 && /20 名ずつに分ける/.test(m2.msg), '★20名ずつを勧める');
