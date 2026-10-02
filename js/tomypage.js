@@ -621,6 +621,65 @@
       .then(function(){ if(btn){ btn.disabled = false; btn.textContent = was; } });
   }
 
+  /* ══════════════════════════════════════════════
+   *  オーナーカードの「物件名」を、マイページへ渡します（2026/10/2）
+   *
+   *  ご指摘： 「これどこで物件を拾っていますか？新規の物件ができたときは
+   *           入力しないといけないですか？PIVOT2のオーナー情報の物件所有
+   *           から引っ張れたら間違いないのですが。」
+   *
+   *  【改良前】 マイページの物件の候補は、**明細PDFに出てきた物件だけ**
+   *            でした。明細は「送金のあった物件」しか載りません。
+   *            そのため
+   *              ・買ったばかりで、まだ送金のない物件
+   *              ・全室空室で、送金が立たなかった月の物件
+   *            はマイページに1件も出ず、保険をお預けになるときに
+   *            ［一覧にない物件を入力する］で手打ちしていただく形でした。
+   *
+   *  【改良後】 オーナーカードの「物件名」（複数は改行で）を、そのまま
+   *            いっしょに送ります。PIVOT2 に物件を書けば、マイページにも
+   *            出ます。オーナー様にも当社にも、入力は増えません。
+   *
+   *  ★明細側の物件名と重なっても困りません。マイページ側が
+   *    insNorm（全角半角・空白をそろえる）で見比べて、重なりを消します。
+   *  ★一覧が読めないとき（オーナー画面をまだ開いていない等）は
+   *    空の配列を返します。今までどおり明細だけで動きます。
+   * ══════════════════════════════════════════════ */
+  function ownNm(s){
+    var v = String(s == null ? '' : s);
+    try{ if(v.normalize) v = v.normalize('NFKC'); }catch(e){}
+    return v.toLowerCase().replace(/[\s\u3000]+/g, '');
+  }
+
+  function cardProps(d){
+    var list = null;
+    try{ list = window.RENT_CORE && window.RENT_CORE.owners; }catch(e){}
+    if(!Array.isArray(list)) return [];
+
+    /* ★まずアドレスで、見つからなければお名前で探します。
+         アドレスは1人に1つですが、お名前は書き方が揺れるためです。 */
+    var mail = ownNm(d && d.email);
+    var name = ownNm(d && (d.owner || d.atena));
+    var hit  = null;
+    if(mail){
+      hit = list.filter(function(o){ return ownNm(o && o.email) === mail; })[0] || null;
+    }
+    if(!hit && name){
+      hit = list.filter(function(o){ return ownNm(o && o.name) === name; })[0] || null;
+    }
+    if(!hit) return [];
+
+    var arr = (hit.properties && hit.properties.length)
+                ? hit.properties
+                : (hit.property ? String(hit.property).split(/[\n\u3001]/) : []);
+    var out = [];
+    arr.forEach(function(x){
+      var v = String(x == null ? '' : x).trim();
+      if(v && out.indexOf(v) < 0) out.push(v);
+    });
+    return out;
+  }
+
   /* ── 1件ぶんを、マイページの形に直します ───── */
   function shape(d){
     var total = 0, got = false;
@@ -677,7 +736,9 @@
       total     : got ? total : null,
       sokinDate : sokins.join('・'),
       rows      : rows,
-      status    : status
+      status    : status,
+      /* ★オーナーカードの「物件名」。明細に出ない物件も拾うためです */
+      props     : cardProps(d)
     };
   }
 
