@@ -1,8 +1,12 @@
 /* =====================================================================
    よそのエリアの「からっぽの物件」を片づける道具
 
+   ★2026-10-04 … PIVOT2 は、すべてのエリア（岡山・広島・福山・総社・倉敷・
+     赤磐 ほか）を扱うことになりました。そのため **PIVOT2 では、この道具は
+     何も消しません**。下の説明は、PIVOT3 側で開いたときのものです。
+
    何のためのものか
-     PIVOT2（広島）に、岡山の物件が入りこんでしまうことがあります。
+     PIVOT3（岡山）に、広島の物件が入りこんでしまうことがあります。
      入りこむのは たいてい「区画0・契約なし・画像なし」の
      名前だけの物件です。これを見つけて、まとめて消します。
 
@@ -78,6 +82,16 @@
   function findTargets(){
     var all = (typeof pbLoadAll === 'function') ? (pbLoadAll() || {}) : {};
     var mine = myArea();
+    /* ★2026-10-04 決まりの変更
+       改良前： PIVOT2 の担当は「広島県・倉敷市老松町・総社市」だけでした。
+               岡山県の物件は「よそのエリア」とされ、区画0・契約なし・画像なし
+               の3つがそろうと、消す候補に挙がっていました。
+       改良後： **PIVOT2 は、すべてのエリアを扱います**
+               （岡山・広島・福山・総社・倉敷・赤磐 ほか）。
+               ですので PIVOT2 には「よそのエリア」がありません。
+               どの住所の物件も、この道具では消しません。
+       ★PIVOT3（URL に pivot3 が入る側）では、これまでどおり働きます。 */
+    var ALL = (mine !== 'okayama');
     var used = contractNames();
     var hit = [], keep = [];
     Object.keys(all).forEach(function(id){
@@ -87,16 +101,17 @@
       var imgs  = !!(b.layout_id || b.layout2_id || (b.photo_ids || []).length);
       var inCt  = !!used[key(b.name)];
       var reasonKeep = [];
-      if(a === mine || a === 'unknown') reasonKeep.push('このエリア');
+      if(ALL || a === mine || a === 'unknown')
+        reasonKeep.push(ALL ? 'PIVOT2 はすべてのエリア' : 'このエリア');
       if(spots > 0) reasonKeep.push('区画 ' + spots + '件');
       if(inCt)      reasonKeep.push('契約あり');
       if(imgs)      reasonKeep.push('画像あり');
       if(reasonKeep.length === 0) hit.push({ id:id, name:b.name||'(名前なし)', addr:b.addr||'' });
-      else if(a !== mine && a !== 'unknown') keep.push({ name:b.name||'', why:reasonKeep.join('・') });
+      else if(!ALL && a !== mine && a !== 'unknown') keep.push({ name:b.name||'', why:reasonKeep.join('・') });
     });
     hit.sort(function(x,y){ return String(x.name).localeCompare(String(y.name),'ja'); });
     keep.sort(function(x,y){ return String(x.name).localeCompare(String(y.name),'ja'); });
-    return { hit:hit, keep:keep, total:Object.keys(all).length, mine:mine };
+    return { hit:hit, keep:keep, total:Object.keys(all).length, mine:mine, all:ALL };
   }
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
@@ -132,9 +147,14 @@
       '<div class="ac-box">' +
         '<div class="ac-hd">よそのエリアの、からっぽの物件を片づける</div>' +
         '<div class="ac-lead">' +
-          'この端末は <b>' + mineLabel + '</b> です。登録は全部で ' + r.total + '件。<br>' +
-          '下の <b>' + r.hit.length + '件</b> は、' + otherLabel + 'の住所で、区画0・契約なし・画像なし です。<br>' +
-          'これらを消します。ひとつでも中身があるものは、消しません。' +
+          (r.all
+            ? 'この端末（PIVOT2）は、<b>すべてのエリア</b>を扱います。' +
+              '登録は全部で ' + r.total + '件。<br>' +
+              'どの住所の物件も「よそのエリア」にはなりませんので、' +
+              'この道具で消すものはありません。'
+            : 'この端末は <b>' + mineLabel + '</b> です。登録は全部で ' + r.total + '件。<br>' +
+              '下の <b>' + r.hit.length + '件</b> は、' + otherLabel + 'の住所で、区画0・契約なし・画像なし です。<br>' +
+              'これらを消します。ひとつでも中身があるものは、消しません。') +
         '</div>' +
         '<div class="ac-h2">消すもの（' + r.hit.length + '件）</div>' +
         '<div class="ac-list">' + list + '</div>' +
