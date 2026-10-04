@@ -28,10 +28,13 @@
  *
  *  ★2026-08-29d 追加
  *   ・物件を「エリア」で振り分けて登録できます。
- *       広島エリア … 広島県 ＋ 倉敷市老松町 ＋ 総社市   → PIVOT2 へ
- *       岡山エリア … 上記以外の岡山県                   → PIVOT3 へ
- *     開いているのが PIVOT3 なら「岡山エリア」が、
- *     それ以外なら「広島エリア」が最初から選ばれます。
+ *       広島エリア … 広島県 ＋ 倉敷市老松町 ＋ 総社市
+ *       岡山エリア … 上記以外の岡山県
+ *       全部　　　 … 振り分けない
+ *     ★2026-10-04 … PIVOT2 は すべてのエリア を扱うことになったので、
+ *       PIVOT2 では「全部（振り分けない）」が最初から選ばれます。
+ *       PIVOT3 では、これまでどおり「岡山エリア」です。
+ *       （広島／岡山の選びは、必要なときのために残してあります）
  *   ・住所からどちらか判定できない物件は、名前を一覧で出します。
  *     初期状態では取り込みません（勝手に片方へ入れません）。
  *   ・オーナーはエリアで分けません。どちらの端末にも全部入ります。
@@ -320,10 +323,16 @@ function oiAreaOf(addr){
   }
   return "unknown";
 }
-/* この端末はどちら向きか（URL に pivot3 が入っていれば岡山） */
+/* この端末で、はじめに選んでおくエリア
+   ★2026-10-04 決まりの変更
+     改良前： PIVOT2 では「広島エリア」が初めから選ばれていました。
+             そのまま取り込むと、岡山県の物件が **だまって除かれて** いました。
+     改良後： PIVOT2 は、すべてのエリアを扱うことになりましたので、
+             初めから「全部（振り分けない）」を選んでおきます。
+             PIVOT3 では、これまでどおり「岡山エリア」です。 */
 function oiDefaultArea(){
   try{ if (String(location.pathname || "").toLowerCase().indexOf("pivot3") >= 0) return "okayama"; }catch(e){}
-  return "hiroshima";
+  return "all";
 }
 /* 選んだエリアの物件だけを取り出す */
 function oiFilterBldg(bldg, area, withUnknown){
@@ -512,7 +521,7 @@ function oiShowPreview(plan, owners){
                 '広島エリア <i>広島県 ＋ 倉敷市老松町 ＋ 総社市</i> <b>' + bk.hiroshima + '件</b></label>' +
               '<label><input type="radio" name="oiarea" value="okayama"' + (def === 'okayama' ? ' checked' : '') + '>' +
                 '岡山エリア <i>上記をのぞく岡山県</i> <b>' + bk.okayama + '件</b></label>' +
-              '<label><input type="radio" name="oiarea" value="all">' +
+              '<label><input type="radio" name="oiarea" value="all"' + (def === 'all' ? ' checked' : '') + '>' +
                 '全部（振り分けない） <b>' + (bk.hiroshima + bk.okayama + bk.unknown) + '件</b></label>' +
               (bk.unknown
                 ? '<div class="oi-unk"><label><input type="checkbox" id="oi-unk-on">' +
