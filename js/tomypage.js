@@ -728,8 +728,20 @@
       });
     });
 
-    /* 総戸数は1回だけ数えます */
-    var occ = window.pvUnitsOf(d);
+    /* 総戸数は1回だけ数えます。
+     *
+     *  ★2026/10/5 … ここは「あれば使う」にしてあります。
+     *    pvUnitsOf は js/ownermail.js にあります。
+     *    もし ownermail.js が読み込まれていない場面でここが動くと、
+     *    いきなり呼べば TypeError で **マイページへ送る処理そのものが
+     *    止まります**（実際に検査 tinv／tmon で止まりました。
+     *    あの2つの検査は tomypage.js だけを読み込むためです）。
+     *    入居率は「あると嬉しいもの」で、明細を送ることが本体です。
+     *    本体を、おまけで止めることはできません。
+     *    無いときは入居率を出さないだけにします。 */
+    var occ = (typeof window.pvUnitsOf === 'function')
+                ? window.pvUnitsOf(d)
+                : { ok:false, units:0, by:[] };
 
     return {
       email     : String(d.email || '').trim(),

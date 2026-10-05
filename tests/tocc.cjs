@@ -287,6 +287,16 @@ ok(/window\.pvUnitsOf\(d\)/.test(tmp),
 ok((tmp.match(/window\.pvUnitsOf\(d\)/g) || []).length === 1,
    '数えるのは1回だけ（同じ数えを2度しない）');
 
+/* ★★ここは、いちど私が間違えたところです。
+ *  pvUnitsOf は js/ownermail.js にあります。tomypage.js から
+ *  いきなり呼ぶと、ownermail.js が読み込まれていない場面で
+ *  TypeError になり、**マイページへ送る処理そのものが止まります**。
+ *  （検査 tinv／tmon は tomypage.js だけを読み込むので、実際に止まりました。）
+ *  入居率は「あると嬉しいもの」で、明細を送ることが本体です。
+ *  本体を、おまけで止めることはできません。 */
+ok(/typeof\s+window\.pvUnitsOf\s*===\s*'function'/.test(tmp),
+   '★★pvUnitsOf は「あれば使う」になっている（無くても送信は止まらない）');
+
 /* ── ⑫ 読めなかったとき、PIVOT2 の画面で分かるか ───────── */
 console.log('\n⑫ 読めなかったとき、押す前に気づけるか');
 ok(/室数が読めません/.test(src),
