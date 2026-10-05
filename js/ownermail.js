@@ -832,6 +832,7 @@ function parsePage(t,page){
   const bodyLines=(idx>=0?t.slice(idx):t);
   d.vac=extractVac(body);
   d.newc=extractNew(bodyLines);
+  d.units=extractUnits(bodyLines);
   return d;
 }
 /* ★2026/10/5 … 西暦の決め打ちを外しました。
@@ -858,6 +859,96 @@ function extractVac(body){
   while((m=re3.exec(body))){ const room=roomBefore(body.slice(0,m.index)); const k="退:"+room+m[1]; if(!seen.has(k)){seen.add(k);vac.push({room,type:"解約予定",date:m[1]});} }
   return vac;
 }
+ 
+/* ★2026/10/5 新規 … 総戸数（お部屋の数）を「収入明細」の表から数えます。
+ *
+ *  【なぜ、こう数えるのか】
+ *    明細には「総戸数」「室数」という欄が、どこにもありません。
+ *    ところが「収入明細」の表には、空いているお部屋も1行として出ます。
+ *        101 山田 太郎 26/09 65,000 3,000 4,400 72,400   ← 入っている
+ *        102           26/09 0 0 0 0 募集中              ← 空いている
+ *    ですから「収入明細の表にある、部屋番号で始まる行の数」が総戸数です。
+ *    実際の明細6棟で数え、101/102/103/105/106＝5室…合計35室。
+ *    ご本人に35室で合っていることを確認いただいています。
+ *
+ *  【数えないもの】
+ *    ・表の見出しの行（「部屋」などの文字で始まり、数字で始まりません）
+ *    ・「駐車場」「駐車場２台目」などの行（部屋ではありません）
+ *    ・「合計」の行、そして「支出明細」から先は、ぜんぶ見ません
+ *
+ *  ★推測はしません。表が読めなければ空の配列を返します。
+ *    空のときは、入居率をいっさい出しません（0% とは出しません）。
+ */
+function extractUnits(bodyLines){
+  const out=[], seen=new Set();
+  if(!bodyLines) return out;
+  const lines=String(bodyLines).split("\n");
+  let on=false;
+  for(const raw of lines){
+    const ln=String(raw).replace(/\u3000/g," ").trim();
+    if(!on){ if(ln.indexOf("収入明細")>=0) on=true; continue; }
+    if(ln.indexOf("支出明細")>=0) break;        /* 表のおわり */
+    if(/^合\s*計/.test(ln)) break;              /* 表のおわり（合計の行） */
+    const m=ln.match(/^(\d{3,4})\s/);           /* 部屋番号で始まる行だけ */
+    if(!m) continue;
+    /* 番号のすぐ後ろが「駐車場」などなら、お部屋ではありません。
+     *  ★行ぜんぶは見ません。入っている方の備考に「駐車場1台込み」と
+     *    書かれていても、そのお部屋を数えないでしまわないためです。 */
+    const after=ln.slice(m[0].length);
+    if(/^(?:駐車|駐輪|自転車|バイク|車庫|倉庫|物置|看板|広告|自販|自動販売|アンテナ|太陽光|電柱)/.test(after)) continue;
+    if(seen.has(m[1])) continue;
+    seen.add(m[1]); out.push(m[1]);
+  }
+  return out;
+}
+ 
+/* ★2026/10/5 新規 … 総戸数を、オーナー様ごとにまとめます。
+ *
+ *  入居率は、この数で割って出します。ですから、ここは
+ *  「数えられたかどうか」を、はっきり返すようにしています。
+ *
+ *  【出さないと決めた場合】 ok:false を返し、入居率はどこにも出しません。
+ *    ① 収入明細の表が1行も読めなかった（units が空）のに、
+ *       募集中・解約予定だけが読めている … つじつまが合いません
+ *    ② 募集中・解約予定の部屋番号が、表のお部屋に無い
+ *       … 表の読み方と、募集中の読み方が食いちがっています
+ *       （たとえば 1001号室のように4桁のお部屋。
+ *         募集中をさがす側は3桁しか見ないため、ここで食いちがいます）
+ *    ③ 部屋番号が読めていない（空）
+ *    ④ 空室＋解約予定が、総戸数より多い
+ *  ★「たぶんこうだろう」で入居率を出すことは、いたしません。
+ *    お金と同じで、まちがった率を出すほうが、出さないより悪いためです。
+ */
+window.pvUnitsOf = function(d){
+  var total=0, by=[], ok=true, why="";
+  var props=(d&&d.props)?d.props:[];
+  for(var i=0;i<props.length;i++){
+    var p=props[i]||{};
+    var u=Array.isArray(p.units)?p.units:[];
+    var v=Array.isArray(p.vac)?p.vac:[];
+    var name=p.property||p.bldNo||"";
+    if(!u.length){
+      if(v.length){ ok=false; why=why||(name+"：収入明細の表が読めませんでした"); }
+      continue;                                   /* 年間収支表のみ等は、そっと飛ばします */
+    }
+    var set={}; u.forEach(function(r){ set[String(r)]=1; });
+    var seen={}, n=0;
+    for(var j=0;j<v.length;j++){
+      var r=(v[j]&&v[j].room!=null)?String(v[j].room):"";
+      if(!r){ ok=false; why=why||(name+"：部屋番号が読めない行があります"); break; }
+      if(!set[r]){ ok=false; why=why||(name+"："+r+"号室が、収入明細の表にありません"); break; }
+      if(seen[r]) continue;
+      seen[r]=1; n++;
+    }
+    if(!ok) break;
+    if(n>u.length){ ok=false; why=name+"：空室が総戸数より多くなりました"; break; }
+    total+=u.length;
+    by.push({ prop:name, units:u.length });
+  }
+  if(!total){ ok=false; why=why||"収入明細の表から、お部屋の数を数えられませんでした"; }
+  return ok ? { ok:true, units:total, by:by, why:"" }
+            : { ok:false, units:0, by:[], why:why };
+};
  
 /* 新規契約を抽出: 備考欄「新規契約 契約開始日:YYYY年MM月DD日」+ その前の部屋番号 */
 function extractNew(body){
@@ -887,10 +978,12 @@ function buildDetail(pages){
   const groups=[]; let cur=null;
   for(const d of pages){
     if(d.pidx===1 || !cur){
-      cur={bldNo:d.bldNo,property:d.property,atena:d.atena,amount:d.amount,sokin:d.sokin,month:d.month,pages:[d.page],vac:[...d.vac],newc:[...(d.newc||[])]};
+      cur={bldNo:d.bldNo,property:d.property,atena:d.atena,amount:d.amount,sokin:d.sokin,month:d.month,pages:[d.page],vac:[...d.vac],newc:[...(d.newc||[])],units:[...(d.units||[])]};
       groups.push(cur);
     }else{
-      cur.pages.push(d.page); cur.vac.push(...d.vac); cur.newc.push(...(d.newc||[])); if(!cur.property&&d.property)cur.property=d.property;
+      cur.pages.push(d.page); cur.vac.push(...d.vac); cur.newc.push(...(d.newc||[]));
+      (d.units||[]).forEach(u=>{ if(cur.units.indexOf(u)<0) cur.units.push(u); });
+      if(!cur.property&&d.property)cur.property=d.property;
     }
   }
   // オーナーへ紐付け(宛名 or 物件名)
@@ -1066,7 +1159,7 @@ function saveDetailState(){
     // PDFは保存しない。文面編集・送信済みも一緒に保存。
     const slim = detail.map((d,i)=>({
       owner:d.owner, atena:d.atena, email:d.email,
-      props:d.props.map(p=>({bldNo:p.bldNo,property:p.property,amount:p.amount,sokin:p.sokin,month:p.month,pages:p.pages,vac:p.vac,newc:p.newc})),
+      props:d.props.map(p=>({bldNo:p.bldNo,property:p.property,amount:p.amount,sokin:p.sokin,month:p.month,pages:p.pages,vac:p.vac,newc:p.newc,units:p.units})),
       subjEdited:(document.getElementById("subj-"+i)||{}).value,
       bodyEdited:(document.getElementById("body-"+i)||{}).value
     }));
@@ -1236,6 +1329,14 @@ function renderPreview(){
       if(yoteiN) vacPill+=`<span class="vac" style="margin-left:6px;color:#a14a3a;">解約予定 ${yoteiN}</span>`;
       if(newN) vacPill+=`<span class="vac" style="margin-left:6px;color:#2c6e49;font-weight:800;">新規契約 ${newN}</span>`;
       if(!boshuN && !yoteiN && !newN) vacPill=`<span class="vac none">満室</span>`;
+      /* ★2026/10/5 … 総戸数を、送る前にこの画面でお見せします。
+       *   マイページの入居率は、この数で割って出します。
+       *   数が明細と合っていないときに、押す前に気づけるようにするためです。
+       *   読めなかったときは、はっきり「室数が読めません」と出し、
+       *   マイページには入居率をいっさい出しません。 */
+      const _u=window.pvUnitsOf(d);
+      if(_u.ok) vacPill+=`<span class="vac" style="margin-left:6px;color:#4a5568;">全 ${_u.units} 室</span>`;
+      else      vacPill+=`<span class="vac" style="margin-left:6px;color:#8a6d2f;font-weight:800;">室数が読めません（入居率は出しません）</span>`;
     }
     const pageList=d.props.flatMap(p=>p.pages).sort((a,b)=>a-b);
     const _sent=sentSet.has(i);
