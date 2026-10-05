@@ -834,11 +834,24 @@ function parsePage(t,page){
   d.newc=extractNew(bodyLines);
   return d;
 }
+/* ★2026/10/5 … 西暦の決め打ちを外しました。
+ *
+ *  【改良前】 明細の「入／退」の欄は 26/09（2026年9月）の形です。
+ *    ここを 26/ と書いてありました。年が変わると、どちらも止まります。
+ *      ・募集中の部屋　　　 … 1件も見つからなくなる
+ *      ・解約予定の部屋番号 … 空になる
+ *    実際に動かして確かめました（2027年の明細で 0件／空）。
+ *    エラーは出ません。定型文から【募集中】の節が黙って消え、
+ *    解約予定は部屋番号なしで、オーナー様へ送られます。
+ *  【改良後】 年のところを \d{2} にしました。2か所だけです。
+ *    ★「月／日」の 2桁／2桁 だけを見ます。金額（65,000）には
+ *      スラッシュが無く、ページ番号（1 / 1）は1桁なので、
+ *      ここが増えて拾いすぎることはありません（検査 tests/tvac.cjs）。 */
 function extractVac(body){
   const vac=[], seen=new Set();
-  let m, re1=/(\d{3})\s*26\/\d{2}[\s\d,]*?募集中/g;
+  let m, re1=/(\d{3})\s*\d{2}\/\d{2}[\s\d,]*?募集中/g;
   while((m=re1.exec(body))){ const k="募:"+m[1]; if(!seen.has(k)){seen.add(k);vac.push({room:m[1],type:"募集中",date:""});} }
-  function roomBefore(pre){ const ms=[...pre.matchAll(/(\d{3})\s*[^\d\n][^0-9\n]*?\s*26\/\d{2}/g)]; return ms.length?ms[ms.length-1][1]:""; }
+  function roomBefore(pre){ const ms=[...pre.matchAll(/(\d{3})\s*[^\d\n][^0-9\n]*?\s*\d{2}\/\d{2}/g)]; return ms.length?ms[ms.length-1][1]:""; }
   let re2=/解約予定[\s\u3000]*解約日[：:]\s*(\d{4}年\d{2}月\d{2}日)/g;
   while((m=re2.exec(body))){ const room=roomBefore(body.slice(0,m.index)); const k="解:"+room+m[1]; if(!seen.has(k)){seen.add(k);vac.push({room,type:"解約予定",date:m[1]});} }
   let re3=/退去予定[\s\u3000]*退去日[：:]\s*(\d{4}年\d{2}月\d{2}日)/g;
