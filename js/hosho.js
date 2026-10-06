@@ -71,12 +71,29 @@
     return '';
   }
 
-  /* 空室が何日目か。解約日の翌日を1日目とかぞえます */
+  /* ★ 空室が何日目か。**解約日を1日目**とかぞえます（初日算入）。
+   *
+   *  ★2026/10/6 直し。
+   *  【改良前】 解約日の翌日を1日目にしていました。
+   *            7月1日に解約 → 10月6日は 97日目
+   *  【改良後】 解約日を1日目にします。
+   *            7月1日に解約 → 10月6日は 98日目
+   *
+   *  【なぜ直したか】
+   *  画面にもコードにも「解約日から**起算して** 90日目までが免責」と
+   *  書いてあります。契約の文では「○○から起算して」は、
+   *  **その日を1日目に数える**という意味です。
+   *  ところが計算は翌日から数えており、画面の説明と1日ずれていました。
+   *  （画面の例も「7月1日に解約 → 9月29日までが免責」となっており、
+   *    「起算して」で数えれば 9月28日までのはずでした）
+   *
+   *  ★この1日は、オーナー様へお支払いする側の金額です。
+   *    直す前は、1日ぶん少なくお支払いしていました。 */
   function nth(r, at){
     var s = day(r && r.out);
     if(!s) return 0;
     var e = at || today0();
-    var n = Math.floor((e.getTime() - s.getTime()) / 86400000);
+    var n = Math.floor((e.getTime() - s.getTime()) / 86400000) + 1;
     return n > 0 ? n : 0;
   }
   /* ★ 保証のもとになるのは「募集賃料」だけです。
@@ -151,9 +168,13 @@
     return new Date(y, m, Math.min(dd, last));
   }
   /* ★ 保証が始まる日。
-       解約日から起算して90日目までが免責。91日目から保証です。
-       例）7月1日に解約 → 9月29日が90日目 → 9月30日から保証 */
-  function startDay(r){ var s = day(r && r.out); return s ? plus(s, FREE_DAYS + 1) : null; }
+   *    解約日から起算して90日目までが免責。91日目から保証です。
+   *    **解約日が1日目**なので、91日目は「解約日 ＋ 90日」です。
+   *    例）7月1日に解約 → 9月28日が90日目 → **9月29日**から保証
+   *
+   *  ★2026/10/6 直し。改良前は「解約日 ＋ 91日」で、9月30日からでした。
+   *    1日おそく始まっていました。上の nth のただし書きをご覧ください。 */
+  function startDay(r){ var s = day(r && r.out); return s ? plus(s, FREE_DAYS) : null; }
   /* ★ 保証契約の満了の日。管理開始日から2年で終わります（2年後の前日）。
        管理開始日が空なら null（満了なし）です。 */
   function termOf(from){
@@ -249,6 +270,11 @@
   + '.hs-now b{font-size:12px;font-weight:800;}'
   + '.hs-wari b{font-size:12px;font-weight:800;color:#111;}'
   + '.hs-wari.no{color:#999;}'
+  /* ★払いすぎ（返金・次回の送金から差し引き）2026/10/6 */
+  + '.hs-back{display:block;margin-top:5px;padding:5px 7px;border-radius:7px;'
+  +   'background:#fdecea;border:1px solid #f3c7c0;color:#a33327;}'
+  + '.hs-back b{font-size:12px;font-weight:800;color:#a33327;}'
+  + '.hs-back .hs-wsub{color:#a33327;opacity:.85;}'
   + '.hs-day.on .hs-sub{color:#c7362a;opacity:.8;}'
   + '.hs-x{border:0;background:transparent;color:#c7362a;font-size:15px;cursor:pointer;padding:4px;}'
   + '.hs-fin{border:1px solid #000;background:#fff;color:#000;font-size:11.5px;font-weight:700;'
@@ -319,7 +345,7 @@
       '<div class="hs-lead">' +
         '解約日から起算して <b>' + FREE_DAYS + '日目</b>までが免責。<b>' + (FREE_DAYS + 1) + '日目</b>から、' +
         '<b>募集賃料</b>の <b>30％</b> を保証します。' +
-        '（7月1日に解約なら、9月29日までが免責、9月30日から保証です）<br>' +
+        '（<b>解約日が1日目</b>です。7月1日に解約なら、9月28日までが免責、9月29日から保証）<br>' +
         '募集賃料は満室想定の月額賃料で、<b>共益費・駐車場使用料は含みません</b>。<br>' +
         'オーナー様へは<b>毎月15日に当月ぶん</b>を送金します。' +
         '保証がその月の途中で始まる／終わるときは、<b>その月の実日数で日割り</b>します。<br>' +
@@ -366,12 +392,24 @@
     var w = split(r);
     if(!w) return '';
     if(!w.list.length) return '<span class="no">保証が始まる前に決まったため、保証はありません</span>';
+    var back = overHtml(r);
     var rs = rest(r);
     if(!rs || !rs.list.length){
-      return '残りの送金はありません<span class="hs-wsub">保証ぜんぶで ¥' + yen(w.total) + '</span>';
+      return '残りの送金はありません<span class="hs-wsub">保証ぜんぶで ¥' + yen(w.total) + '</span>' + back;
     }
     return 'これから送る残り <b>¥' + yen(rs.total) + '</b>' +
-           '<span class="hs-wsub">' + md(rs.from) + '〜' + md(rs.to) + '・' + rs.days + '日</span>';
+           '<span class="hs-wsub">' + md(rs.from) + '〜' + md(rs.to) + '・' + rs.days + '日</span>' + back;
+  }
+
+  /* ★ 払いすぎの一行。無ければ空です（overPay をご覧ください）。 */
+  function overHtml(r){
+    var o = overPay(r);
+    if(!o) return '';
+    return '<span class="hs-back">★ 払いすぎ <b>¥' + yen(o.yen) + '</b>' +
+           '<span class="hs-wsub">' + o.mo + '月分：送った ¥' + yen(o.paid) +
+           '　−　本来 ¥' + yen(o.real) +
+           '　（' + md(o.from) + '〜' + md(o.to) + '・' + o.days + '日ぶん）<br>' +
+           'ご返金いただくか、次の送金から差し引いてください</span></span>';
   }
 
   /* ★ 管理開始日から2年。あとどれだけ残っているかを出します */
@@ -798,13 +836,20 @@
       return String(r.room||'').trim() || String(r.out||'').trim() || base(r);
     }).map(function(r){
       var st = startDay(r), en = endDay(r, t);
+      var ov = overPay(r, null, t);
       return { room:String(r.room||'').trim(), out:String(r.out||''),
                rent:num(r.rent), sign:String(r.sign||''),
                /* ★ ここから下は、LINE のお知らせ（GAS）が読むためのものです。
                     画面では使いません。計算はすべてこのファイルの中でしています。 */
                gFrom: st ? ymd(st) : '',
                gTo:   en ? ymd(en) : '',
-               gPlan: planOf(r, t) };
+               gPlan: planOf(r, t),
+               /* ★2026/10/6 追加。払いすぎ（返金・次回の送金から差し引き）。
+                    無ければ null です。
+                    ★gPlan の意味は変えていません。GAS はいまのところ
+                      これを読んでいません。読むようにするかは別途ご相談します。 */
+               gBack: ov ? { m: ov.y + '-' + ('0' + ov.mo).slice(-2), y: ov.yen,
+                             from: ymd(ov.from), to: ymd(ov.to), days: ov.days } : null };
     });
   }
 
@@ -941,6 +986,65 @@
     return { y:m1.getFullYear(), mo:m1.getMonth() + 1, from:a, to:b,
              days:span(a, b), dim:e.getDate(), parts:parts, yen:sumOf(parts),
              full:(parts.length === 1 && parts[0].full) };
+  }
+
+  /* ════════════════════════════════════════════
+   *  ★ 払いすぎ（返金・次回の送金から差し引き）  2026/10/6 新設
+   *
+   *  【なぜ要るか】
+   *  オーナー様へは、毎月15日に「その月ぶん」を送金します。
+   *  15日に送ったあとで契約が決まると、保証はその月の途中で終わります。
+   *  すでに送った額のうち、終わった日より後のぶんは **払いすぎ** です。
+   *
+   *    例）10月15日に 10月分 満額 15,600円 を送金
+   *        → 10月25日に契約が決まった（保証は 10月24日まで）
+   *        → 10/25〜10/31 の 7日ぶんが払いすぎ
+   *           15,600 −（10/1〜10/24 の 12,077）＝ **3,523円**
+   *
+   *  【出す条件】
+   *    ① 契約が決まった日が、その月の15日より **後** であること
+   *       15日までに決まっていれば、15日の送金のときに日割りして
+   *       送っていますので、払いすぎは出ません。
+   *    ② その月の15日を、きょうが過ぎていること（もう送ったあと）
+   *
+   *  【金額の出しかた】
+   *    「送った額 − 本来の額」で引き算します。
+   *    日割りをやり直して出すと、切り捨ての丸めで1円ずれることが
+   *    あるためです。引き算なら、ずれません。
+   *
+   *  ★★ ここで出せないもの（お使いになる方へ）
+   *    契約が決まった日より **ずっとあとに入力した** 場合、その間の月も
+   *    満額で送ってしまっているはずですが、ここには出ません。
+   *      例）10月25日に決まったのに、12月20日に入力した
+   *          → 11月分・12月分も満額で送っている
+   *          → ここに出るのは10月分だけです
+   *    契約が決まったら、その月のうちに入れてください。
+   *    （入力した日そのものを、いまは残していないためです）
+   * ════════════════════════════════════════════ */
+  function overPay(r, at, term){
+    var sg = day(r && r.sign);
+    var st = startDay(r);
+    if(!sg || !st || !base(r)) return null;
+
+    var m1  = mon1(sg);                                           /* 決まった月の1日 */
+    var pay = new Date(m1.getFullYear(), m1.getMonth(), PAY_DAY); /* その月の送金日 */
+    if(sg.getTime() <= pay.getTime()) return null;   /* 15日までに分かっていた */
+    var now = at || today0();
+    if(now.getTime() < pay.getTime()) return null;   /* まだ送っていない */
+
+    var t = (term === undefined) ? termEnd() : term;
+    /* 契約を知らなかったとして、15日にいくら送ったか */
+    var paid = monthPay({ room:r.room, out:r.out, rent:r.rent, sign:'' }, m1, t);
+    if(!paid) return null;
+    /* 契約が決まったいま、本来いくらだったか */
+    var real = monthPay(r, m1, t);
+    var diff = paid.yen - (real ? real.yen : 0);
+    if(diff <= 0) return null;
+
+    var from = real ? plus(real.to, 1) : paid.from;
+    return { y:m1.getFullYear(), mo:m1.getMonth() + 1,
+             from:from, to:paid.to, days:span(from, paid.to),
+             yen:diff, paid:paid.yen, real:(real ? real.yen : 0) };
   }
 
   /* ★ これから送る残り。
