@@ -21,6 +21,8 @@ const fs = require('fs'), path = require('path');
 let PASS = 0, FAIL = 0;
 function ok(n, c, got){ if(c){ PASS++; console.log('  ✅ ' + n); }
   else { FAIL++; console.log('  ❌ ' + n + '  → ' + JSON.stringify(got)); } }
+/* 配列・オブジェクトを、そのままくらべます */
+function eqj(got, want, n){ ok(n, JSON.stringify(got) === JSON.stringify(want), got); }
 
 const DIR = require('path').resolve(process.argv[2] || require('path').join(__dirname, '..'));
 const TMP = '/tmp/claude-0/_wari';
@@ -51,7 +53,7 @@ const TMP = '/tmp/claude-0/_wari';
       '\n; window.__t = { planOf:planOf, splitRange:splitRange, startDay:startDay,' +
       ' endDay:endDay, termOf:termOf, monthYen:monthYen, partYen:partYen,' +
       ' span:span, ymd:ymd, day:day, mon1:mon1, plus:plus, plusM:plusM,' +
-      ' sumOf:sumOf, mEnd:mEnd, monthPay:monthPay, firstBill:firstBill, overPay:overPay, nth:nth };\n})();';
+      ' sumOf:sumOf, mEnd:mEnd, monthPay:monthPay, firstBill:firstBill, overPay:overPay, nth:nth, lateMonths:lateMonths };\n})();';
     // eslint-disable-next-line no-eval
     (0, eval)(grab);
     return !!window.__t;
@@ -304,6 +306,56 @@ const TMP = '/tmp/claude-0/_wari';
     console.log('     はじめての請求月: ' + JSON.stringify(oF));
     ok('★★ はじめての請求月でも正しい（29,900 − 25,496 = 4,404円）',
        oF && oF.paid === 29900 && oF.real === 25496 && oF.yen === 4404, oF);
+  }
+
+  console.log('\n⓫ ★入力が遅れたときの注意（2026/10/6 ご指示・案2）');
+  {
+    const late = (r, at) => pg.evaluate(([r, at]) =>
+      window.__t.lateMonths(r, window.__t.day(at), null), [r, at]);
+
+    /* 5/1解約 → 7/31から保証。10/25に契約が決まった。
+       募集賃料 52,000 → 月額保証 15,600 */
+    const r = { room:'A105', out:'2026-05-01', rent:52000, sign:'2026-10-25' };
+
+    console.log('\n  ── 遅れていないとき（注意を出してはいけません）──');
+    eqj(await late(r, '2026-10-26'), [], '★★ 翌日に入力 → 注意なし');
+    eqj(await late(r, '2026-10-31'), [], '★★ 月内に入力 → 注意なし');
+    eqj(await late(r, '2026-11-02'), [],
+        '★★ 翌月2日に入力 → 注意なし（11/15 をまだ過ぎていない）');
+    eqj(await late(r, '2026-11-15'), [{ y:2026, mo:11, yen:15600 }],
+        '★ 11/15 ちょうど → その日に送るので、ここから出す');
+
+    console.log('\n  ── 遅れたとき（出さなければいけません）──');
+    const L1 = await late(r, '2026-11-20');
+    eqj(L1, [{ y:2026, mo:11, yen:15600 }],
+        '★★ 11/20 に入力 → 11月分 15,600円');
+    const L2 = await late(r, '2026-12-20');
+    eqj(L2, [{ y:2026, mo:11, yen:15600 }, { y:2026, mo:12, yen:15600 }],
+        '★★ 12/20 に入力 → 11月・12月の2か月ぶん');
+    ok('★★ 合計 31,200円', L2.reduce((a, x) => a + x.yen, 0) === 31200,
+       L2.reduce((a, x) => a + x.yen, 0));
+
+    console.log('\n  ── 出してはいけないとき ──');
+    eqj(await late({ room:'C', out:'2026-09-01', rent:52000, sign:'2026-10-25' },
+                   '2026-12-20'), [],
+        '★★ 保証が始まる前に決まった → 1円も送っていないので、注意なし');
+    eqj(await late({ room:'D', out:'2026-05-01', rent:52000, sign:'' },
+                   '2026-12-20'), [], '★ 契約日が空 → なし');
+    eqj(await late({ room:'E', out:'', rent:52000, sign:'2026-10-25' },
+                   '2026-12-20'), [], '★ 解約日が空 → なし');
+    eqj(await late({ room:'F', out:'2026-05-01', rent:0, sign:'2026-10-25' },
+                   '2026-12-20'), [], '★ 募集賃料が0 → なし');
+
+    console.log('\n  ── 2年の満了をまたぐとき ──');
+    /* 管理開始 2024-12-01 → 満了 2026-11-30。12月は保証がもう無い */
+    const L3 = await pg.evaluate(() => {
+      const t = window.__t.termOf('2024-12-01');
+      return window.__t.lateMonths(
+        { room:'G', out:'2026-05-01', rent:52000, sign:'2026-10-25' },
+        window.__t.day('2026-12-20'), t);
+    });
+    eqj(L3, [{ y:2026, mo:11, yen:15600 }],
+        '★★ 満了（2026/11/30）より後の12月は、出さない');
   }
 
   console.log('\n❽ 画面のエラー');

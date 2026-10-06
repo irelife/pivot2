@@ -271,6 +271,11 @@
   +   'background:#fdecea;border:1px solid #f3c7c0;color:#a33327;}'
   + '.hs-back b{font-size:12px;font-weight:800;color:#a33327;}'
   + '.hs-back .hs-wsub{color:#a33327;opacity:.85;}'
+  /* ★入力が遅れたときの注意 2026/10/6 */
+  + '.hs-late{display:block;margin-top:5px;padding:5px 7px;border-radius:7px;'
+  +   'background:#fff6e5;border:1px solid #f0d9a8;color:#8a6224;}'
+  + '.hs-late b{font-size:12px;font-weight:800;color:#8a6224;}'
+  + '.hs-late .hs-wsub{color:#8a6224;opacity:.9;}'
   + '.hs-day.on .hs-sub{color:#c7362a;opacity:.8;}'
   + '.hs-x{border:0;background:transparent;color:#c7362a;font-size:15px;cursor:pointer;padding:4px;}'
   + '.hs-fin{border:1px solid #000;background:#fff;color:#000;font-size:11.5px;font-weight:700;'
@@ -397,15 +402,30 @@
            '<span class="hs-wsub">' + md(rs.from) + '〜' + md(rs.to) + '・' + rs.days + '日</span>' + back;
   }
 
+  /* ★ 入力が遅れたときの注意。無ければ空です（lateMonths をご覧ください）。 */
+  function lateHtml(r){
+    var L = lateMonths(r);
+    if(!L.length) return '';
+    var tot = 0;
+    L.forEach(function(x){ tot += x.yen; });
+    return '<span class="hs-late">★ 入力が遅れています' +
+      '<span class="hs-wsub">契約が決まった月より後の <b>' +
+      L.map(function(x){ return x.mo + '月'; }).join('・') + '</b> も、' +
+      '送金日（15日）を過ぎています。<br>' +
+      '満額でお送りしていれば、あわせて <b>¥' + yen(tot) + '</b> が払いすぎです。<br>' +
+      '実際にお送りしたかは、こちらでは分かりません。送金の記録をご確認ください。' +
+      '</span></span>';
+  }
+
   /* ★ 払いすぎの一行。無ければ空です（overPay をご覧ください）。 */
   function overHtml(r){
     var o = overPay(r);
-    if(!o) return '';
+    if(!o) return lateHtml(r);
     return '<span class="hs-back">★ 払いすぎ <b>¥' + yen(o.yen) + '</b>' +
            '<span class="hs-wsub">' + o.mo + '月分：送った ¥' + yen(o.paid) +
            '　−　本来 ¥' + yen(o.real) +
            '　（' + md(o.from) + '〜' + md(o.to) + '・' + o.days + '日ぶん）<br>' +
-           'ご返金いただくか、次の送金から差し引いてください</span></span>';
+           'ご返金いただくか、次の送金から差し引いてください</span></span>' + lateHtml(r);
   }
 
   /* ★ 管理開始日から2年。あとどれだけ残っているかを出します */
@@ -1041,6 +1061,52 @@
     return { y:m1.getFullYear(), mo:m1.getMonth() + 1,
              from:from, to:paid.to, days:span(from, paid.to),
              yen:diff, paid:paid.yen, real:(real ? real.yen : 0) };
+  }
+
+  /* ════════════════════════════════════════════
+   *  ★ 入力が遅れたときの取りこぼし  2026/10/6 新設
+   *
+   *  【なぜ要るか】
+   *  上の overPay が出せるのは、**契約が決まった月のぶんだけ**です。
+   *  入力が遅れると、その間の月も満額でお送りしているはずですが、
+   *  overPay には出ません。**エラーも警告も出ずに、金額が合わなくなります。**
+   *
+   *    例）10月25日に決まった → 12月20日に入力した
+   *        ・10月分の払いすぎ … overPay が出します
+   *        ・11月分・12月分　 … どこにも出ません（満額で送ったまま）
+   *
+   *  ご指示（2026/10/6）は「入力は遅れない」でしたが、遅れるのは
+   *  たいてい忙しいとき・担当が替わったとき・休んだときです。
+   *  そのときだけ声が出るようにしておきます。
+   *
+   *  【どう見るか】
+   *    契約が決まった月より **後** の月で、その月の送金日（15日）を
+   *    すでに過ぎているものを並べます。
+   *
+   *  ★実際にお送りしたかどうかは、ここでは分かりません。
+   *    「いつ入力したか」を残していないためです（ご指示により増やしません）。
+   *    ですから金額は断定せず、**ご確認のお願い**として出します。
+   * ════════════════════════════════════════════ */
+  function lateMonths(r, at, term){
+    var sg = day(r && r.sign);
+    var st = startDay(r);
+    if(!sg || !st || !base(r)) return [];
+    /* 保証が始まる前に決まっていれば、そもそも1円も送っていません */
+    if(plus(sg, -1).getTime() < st.getTime()) return [];
+
+    var now = at || today0();
+    var t   = (term === undefined) ? termEnd() : term;
+    var bare = { room:r.room, out:r.out, rent:r.rent, sign:'' };
+    var out = [], m = mon1(plusM(mon1(sg), 1)), guard = 0;
+    while(m.getTime() <= mon1(now).getTime() && guard++ < 36){
+      var pay = new Date(m.getFullYear(), m.getMonth(), PAY_DAY);
+      if(pay.getTime() <= now.getTime()){
+        var p = monthPay(bare, m, t);          /* 契約を知らなければ送ったはずの額 */
+        if(p && p.yen) out.push({ y:m.getFullYear(), mo:m.getMonth() + 1, yen:p.yen });
+      }
+      m = mon1(plusM(m, 1));
+    }
+    return out;
   }
 
   /* ★ これから送る残り。
