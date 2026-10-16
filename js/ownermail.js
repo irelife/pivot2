@@ -1278,7 +1278,7 @@ function renderExcludedViewOnly(){
   const exOwners=owners.filter(o=>o.exclude);
   if(!exOwners.length){ exSec.style.display="none"; exBox.innerHTML=""; return; }
   exSec.style.display="block";
-  const _gu=document.getElementById('sophiaGasUrl'); if(_gu && !_gu.value){ _gu.value=getSophiaGasUrl(); }
+  const _gu=document.getElementById('sophiaGasUrl'); if(_gu && !_gu.value){ _gu.value=getSophiaGasUrl(); } sophiaGasHint();
   exBox.innerHTML=exOwners.map((o,k)=>{
     const accumId="exaccumV-"+k;
     return `<div class="pv-item" style="border-left:4px solid #c8a96b;margin-bottom:10px;">
@@ -1402,7 +1402,7 @@ function renderPreview(){
   if(exSec && exBox){
     if(excludedIdx.length){
       exSec.style.display="block";
-      const _gu=document.getElementById('sophiaGasUrl'); if(_gu && !_gu.value){ _gu.value=getSophiaGasUrl(); }
+      const _gu=document.getElementById('sophiaGasUrl'); if(_gu && !_gu.value){ _gu.value=getSophiaGasUrl(); } sophiaGasHint();
       exBox.innerHTML=excludedIdx.map(i=>{
         const d=detail[i];
         const pageList=d.props.flatMap(p=>p.pages||[]).sort((a,b)=>a-b);
@@ -1786,8 +1786,31 @@ async function downloadOwnerPdf(i){
    - 社員全員が同じDriveを参照・蓄積できる。
    ========================================================= */
 const SOPHIA_GAS_KEY='sophia_gas_url_v1';
-const SOPHIA_GAS_DEFAULT='https://script.google.com/macros/s/AKfycbziyfOAZHMr1m9ocFJrl0uLPGg5pwSZoHbb_gJETlEbGlHcHdmu6ZglOVl7TwJqMYuq/exec';
+/* ★ GAS の URL は、ここには書きません。
+ *
+ *  irelife/pivot2 と pivot3 は「公開」リポジトリです。
+ *  ここに URL を書くと、誰でも読めて、誰でもその GAS を叩けます。
+ *  （2026/10/16 まで、実際に書いてありました。取り除いています）
+ *
+ *  入れ方は、メインの cloud_url と同じです。
+ *    別管理（除外オーナー）の上にある入力欄に貼る
+ *      → localStorage に保存され、その端末だけで使われます
+ *
+ *  未設定のままでも、物件・契約・オーナーの動きには一切影響しません。
+ *  別管理オーナーの「共用Driveへの蓄積」だけが止まります。          */
+const SOPHIA_GAS_DEFAULT='';
 function getSophiaGasUrl(){ try{ return localStorage.getItem(SOPHIA_GAS_KEY)||SOPHIA_GAS_DEFAULT; }catch(e){ return SOPHIA_GAS_DEFAULT; } }
+/* ★ 未設定のときに、入力欄のとなりへ案内を出します。
+ *  空欄のまま置かれると、保存を押しても何も起きない理由が分かりません。 */
+function sophiaGasHint(){
+  try{
+    var stat=document.getElementById('sophiaGasStat');
+    if(!stat) return;
+    if(getSophiaGasUrl()) return;
+    stat.textContent='※ 未設定です。共用Driveへの蓄積を使うときは、URLを貼って保存してください';
+    stat.style.color='#8a6d2f';
+  }catch(e){}
+}
 // 別管理（除外）から外して、通常の送信一覧へ戻す
 function unexcludeOwner(name){
   const o = owners.find(x => norm(x.name) === norm(name));

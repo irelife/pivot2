@@ -10,6 +10,34 @@
 const { execFileSync } = require('child_process');
 const path = require('path');
 
+/* ★ playwright が「端末全体」にだけ入っているときでも、検査が動くようにします。
+ *
+ *  tests/ の下に node_modules を置いていない端末では、
+ *  playwright も playwright-core も見つからず、
+ *  17件が17件とも「合格0」で落ちていました。
+ *  中身の不具合ではなく、置き場所の問題です。
+ *
+ *  node が既定で見る場所に、全体の node_modules を足します。
+ *  各検査は子プロセスなので、この環境変数をそのまま引き継ぎます。   */
+(function(){
+  try{ require.resolve('playwright'); return; }catch(e){}
+  try{ require.resolve('playwright-core'); return; }catch(e){}
+  const fs = require('fs');
+  const cand = [];
+  try{ cand.push(path.join(path.dirname(path.dirname(process.execPath)), 'lib', 'node_modules')); }catch(e){}
+  try{ (require('module').globalPaths || []).forEach(function(p){ cand.push(p); }); }catch(e){}
+  const add = cand.filter(function(p){
+    try{ return !!p && fs.existsSync(path.join(p, 'playwright')); }catch(e){ return false; }
+  });
+  if(add.length){
+    process.env.NODE_PATH = [process.env.NODE_PATH].concat(add).filter(Boolean).join(path.delimiter);
+    try{ require('module').Module._initPaths(); }catch(e){}
+    console.log('playwright は端末全体の場所から使います: ' + add[0]);
+  }else{
+    console.log('⚠ playwright が見つかりません。tests/ で  npm i  を実行してください。');
+  }
+})();
+
 const DIR = path.resolve(process.argv[2] || path.join(__dirname, '..'));
 
 const SUITES = [
