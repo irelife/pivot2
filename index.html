@@ -730,6 +730,39 @@
           <label>消費税率</label>
           <input type="text" id="ky-tax-rate" value="10" style="text-align:right;">
         </div>
+        <!-- ★2026/11/17 支払日と支払い方法を選べるようにしました。
+             これまでは契約書の第2条が「毎月27日」「口座振替」で決め打ちでした。
+             ここで選んだ言葉が、そのまま第2条に入ります。
+             物件の賃貸借契約書が「末日まで」のときは、末日 を選んでください。 -->
+        <div class="form-field" style="flex:1;max-width:140px;">
+          <label>支払日</label>
+          <select id="ky-pay-day">
+            <option value="27日">毎月27日</option>
+            <option value="末日">毎月末日</option>
+          </select>
+        </div>
+        <div class="form-field" style="flex:1;max-width:160px;">
+          <label>支払い方法</label>
+          <select id="ky-pay-method">
+            <option value="口座振替">口座振替</option>
+            <option value="振込">振込</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- ★2026/11/17 特約事項の追記。
+           第10条には、もともと3項目（証明書の発行料・消費税・反社）が
+           入っています。ここに書いたものが、その 4番目 から続けて足されます。
+           ★1行＝1項目です。空の行は飛ばします。
+           ★号室のある区画を開いたときは、居室契約と連動して終わる特約を
+             はじめから入れておきます（物件名と号室は自動で入ります）。
+             要らないときは、この欄を空にしてください。 -->
+      <div class="form-row">
+        <div class="form-field" style="flex:1;">
+          <label>特約事項の追記（第10条の4番目から足されます・1行＝1項目）</label>
+          <textarea id="ky-tokuyaku" rows="5" style="font-size:12px;line-height:1.7;"
+            placeholder="空のままなら、もとの3項目だけが印刷されます。"></textarea>
+        </div>
       </div>
  
       <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;letter-spacing:1px;border-bottom:1px solid #000;padding-bottom:4px;">■ 賃借人(乙)</h4>
@@ -1109,7 +1142,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="js/firebase-config.js?v=1"></script>
 <script src="js/core.js?v=35"></script>
-<script src="js/buildings.js?v=17"></script>
+<script src="js/buildings.js?v=18"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="js/ownermail.js?v=22"></script>
 <script src="js/tomypage.js?v=22"></script>

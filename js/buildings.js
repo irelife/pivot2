@@ -1124,6 +1124,30 @@ function openKeiyakuModal(spotIdx){
   document.getElementById('ky-period-from').value = isoDate(today);
   const to = new Date(today); to.setFullYear(to.getFullYear()+2); to.setDate(to.getDate()-1);
   document.getElementById('ky-period-to').value = isoDate(to);
+  /* ★2026/11/17 特約事項の追記。
+       居室の契約が終わったら、駐車場の契約も当然に終わる、という特約です。
+       （居室だけ解約して、駐車場に居座られるのを防ぐためのもの）
+       号室が分かるときだけ、はじめから入れておきます。
+       号室の無い区画（月極だけのお客様など）には、入れません。 */
+  try{
+    var _tk = document.getElementById('ky-tokuyaku');
+    if(_tk){
+      var _kRm = (spot.room || spot.res_room || '');
+      if(_kRm){
+        var _kBld = bld.name || '';
+        _tk.value =
+          '本契約は、賃借人が賃借する【' + _kBld + '】【' + _kRm + '】号室に係る賃貸借契約' +
+          '（以下「居室契約」という。）に付随するものとする。\n' +
+          '本契約の契約期間及び解約予告期間の定めにかかわらず、居室契約が期間満了、解約、' +
+          '解除その他の事由により終了したときは、本契約も、別途の通知又は解約手続を要する' +
+          'ことなく、居室契約の終了日と同日に当然に終了する。\n' +
+          '前項により本契約が終了する場合、賃借人は、居室契約の終了日までに車両及び私物を' +
+          '撤去し、本駐車区画を賃貸人に明け渡すものとする。';
+      }else{
+        _tk.value = '';
+      }
+    }
+  }catch(e){}
   document.getElementById('keiyaku-modal').classList.add('active');
 }
 
@@ -1182,6 +1206,27 @@ function printKeiyaku(){
     periodFrom: periodFrom,
     periodTo: periodTo,
     contractDate: document.getElementById('ky-contract-date').value,
+    /* ★2026/11/17 特約事項の追記。1行＝1項目。空の行は飛ばします。 */
+    tokuyaku: (function(){
+      var el = document.getElementById('ky-tokuyaku');
+      if(!el) return [];
+      return String(el.value || '').split(/\r?\n/)
+        .map(function(x){ return x.trim(); })
+        .filter(function(x){ return x; });
+    })(),
+    /* ★2026/11/17 支払日（27日／末日）と 支払い方法（口座振替／振込）。
+         古い画面にはこの欄が無いので、無ければ これまでどおり
+         「毎月27日」「口座振替」にします。 */
+    payDay: (function(){
+      var el = document.getElementById('ky-pay-day');
+      var v = el ? String(el.value || '').trim() : '';
+      return v || '27日';
+    })(),
+    payMethod: (function(){
+      var el = document.getElementById('ky-pay-method');
+      var v = el ? String(el.value || '').trim() : '';
+      return v || '口座振替';
+    })(),
     company: getCompanyInfo()
   });
 }
@@ -1216,6 +1261,8 @@ function generateKeiyakuPrint(data){
     'html,body{margin:0;padding:0;}' +
     'body{font-family:"MS Mincho","Yu Mincho",serif;font-size:12.5pt;color:#000;line-height:1.7;margin:0;}' +
     '.sheet{width:100%;page-break-inside:avoid;break-inside:avoid;page-break-after:avoid;break-after:avoid;overflow:hidden;}' +
+    /* ★2026/11/17 1枚に収めるときの、縮小の起点 */
+    '.sheet{transform-origin:top left;}' +
     '@media print{.sheet{page-break-after:avoid;break-after:avoid;} .sheet *{page-break-inside:avoid;}}' +
     '.title{font-size:26pt;text-align:center;font-weight:700;letter-spacing:14px;margin:8px 0 40px 0;}' +
     '.cols{display:grid;grid-template-columns:1fr 1fr;gap:12mm;}' +
@@ -1256,7 +1303,7 @@ function generateKeiyakuPrint(data){
             '専用区画1台「' + escapeHtml(data.spotNo) + '」' +
           '</div>' +
           '<div class="clause-title">賃料：第2条</div>' +
-          '<p class="clause-body">賃料は月額金 ' + formatYen(price) + ' 円(消費税率' + taxRate + '%、うち消費税' + formatYen(taxAmount) + '円)とし、毎月27日に翌月分を口座振替にて支払うものとする。</p>' +
+          '<p class="clause-body">賃料は月額金 ' + formatYen(price) + ' 円(消費税率' + taxRate + '%、うち消費税' + formatYen(taxAmount) + '円)とし、毎月' + escapeHtml(data.payDay || '27日') + 'に翌月分を' + escapeHtml(data.payMethod || '口座振替') + 'にて支払うものとする。</p>' +
           '<div class="clause-title">賃貸借期間：第3条</div>' +
           '<p class="clause-body">本契約の有効期間は、' + fmtJp(data.periodFrom) + 'から' + fmtJp(data.periodTo) + 'までの満2年間とする。<br>' +
           '前項の期間満了1ヶ月前迄に甲または乙どちらかの相手方に対する解約の申し入れがない場合は、自動的に同条件にて2年間契約を更新し、以後も同様とする。</p>' +
@@ -1289,6 +1336,11 @@ function generateKeiyakuPrint(data){
             '<li>乙の希望により、各種証明書等が必要な場合は金3,300 円(消費税率10%、うち消費税300円)にて甲が交付するものとする。</li>' +
             '<li>賃料及び証明書等発行料は、税法の改正により消費税等の税率が増減した場合は、改正税法施行日以降における増減後の税率により計算した税額とする。</li>' +
             '<li>甲乙共に反社会的勢力でないことを確約し、これに違反した場合、相手方は無催告で本契約を解除することができる。</li>' +
+            /* ★2026/11/17 画面の「特約事項の追記」。4番目から続きます。
+                 空なら、何も足しません（これまでと同じ3項目のままです）。 */
+            (data.tokuyaku || []).map(function(t){
+              return '<li>' + escapeHtml(t) + '</li>';
+            }).join('') +
           '</ol></div>' +
           '<p class="tail-text">以上のとおり契約が成立したことを証するため、本書2通を作成し、甲乙各自署名のうえ、甲乙各自その1通を保有する。</p>' +
           '<p style="text-align:right;font-size:9.5pt;margin:8px 0 4px;">' + contractDateJp + '</p>' +
@@ -1307,13 +1359,39 @@ function generateKeiyakuPrint(data){
       '</div>' +
     '</div>' +
     '<scr'+'ipt>' +
+    /* ★2026/11/17 1枚に収める。
+         特約事項を足すと、文字の量しだいで A3 1枚に入らなくなります。
+         入らないときだけ、入るまで少しずつ小さくします（最小 70%）。
+         70% でも入らないときは、無理に切らず 2枚目へ送ります。
+         文字を切って読めなくするより、2枚になるほうが安全だからです。 */
+    'function fitOnePage(){' +
+      'var sh = document.querySelector(".sheet");' +
+      'if(!sh) return 1;' +
+      'sh.style.zoom = "";' +
+      'var probe = document.createElement("div");' +
+      'probe.style.cssText = "position:absolute;left:-9999px;top:0;width:1mm;height:283mm;";' +
+      'document.body.appendChild(probe);' +
+      'var have = probe.offsetHeight;' +
+      'probe.parentNode.removeChild(probe);' +
+      'if(!have) return 1;' +
+      'var z = 1;' +
+      'for(var i = 0; i < 20; i++){' +
+        'if(sh.getBoundingClientRect().height <= have) break;' +
+        'z = Math.round((z - 0.02) * 100) / 100;' +
+        'if(z < 0.70){ z = 0.70; sh.style.zoom = z; break; }' +
+        'sh.style.zoom = z;' +
+      '}' +
+      'return z;' +
+    '}' +
+    'window.addEventListener("beforeprint", fitOnePage);' +
     'window.addEventListener("load", function(){' +
+      'fitOnePage();' +
       'var imgs = document.querySelectorAll("img");' +
-      'if(imgs.length === 0){ setTimeout(function(){window.print();}, 200); return; }' +
+      'if(imgs.length === 0){ setTimeout(function(){ fitOnePage(); window.print(); }, 200); return; }' +
       'var loaded = 0, total = imgs.length;' +
-      'var checkDone = function(){ loaded++; if(loaded >= total){ setTimeout(function(){window.print();}, 300); } };' +
+      'var checkDone = function(){ loaded++; if(loaded >= total){ setTimeout(function(){ fitOnePage(); window.print(); }, 300); } };' +
       'imgs.forEach(function(img){ if(img.complete){ checkDone(); } else{ img.addEventListener("load", checkDone); img.addEventListener("error", checkDone); } });' +
-      'setTimeout(function(){ if(loaded < total){ window.print(); } }, 3000);' +
+      'setTimeout(function(){ if(loaded < total){ fitOnePage(); window.print(); } }, 3000);' +
     '});' +
     '<\/scr'+'ipt>' +
     '<\/body><\/html>';
